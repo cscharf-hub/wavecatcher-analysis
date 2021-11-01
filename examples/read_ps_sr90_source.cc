@@ -5,7 +5,6 @@
 #include <math.h>
 #include <TCanvas.h>
 
-#include "../ReadRun.cc"
 using namespace std;
 
 void read_ps_sr90_source() // main
@@ -15,7 +14,7 @@ void read_ps_sr90_source() // main
 	string path;
 
 	// edit for your fs
-	path = "C:/SHiP/data/";
+	path = "/mnt/c/SHiP/data/";
 
 	switch (which) { //specify folder to run below, ALL bin files in this folder will be used
 	case(0): {
@@ -78,12 +77,6 @@ void read_ps_sr90_source() // main
 
 	////plotting
 
-	//investigate individual waveforms
-	//TCanvas* tstc = new TCanvas("tstc", "", 1600, 1000);
-	//TH1F* histo = mymeas.Getwf(0, 0, 0);
-	//histo->Draw();
-	//tstc->BuildLegend(0.85, 0.70, .99, .95);
-
 	// plot sums of all events per channel
 	mymeas.PlotChannelSums(true);
 
@@ -115,4 +108,10 @@ void read_ps_sr90_source() // main
 	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event2, ymin, ymax);
 	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event3, ymin, ymax);
 	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event4, ymin, ymax);
+	
+	// only write to root file
+	gROOT->SetBatch(kTRUE);
+	for (int i = 1; i < mymeas.nevents; i += static_cast<int>(mymeas.nevents / 50)) {
+		mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, i, ymin, ymax);
+	}
 }
