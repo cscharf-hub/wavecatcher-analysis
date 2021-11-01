@@ -42,7 +42,7 @@ void read_ps_sr90_source() // main
 		break;
 	}//
 	case(6): {
-		path += "24_test_box1/"; // The other triggerbox
+		path += "24_test_box1/"; // The other trigger box
 		break;
 	}//
 	case(7): {
@@ -81,8 +81,8 @@ void read_ps_sr90_source() // main
 	mymeas.PlotChannelSums(true);
 
 	// investigate charge spectrum. should see photo electron peaks here
-	float intwindowminus = 3.;	// lower integrationwidow in ns rel. to max
-	float intwindowplus = 5.;	// upper integrationwidow in ns rel. to max
+	float intwindowminus = 3.;	// lower integration window in ns rel. to max
+	float intwindowplus = 5.;	// upper integration window in ns rel. to max
 	float findmaxfrom = 100.;	// assume pulse after trigger arrives between here ...
 	float findmaxto = 150.;		// ... and here (depends on trigger delay setting etc., for dark counts the signal is random so we look at the whole recorded time range)
 
@@ -95,13 +95,23 @@ void read_ps_sr90_source() // main
 	mymeas.PrintTimeDist(findmaxfrom, findmaxto, findmaxfrom - 5, findmaxto + 5, 60);
 
 	// plot waveforms of individual events
+	int event1 = 68;
+	int event2 = 79;
+	int event3 = 269;
+	int event4 = 270;
 	//plot range
 	double ymin = -5;
 	double ymax = 25;
 
 	// plot waveforms for certain events with integration window
-	gROOT->SetBatch(kTRUE); // only write to root file
-	for (int i = 1; i < mymeas.nevents; i += static_cast<int>(mymeas.nevents / 100)) {
+	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event1, ymin, ymax);
+	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event2, ymin, ymax);
+	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event3, ymin, ymax);
+	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event4, ymin, ymax);
+	
+	// only write to root file
+	gROOT->SetBatch(kTRUE);
+	for (int i = 1; i < mymeas.nevents; i += static_cast<int>(mymeas.nevents / 50)) {
 		mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, i, ymin, ymax);
 	}
 }
