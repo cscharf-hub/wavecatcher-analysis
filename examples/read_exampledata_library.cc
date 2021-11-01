@@ -3,19 +3,22 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <TSystem.h>
 #include <TCanvas.h>
 
-#include "../ReadRun.cc" // adjust path
+
+// you'll need to compile the analysis first!
+
 using namespace std;
 
-void read_simple_exampledata() // main
+void read_exampledata_library() // main
 {
 	int which = 0; //select meas
 
 	string path;
 
 	// edit for your fs
-	path = "C:/SHiP/github/wavecatcher-analysis/examples/";
+	path = "/mnt/c/SHiP/github/wavecatcher-analysis/examples/";
 
 	switch (which) { //specify folder to run below, ALL bin files in this folder will be used
 	case(0): {
