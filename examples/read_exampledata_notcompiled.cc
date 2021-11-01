@@ -6,19 +6,18 @@
 #include <TSystem.h>
 #include <TCanvas.h>
 
-
-// you'll need to compile the analysis first!
-
+// uses the non-compiled code, useful for development and sufficient for data <100 Mb
+#include "../ReadRun.cc" // adjust path
 using namespace std;
 
-void read_exampledata_library() // main
+void read_exampledata_notcompiled() // main
 {
 	int which = 0; //select meas
 
 	string path;
 
 	// edit for your fs
-	path = "/mnt/c/SHiP/github/wavecatcher-analysis/examples/";
+	path = "C:/SHiP/github/wavecatcher-analysis/examples/";
 
 	switch (which) { //specify folder to run below, ALL bin files in this folder will be used
 	case(0): {
@@ -76,4 +75,10 @@ void read_exampledata_library() // main
 	// plot waveforms for certain events with integration window
 	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event1, ymin, ymax);
 	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event2, ymin, ymax);
+
+	// only write to root file
+	gROOT->SetBatch(kTRUE);
+	for (int i = 1; i < mymeas.nevents; i += static_cast<int>(mymeas.nevents / 10)) {
+		mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, i, ymin, ymax);
+	}
 }

@@ -5,7 +5,6 @@
 #include <math.h>
 #include <TCanvas.h>
 
-#include "../ReadRun.cc"
 using namespace std;
 
 void read_cosmics() // main
@@ -18,7 +17,7 @@ void read_cosmics() // main
 	string path;
 
 	// edit for your fs
-	path = "C:/SHiP/data/";
+	path = "/mnt/c/SHiP/data/";
 
 	switch (which) { //specify folder to run below, ALL bin files in this folder will be used
 	case(0): {
@@ -115,7 +114,6 @@ void read_cosmics() // main
 	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event1, -15, 150.);
 	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event2, -15, 150);
 	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event3, -15, 150);
-	//mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, 500, -15, 15);
 
 	bool printfft = false;
 	if (printfft) {

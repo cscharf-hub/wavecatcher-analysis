@@ -67,6 +67,8 @@ private:
 // struct copied from
 // WaveCatcher binary -> root converter
 // by manu chauveau@cenbg.in2p3.fr
+// see https://owncloud.lal.in2p3.fr/public.php?service=files&t=56e4a2c53a991cb08f73d03f1ce58ba2
+
 	struct event_data
 	{
 		int EventNumber;
@@ -167,6 +169,9 @@ public:
 	vector<int> plot_active_channels; // stores the numbers of the active channels which should be plotted
 
 	vector<vector<float>> baseline_correction_result; // store baseline values
+
+
+	TFile* root_out;
 
 	ClassDef(ReadRun, 1)
 };

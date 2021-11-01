@@ -1,12 +1,13 @@
 #include <iostream>
-#include <cmath>
+#include <cmath> 
 #include <string.h>
-#include <stdio.h>
-#include <math.h>
+#include <stdio.h>  
+#include <math.h> 
 #include <TCanvas.h>
 
-#include "../ReadRun.cc"
+//#include "ReadRun.cc"
 using namespace std;
+
 
 void read_ps_sr90_source() // main
 {
@@ -15,15 +16,15 @@ void read_ps_sr90_source() // main
 	string path;
 
 	// edit for your fs
-	path = "C:/SHiP/data/";
+	path = "/mnt/c/SHiP/data/";
 
 	switch (which) { //specify folder to run below, ALL bin files in this folder will be used
 	case(0): {
-		path += "18_Sr_ps/"; //
+		path += "18_Sr_ps/"; // 
 		break;
 	}//
 	case(1): {
-		path += "16_Sr_nops/"; //
+		path += "16_Sr_nops/"; // 
 		break;
 	}//
 	case(2): {
@@ -31,7 +32,7 @@ void read_ps_sr90_source() // main
 		break;
 	}//
 	case(3): {
-		path += "21_Sr_ps_drilled/"; //
+		path += "21_Sr_ps_drilled/"; // 
 		break;
 	}//
 	case(4): {
@@ -39,15 +40,15 @@ void read_ps_sr90_source() // main
 		break;
 	}//
 	case(5): {
-		path += "23_test_box2_reverse/"; //
+		path += "23_test_box2_reverse/"; // 
 		break;
 	}//
 	case(6): {
-		path += "24_test_box1/"; // The other trigger box
-		break;
+		   path += "24_test_box1/"; // The other triggerbox
+		   break;
 	}//
 	case(7): {
-		path += "25_test_box1_reverse/"; //
+		path += "25_test_box1_reverse/"; // 
 		break;
 	}//
 	default: {
@@ -67,7 +68,7 @@ void read_ps_sr90_source() // main
 	//apply baseline correction to ALL waveforms <- NEEDED but slow when not compiled
 	//mymeas.SmoothAll(3); // smoothing of waveforms. Caution, will bias results!!
 	mymeas.CorrectBaseline(0., 50.);	// use mean from 0 ns to 50 ns
-
+	
 	// print events above a threshold to identify interesting events
 	mymeas.FractionEventsAboveThreshold(4, true, true, 100, 150);
 
@@ -84,14 +85,17 @@ void read_ps_sr90_source() // main
 	//histo->Draw();
 	//tstc->BuildLegend(0.85, 0.70, .99, .95);
 
+
 	// plot sums of all events per channel
 	mymeas.PlotChannelSums(true);
 
+
 	// investigate charge spectrum. should see photo electron peaks here
-	float intwindowminus = 3.;	// lower integration window in ns rel. to max
-	float intwindowplus = 5.;	// upper integration window in ns rel. to max
+	float intwindowminus = 3.;	// lower integrationwidow in ns rel. to max
+	float intwindowplus = 5.;	// upper integrationwidow in ns rel. to max
 	float findmaxfrom = 100.;	// assume pulse after trigger arrives between here ...
-	float findmaxto = 150.;		// ... and here (depends on trigger delay setting etc., for dark counts the signal is random so we look at the whole recorded time range)
+	float findmaxto = 150.;		// ... and here (depends on trigger delay setting etc., for dark counts the signal is random so we look at the whole recorded time range)	
+
 
 	// plot all charge spectrum of channels
 	mymeas.PrintChargeSpectrum(intwindowminus, intwindowplus, findmaxfrom, findmaxto, -1e2, 2.e3, 500, 0, 0, 0);
@@ -101,18 +105,22 @@ void read_ps_sr90_source() // main
 	// timing of maximum
 	mymeas.PrintTimeDist(findmaxfrom, findmaxto, findmaxfrom - 5, findmaxto + 5, 60);
 
+	//int channel15_index = find(mymeas.active_channels.begin(), mymeas.active_channels.end(), 15) - mymeas.active_channels.begin(); 
+	//cout << "\n index of channel 15: " << channel15_index << endl;
+	//auto charge_spectrum = mymeas.ChargeSpectrum(static_cast<int>(channel15_index), intwindowminus, intwindowplus, findmaxfrom, findmaxto, -5e1, 7.5e2, 100);
+	//auto cscanv = new TCanvas("charge spectrum");
+	//charge_spectrum->GetYaxis()->SetTitle("#Entries");
+	//charge_spectrum->GetXaxis()->SetTitle("integral in mV#timesns");
+	//charge_spectrum->Draw();
+
 	// plot waveforms of individual events
-	int event1 = 68;
-	int event2 = 79;
-	int event3 = 269;
-	int event4 = 270;
 	//plot range
 	double ymin = -5;
 	double ymax = 25;
 
 	// plot waveforms for certain events with integration window
-	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event1, ymin, ymax);
-	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event2, ymin, ymax);
-	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event3, ymin, ymax);
-	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event4, ymin, ymax);
+	gROOT->SetBatch(kTRUE); // only write to root file
+	for (int i=1; i<mymeas.nevents; i+= static_cast<int>(mymeas.nevents/100)) {
+		mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, i, ymin, ymax);
+	}
 }

@@ -3,9 +3,11 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <TSystem.h>
 #include <TCanvas.h>
 
-#include "../ReadRun.cc" // adjust path
+// you'll need to compile the analysis first!
+
 using namespace std;
 
 void read_exampledata() // main
@@ -15,7 +17,7 @@ void read_exampledata() // main
 	string path;
 
 	// edit for your fs
-	path = "C:/SHiP/github/wavecatcher-analysis/examples/";
+	path = "/mnt/c/SHiP/github/wavecatcher-analysis/examples/";
 
 	switch (which) { //specify folder to run below, ALL bin files in this folder will be used
 	case(0): {
@@ -73,4 +75,10 @@ void read_exampledata() // main
 	// plot waveforms for certain events with integration window
 	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event1, ymin, ymax);
 	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event2, ymin, ymax);
+
+	// only write to root file
+	gROOT->SetBatch(kTRUE);
+	for (int i = 1; i < mymeas.nevents; i += static_cast<int>(mymeas.nevents / 10)) {
+		mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, i, ymin, ymax);
+	}
 }

@@ -18,6 +18,8 @@ ReadRun::ReadRun(int bla) {
 ReadRun::ReadRun(string path, bool changesignofPMTs) {
 	bool out = false; //experimental, not working
 
+	root_out = TFile::Open("out.root", "recreate");
+
 	// Wavecatcher hardware/software properties
 	SP = 0.3125;					// ns per bin
 	pe = 47.46;					//mV*ns ????
@@ -192,7 +194,7 @@ ReadRun::ReadRun(string path, bool changesignofPMTs) {
 				if (event_counter == 0) active_channels.push_back(static_cast<int>(output_channel));
 
 				TString name(Form("channel_%02d, event %05d ", output_channel, an_event.EventNumber));
-				TString title(Form("Channel %d, event %d data", output_channel, an_event.EventNumber));
+				TString title(Form("Channel %d, event %d raw data", output_channel, an_event.EventNumber));
 				TH1F* hCh = (TH1F*)testrundata.ConstructedAt(wfcounter);
 				hCh->SetName(name.Data());
 				hCh->SetTitle(title.Data());
@@ -225,7 +227,6 @@ ReadRun::ReadRun(string path, bool changesignofPMTs) {
 						output_file.write((char*)(&a_channel_data_without_measurement), sizeof(channel_data_without_measurement));
 					}
 				}
-
 				wfcounter++;
 			} // for ch
 
@@ -296,7 +297,7 @@ void ReadRun::PlotChannelSums(bool doaverage) {
 	mgsums->Draw("APL");
 	mgsums->GetYaxis()->SetRangeUser(-1e4, 10e4);
 	sumc->BuildLegend(0.85, 0.70, .99, .95);
-	sumc->SaveAs("channelsums.pdf");
+	root_out->WriteObject(sumc, "channelsums");
 }
 
 // averaging all waveforms (for testing)
@@ -716,9 +717,7 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 	}
 	intwinc->Update();
 
-	stringstream namess;
-	namess << name.Data() << ".pdf";
-	intwinc->SaveAs(namess.str().c_str());
+	root_out->WriteObject(intwinc, name.Data());
 }
 
 TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins) {
@@ -821,7 +820,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 		}
 	}
 	chargec->Update();
-	chargec->SaveAs("ChargeSpectra.pdf");
+	root_out->WriteObject(chargec, "ChargeSpectra");
 }
 
 void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, double threshold) {
@@ -876,7 +875,7 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 	cout << "\n PMT charge spectrum is counting events above threshold from bin center >= " << threshold_bin_center << " mV " << "for a threshold setting of " << threshold << " mV\n\n";
 
 	chargec->Update();
-	chargec->SaveAs("ChargeSpectraPMT.pdf");
+	root_out->WriteObject(chargec, "ChargeSpectraPMT"); 
 }
 
 // time distribution of max in a certain time window
@@ -924,7 +923,7 @@ void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangee
 	}
 
 	time_dist_c->Update();
-	time_dist_c->SaveAs("TimeDist.pdf");
+	root_out->WriteObject(time_dist_c, "TimeDist");
 }
 
 // helper functions
@@ -1151,13 +1150,9 @@ void ReadRun::PrintFFTWF(int eventnr, float xmin, float xmax, int multiplier) {
 	fftc->Update();
 	imfftc->Update();
 
-	stringstream namess;
-	namess << name.Data() << ".pdf";
-	fftc->SaveAs(namess.str().c_str());
-	stringstream imnamess;
-	imnamess << imname.Data() << ".pdf";
-	imfftc->SaveAs(imnamess.str().c_str());
-
+	root_out->WriteObject(fftc, name.Data());
+	root_out->WriteObject(imfftc, imname.Data()); 
+	
 	delete[] yvals;
 	delete[] refft;
 	delete[] imfft;

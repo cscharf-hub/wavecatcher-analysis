@@ -5,7 +5,6 @@
 #include <math.h>
 #include <TCanvas.h>
 
-#include "../ReadRun.cc"
 using namespace std;
 
 void read() // main
@@ -18,7 +17,7 @@ void read() // main
 	string path;
 
 	// edit for your fs
-	path = "C:/SHiP/data/";
+	path = "/mnt/c/SHiP/data/";
 
 	switch (which) { //specify folder to run below, ALL bin files in this folder will be used
 	case(0): {
