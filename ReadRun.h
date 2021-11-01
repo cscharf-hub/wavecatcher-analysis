@@ -4,10 +4,13 @@
 // contact: christian.scharf@cern.ch
 // some includes are probably not needed anymore
 
-#include "Math/Minimizer.h"
-#include "Math/Factory.h"
-#include "Math/Functor.h"
-#include "TComplex.h"
+#include <Math/Minimizer.h>
+#include <Math/Factory.h>
+#include <Math/Functor.h>
+#include <TClonesArray.h>
+#include <TSystemDirectory.h>
+#include <TSystemFile.h>
+#include <TComplex.h>
 #include <TVirtualFFT.h>
 #include <TLine.h>
 #include <TGraph.h>
@@ -28,8 +31,8 @@
 #include <THStack.h>
 #include <THistPainter.h>
 #include <TText.h>
-#include <TSpectrum.h>   // peak finder
-#include <TPolyMarker.h> // peak finder
+#include <TSpectrum.h>   // peakfinder
+#include <TPolyMarker.h> // peakfinder
 #include <TError.h>      // root verbosity level
 #include <TSystem.h>     // root verbosity level
 #include <TLatex.h>      // root verbosity level
@@ -46,6 +49,8 @@
 #include <numeric>
 #include <tuple>
 #include <map>
+
+using namespace std;
 
 class ReadRun/* : public TObject*/ {
 private:
