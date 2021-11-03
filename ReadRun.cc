@@ -670,20 +670,18 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 
 	TString name(Form("waveforms_event__%05d", eventnr));
 	TCanvas* intwinc = new TCanvas(name.Data(), name.Data(), 1600, 1000);
-
-	if (plot_active_channels.empty()) intwinc->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
-	else intwinc->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
+	SplitCanvas(intwinc);
 
 	int current_canvas = 0;
 	//  DORAMAS: We need to find the position where the event has been stored. This way we will go to the correct WC event when using rundata->At()
-	eventnr = distance(eventnr_storage.begin(), find(eventnr_storage.begin(), eventnr_storage.end(), eventnr));
+	//eventnr = distance(eventnr_storage.begin(), find(eventnr_storage.begin(), eventnr_storage.end(), eventnr));
+	//GetEventIndex(eventnr);
 
 	for (int i = 0; i < nchannels; i++) {
 		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
 			current_canvas++;
 
-			TH1F* his;
-			his = ((TH1F*)rundata->At(eventnr * nchannels + i));
+			TH1F* his = Getwf(i, GetEventIndex(eventnr));
 			int* windowind = GetIntWindow(his, windowlow, windowhi, start, end, i);
 			// create lines to indicate the integration window
 			TLine* low = new TLine(his->GetXaxis()->GetBinCenter(windowind[1]), -5, his->GetXaxis()->GetBinCenter(windowind[1]), 10);
@@ -747,9 +745,8 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 	if (fitrangeend == 0.) fitrangeend = rangeend;
 
 	TCanvas* chargec = new TCanvas("charge spectra", "charge spectra", 1600, 1000);
+	SplitCanvas(chargec);
 
-	if (plot_active_channels.empty()) chargec->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
-	else chargec->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
 	cout << "\n\nThere is data recorded in " << active_channels.size() << " channels \n\n\n";
 	int current_canvas = 0;
 
@@ -829,9 +826,8 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 	gStyle->SetOptStat(0); // 11 is title + entries
 
 	TCanvas* chargec = new TCanvas("charge spectra PMT", "charge spectra PMT", 1600, 1000);
+	SplitCanvas(chargec);
 
-	if (plot_active_channels.empty()) chargec->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
-	else chargec->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
 	int current_canvas = 0;
 	float threshold_bin_center = 0.;
 
@@ -875,7 +871,7 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 	cout << "\n PMT charge spectrum is counting events above threshold from bin center >= " << threshold_bin_center << " mV " << "for a threshold setting of " << threshold << " mV\n\n";
 
 	chargec->Update();
-	root_out->WriteObject(chargec, "ChargeSpectraPMT"); 
+	root_out->WriteObject(chargec, "ChargeSpectraPMT");
 }
 
 // time distribution of max in a certain time window
@@ -901,9 +897,8 @@ void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangee
 	gStyle->SetOptStat(1111); // 11 is title + entries
 
 	TCanvas* time_dist_c = new TCanvas("timing of maximum", "timing of maximum", 1600, 1000);
+	SplitCanvas(time_dist_c);
 
-	if (plot_active_channels.empty()) time_dist_c->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
-	else time_dist_c->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
 	int current_canvas = 0;
 
 	for (int i = 0; i < nchannels; i++) {
@@ -958,7 +953,6 @@ stringstream ReadRun::list_files(const char* dirname, const char* ext) {
 
 TH1F* ReadRun::Getwf(int channelnr, int eventnr, int color) {
 	TH1F* his;
-	if (eventnr > 0) eventnr -= 1; //rundata->At() counter starts at 0 which contains event 1 (wavecatcher event numbering starts with 1)
 	his = (TH1F*)rundata->At(eventnr * nchannels + channelnr);
 	his->SetLineColor(color);
 	his->SetMarkerColor(color);
@@ -988,6 +982,17 @@ double* ReadRun::gety(TH1F* his) {
 		yvals[i] = his->GetBinContent(i);
 	}
 	return yvals;
+}
+
+int ReadRun::GetEventIndex(int eventnr) {
+	if (eventnr <= 0) eventnr = 1; // first event is 1
+	if (eventnr > nevents) eventnr = nevents;
+	return distance(eventnr_storage.begin(), find(eventnr_storage.begin(), eventnr_storage.end(), eventnr));
+}
+
+void ReadRun::SplitCanvas(TCanvas*& c) {
+	if (plot_active_channels.empty()) c->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
+	else c->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
 }
 
 void ReadRun::Convolute(double*& result, double* first, double* second, int size1, int size2) {
@@ -1091,18 +1096,13 @@ void ReadRun::PrintFFTWF(int eventnr, float xmin, float xmax, int multiplier) {
 	// plot waveforms of all channels for a given event number eventnr and add the determined integration windwos to the plot
 	TString name(Form("fft_waveforms_event__%04d", eventnr));
 	TCanvas* fftc = new TCanvas(name.Data(), name.Data(), 1600, 1000);
-	if (plot_active_channels.empty()) fftc->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
-	else fftc->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
+	SplitCanvas(fftc);
 
 	TString imname(Form("fft_im_waveforms_event__%04d", eventnr));
 	TCanvas* imfftc = new TCanvas(imname.Data(), imname.Data(), 1600, 1000);
-	if (plot_active_channels.empty()) imfftc->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
-	else imfftc->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
-
-	if (eventnr > 0) eventnr -= 1; //rundata->At() counter starts at 0 which contains event 1 (wavecatcher event numbering starts with 1)
+	SplitCanvas(imfftc);
 
 	int size = 1024 * multiplier;
-
 	double* xvals = new double[size];
 	for (int i = 0; i < size; i++) {
 		xvals[i] = static_cast<double>(i) / (SP * static_cast<double>(size));
@@ -1114,8 +1114,7 @@ void ReadRun::PrintFFTWF(int eventnr, float xmin, float xmax, int multiplier) {
 	double* yvals = new double[size];
 
 	for (int i = 0; i < nchannels; i++) {
-		TH1F* his;
-		his = ((TH1F*)rundata->At(eventnr * nchannels + i));
+		TH1F* his = Getwf(i, GetEventIndex(eventnr));
 
 		for (int j = 0; j < size; j++) {
 			if (j < 1024) yvals[j] = his->GetBinContent(j + 1);
@@ -1132,7 +1131,7 @@ void ReadRun::PrintFFTWF(int eventnr, float xmin, float xmax, int multiplier) {
 
 		// draw to canvas
 		fftc->cd(i + 1);
-		stringstream renamess; renamess << "Channel " << i << ", event " << eventnr + 1 << ", Re(FFT(data))";
+		stringstream renamess; renamess << "Channel " << active_channels[i] << ", event " << eventnr << ", Re(FFT(data))";
 		re->SetTitle(renamess.str().c_str());
 		re->Draw("AL");
 		gPad->Modified();
@@ -1140,7 +1139,7 @@ void ReadRun::PrintFFTWF(int eventnr, float xmin, float xmax, int multiplier) {
 		//re->GetYaxis()->SetRangeUser(-1*size, size);
 
 		imfftc->cd(i + 1);
-		stringstream imnamess; imnamess << "Channel " << i << ", event " << eventnr + 1 << ", Im(FFT(data))";
+		stringstream imnamess; imnamess << "Channel " << active_channels[i] << ", event " << eventnr << ", Im(FFT(data))";
 		im->SetTitle(imnamess.str().c_str());
 		im->Draw("AL");
 		gPad->Modified();
@@ -1153,8 +1152,8 @@ void ReadRun::PrintFFTWF(int eventnr, float xmin, float xmax, int multiplier) {
 	imfftc->Update();
 
 	root_out->WriteObject(fftc, name.Data());
-	root_out->WriteObject(imfftc, imname.Data()); 
-	
+	root_out->WriteObject(imfftc, imname.Data());
+
 	delete[] yvals;
 	delete[] refft;
 	delete[] imfft;
