@@ -42,7 +42,7 @@ void read_ps_sr90_source() // main
 		break;
 	}//
 	case(6): {
-		path += "24_test_box1/"; // The other trigger box
+		path += "24_test_box1/"; // The other triggerbox
 		break;
 	}//
 	case(7): {
@@ -95,23 +95,17 @@ void read_ps_sr90_source() // main
 	mymeas.PrintTimeDist(findmaxfrom, findmaxto, findmaxfrom - 5, findmaxto + 5, 60);
 
 	// plot waveforms of individual events
-	int event1 = 68;
-	int event2 = 79;
-	int event3 = 269;
-	int event4 = 270;
 	//plot range
 	double ymin = -5;
 	double ymax = 25;
 
 	// plot waveforms for certain events with integration window
-	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event1, ymin, ymax);
-	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event2, ymin, ymax);
-	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event3, ymin, ymax);
-	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event4, ymin, ymax);
-	
-	// only write to root file
-	gROOT->SetBatch(kTRUE);
+	bool printfft = true;
+	gROOT->SetBatch(kTRUE); // only write to root file
 	for (int i = 1; i < mymeas.nevents; i += static_cast<int>(mymeas.nevents / 50)) {
 		mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, i, ymin, ymax);
+		if (printfft) {
+			mymeas.PrintFFTWF(i, 0, .6, 64);
+		}
 	}
 }
