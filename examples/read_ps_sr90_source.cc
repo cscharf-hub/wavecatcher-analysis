@@ -108,4 +108,5 @@ void read_ps_sr90_source() // main
 			mymeas.PrintFFTWF(i, 0, .6, 64);
 		}
 	}
+	gROOT->SetBatch(kFALSE);
 }
