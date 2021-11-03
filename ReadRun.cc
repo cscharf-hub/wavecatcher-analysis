@@ -1091,11 +1091,13 @@ void ReadRun::PrintFFTWF(int eventnr, float xmin, float xmax, int multiplier) {
 	// plot waveforms of all channels for a given event number eventnr and add the determined integration windwos to the plot
 	TString name(Form("fft_waveforms_event__%04d", eventnr));
 	TCanvas* fftc = new TCanvas(name.Data(), name.Data(), 1600, 1000);
-	fftc->Divide(4, ceil(nchannels / 3), 0, 0);
+	if (plot_active_channels.empty()) fftc->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
+	else fftc->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
 
 	TString imname(Form("fft_im_waveforms_event__%04d", eventnr));
 	TCanvas* imfftc = new TCanvas(imname.Data(), imname.Data(), 1600, 1000);
-	imfftc->Divide(4, ceil(nchannels / 3), 0, 0);
+	if (plot_active_channels.empty()) imfftc->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
+	else imfftc->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
 
 	if (eventnr > 0) eventnr -= 1; //rundata->At() counter starts at 0 which contains event 1 (wavecatcher event numbering starts with 1)
 
