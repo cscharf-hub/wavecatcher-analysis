@@ -673,10 +673,6 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 	SplitCanvas(intwinc);
 
 	int current_canvas = 0;
-	//  DORAMAS: We need to find the position where the event has been stored. This way we will go to the correct WC event when using rundata->At()
-	//eventnr = distance(eventnr_storage.begin(), find(eventnr_storage.begin(), eventnr_storage.end(), eventnr));
-	//GetEventIndex(eventnr);
-
 	for (int i = 0; i < nchannels; i++) {
 		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
 			current_canvas++;
@@ -999,6 +995,7 @@ void ReadRun::Convolute(double*& result, double* first, double* second, int size
 	// Include FFT convolution
 	// faster if size1<size2
 
+	// use sum instead of FFT
 	//for (int i = 0; i < size2; i++) {
 	//	result[i] = 0.;
 	//	for (int j = 0; j < TMath::Min(size1, i); j++) {
@@ -1164,4 +1161,4 @@ void ReadRun::PrintFFTWF(int eventnr, float xmin, float xmax, int multiplier) {
 // 1: DC probability																	<-
 // 2: implement method to discard individual waveforms (needed???)						<-
 // 3: store file with fit parameters in data directory									<-
-// 4: compile as library																<- Priority
+// 4: add different histograms to TTree and write to root file							<- priority
