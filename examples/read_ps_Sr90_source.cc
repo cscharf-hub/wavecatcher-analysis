@@ -59,7 +59,7 @@ void read_ps_sr90_source() // main
 	ReadRun mymeas(path, true);
 
 	// only plot certain channels
-	mymeas.plot_active_channels = {9, 14, 15};
+	mymeas.plot_active_channels = { 9, 14, 15 };
 
 	//apply baseline correction to ALL waveforms <- NEEDED but slow when not compiled
 	//mymeas.SmoothAll(3); // smoothing of waveforms. Caution, will bias results!!
