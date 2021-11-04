@@ -15,10 +15,17 @@ ReadRun::ReadRun(int bla) {
 	cout << "\ninit" << endl;
 }
 
-ReadRun::ReadRun(string path, bool changesignofPMTs) {
+ReadRun::ReadRun(string path, bool changesignofPMTs, bool save_all_waveforms) {
+	// reader modified from
+	// WaveCatcher binary -> root converter
+	// by manu chauveau@cenbg.in2p3.fr
+	// see https://owncloud.lal.in2p3.fr/public.php?service=files&t=56e4a2c53a991cb08f73d03f1ce58ba2
+
 	bool out = false; //experimental, not working
 
 	root_out = TFile::Open("out.root", "recreate");
+
+	if (save_all_waveforms) root_out_wf = TFile::Open("outwf.root", "recreate");
 
 	// Wavecatcher hardware/software properties
 	SP = 0.3125;					// ns per bin
@@ -156,7 +163,7 @@ ReadRun::ReadRun(string path, bool changesignofPMTs) {
 		event_data an_event;
 
 		while (input_file.read((char*)(&an_event), sizeof(an_event))) {
-			//file loop
+			//event loop
 
 			if (out) output_file.write((char*)(&an_event), sizeof(an_event));
 
@@ -195,7 +202,7 @@ ReadRun::ReadRun(string path, bool changesignofPMTs) {
 
 				TString name(Form("channel_%02d, event %05d ", output_channel, an_event.EventNumber));
 				TString title(Form("Channel %d, event %d raw data", output_channel, an_event.EventNumber));
-				TH1F* hCh = (TH1F*)testrundata.ConstructedAt(wfcounter);
+				auto hCh = (TH1F*)testrundata.ConstructedAt(wfcounter);
 				hCh->SetName(name.Data());
 				hCh->SetTitle(title.Data());
 				hCh->SetBins(binNumber, -0.5 * SP, 1023.5 * SP);
@@ -218,6 +225,8 @@ ReadRun::ReadRun(string path, bool changesignofPMTs) {
 
 				//hCh->SetLineColor(ch + 1); // gets a bit too colorful
 				//hCh->SetMarkerColor(ch + 1);
+				if (save_all_waveforms) root_out_wf->WriteObject(hCh, title.Data());
+
 				if (out) {
 					if (has_measurement) {
 						// read with 'channel_data_with_measurement' struct
@@ -255,6 +264,8 @@ ReadRun::ReadRun(string path, bool changesignofPMTs) {
 
 	nevents = event_counter;
 	nwf = wfcounter;
+
+	if (save_all_waveforms) root_out_wf->Close();
 }
 
 ReadRun::~ReadRun() {
@@ -263,6 +274,7 @@ ReadRun::~ReadRun() {
 	//delete[] maxSumBin;
 	//delete baseline_correction_result;
 	plot_active_channels.clear();
+	root_out->Close();
 	cout << "deleting nothing currently..." << endl;
 }
 
@@ -584,9 +596,9 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 	cout << threshold << " mV:\n";
 
 	for (int j = 0; j < nwf; j++) {
-		auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone();
+		auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
 
-		// set range (changes all histograms..)
+		// set range where to search for amplitudes above threshold
 		if (from >= 0 && to > 0) {
 			his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
 		}
@@ -992,10 +1004,10 @@ void ReadRun::SplitCanvas(TCanvas*& c) {
 }
 
 void ReadRun::Convolute(double*& result, double* first, double* second, int size1, int size2) {
-	// Include FFT convolution
-	// faster if size1<size2
+	// convolution for smoothing etc
 
-	// use sum instead of FFT
+	// uncomment to use sum instead of FFT
+	// faster if size1<size2
 	//for (int i = 0; i < size2; i++) {
 	//	result[i] = 0.;
 	//	for (int j = 0; j < TMath::Min(size1, i); j++) {
@@ -1046,7 +1058,7 @@ void ReadRun::Convolute(double*& result, double* first, double* second, int size
 }
 
 void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, bool doconv) {
-	//apply smoothing array of double with length nbins
+	// apply smoothing array of double with length nbins
 	// very inefficient
 
 	double* artmp = new double[nbins];
@@ -1161,4 +1173,3 @@ void ReadRun::PrintFFTWF(int eventnr, float xmin, float xmax, int multiplier) {
 // 1: DC probability																	<-
 // 2: implement method to discard individual waveforms (needed???)						<-
 // 3: store file with fit parameters in data directory									<-
-// 4: add different histograms to TTree and write to root file							<- priority

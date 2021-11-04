@@ -145,13 +145,13 @@ public:
 	double* gety(int, int);								// y values for waveform(ch, event)
 	double* gety(TH1F*);								// y values for histogram
 	
-	int GetEventIndex(int);									// get index of event number
+	int GetEventIndex(int);										// get index of a triggered event (finds the correct event if files are not read sequentially)
 	void SplitCanvas(TCanvas*&);								// split canvas into pads to display all active channels on one canvas
 	void Convolute(double*&, double*, double*, int, int);		// convolution for filtering waveforms
 	void SmoothArray(double*&, int, double = 1., bool = false);	// filtering
 	
-	ReadRun(int);
-	ReadRun(string, bool = false); // file name and bool whether or not to change sign of PMT channels (channel number>8)
+	ReadRun(int); // can be used if only certain functions of the class are to be used with data not from the wavecatcher
+	ReadRun(string, bool = false, bool = false); // file name, bool whether or not to change sign of PMT channels (channel number>8), bool whether to save ALL waveforms to root file (only advisable for runs with small number of events)
 
 	virtual ~ReadRun();
 
@@ -174,6 +174,7 @@ public:
 
 
 	TFile* root_out;
+	TFile* root_out_wf;
 
 	ClassDef(ReadRun, 1)
 };

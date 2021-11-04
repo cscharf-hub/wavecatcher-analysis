@@ -58,10 +58,8 @@ void read_ps_sr90_source() // main
 	// read data
 	ReadRun mymeas(path, true);
 
-	// only plot channel 14
-	//int channel_to_plot = 14;
-	//mymeas.plot_active_channels.push_back(channel_to_plot);
-	//mymeas.plot_active_channels.push_back(1);
+	// only plot certain channels
+	mymeas.plot_active_channels = {9, 14, 15};
 
 	//apply baseline correction to ALL waveforms <- NEEDED but slow when not compiled
 	//mymeas.SmoothAll(3); // smoothing of waveforms. Caution, will bias results!!
@@ -100,13 +98,11 @@ void read_ps_sr90_source() // main
 	double ymax = 25;
 
 	// plot waveforms for certain events with integration window
-	bool printfft = true;
+	bool printfft = false;
 	gROOT->SetBatch(kTRUE); // only write to root file
 	for (int i = 1; i < mymeas.nevents; i += static_cast<int>(mymeas.nevents / 50)) {
 		mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, i, ymin, ymax);
-		if (printfft) {
-			mymeas.PrintFFTWF(i, 0, .6, 64);
-		}
+		if (printfft) mymeas.PrintFFTWF(i, 0, .6, 64);
 	}
 	gROOT->SetBatch(kFALSE);
 }
