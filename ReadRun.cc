@@ -742,6 +742,22 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 	return h1;
 }
 
+TH1F* ReadRun::MaxAmplitudeSpectrum(int channel_index, float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins) {
+	// integrate all pulses in range (start, end) from t_max - windowlow to t_max + windowhi for a given channel and return the charge histogram with x range (rangestart, rangeend) and the number of bins nbins
+
+	TString name(Form("channel__%02d", active_channels[channel_index]));
+	TH1F* h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
+
+	for (int j = 0; j < nevents; j++) {
+		TH1F* his = ((TH1F*)rundata->At(j * nchannels + channel_index));
+		int* windowind = GetIntWindow(his, windowlow, windowhi, start, end, channel_index);	// find bin of the maximum amplitude of the event -> [0] of the return of GetIntWindow
+		h1->Fill(his->GetBinContent(windowind[0]));					// fill maximum amplitude spectrum
+		delete[] windowind;
+	}
+
+	return h1;
+}
+
 void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, float fitrangestart, float fitrangeend, int max_channel_nr_to_fit) {
 	// print ReadRun::ChargeSpectrum for all channels optimized for SiPM signals
 	// TODO: INCLUDE BETTER WAY TO READ STARTING VALUES OF FIT PARAMETERS FROM FILE STORED IN DATA DIRECTORY FOR EACH MEASUREMENT
@@ -826,6 +842,92 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 	}
 	chargec->Update();
 	root_out->WriteObject(chargec, "ChargeSpectra");
+}
+
+void ReadRun::PrintMaxAmplitudeSpectrum(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, float fitrangestart, float fitrangeend, int max_channel_nr_to_fit) {
+	// print ReadRun::ChargeSpectrum for all channels optimized for SiPM signals
+	// TODO: INCLUDE BETTER WAY TO READ STARTING VALUES OF FIT PARAMETERS FROM FILE STORED IN DATA DIRECTORY FOR EACH MEASUREMENT
+
+	gStyle->SetOptStat("ne");
+	gStyle->SetOptFit(1111);
+
+	if (fitrangestart == 0.) fitrangestart = rangestart;
+	if (fitrangeend == 0.) fitrangeend = rangeend;
+
+	TCanvas* chargec = new TCanvas("Max Amplitude Spectra", "Max Amplitude Spectra", 1600, 1000);
+	SplitCanvas(chargec);
+
+	cout << "\n\nThere is data recorded in " << active_channels.size() << " channels \n\n\n";
+	int current_canvas = 0;
+
+	for (int i = 0; i < nchannels; i++) {
+		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+			current_canvas++;
+
+			TH1F* his;
+			his = MaxAmplitudeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins);
+			chargec->cd(current_canvas);
+
+			//Fitf fitf;
+			//TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 7);
+			//f->SetLineColor(3);
+			//f->SetParName(0, "N0");					f->SetParameter(0, his->Integral()/3.);
+			//f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
+			//f->SetParName(2, "#lambda");			f->SetParameter(2, .15); //0.2 or 3
+			//f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 3.2);//3.6
+			//f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, .12);		f->SetParLimits(4, 1.e-9, 1.e3);	//f->FixParameter(4, 0.1);
+			//f->SetParName(5, "Gain");				f->SetParameter(5, 10.);	//f->FixParameter(5, 10.);
+			//f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);//7.);									//f->FixParameter(6, 0.);
+
+			Fitf_biased fitf_biased;
+			TF1* f = new TF1("fitf", fitf_biased, fitrangestart, fitrangeend, 9);
+			f->SetLineColor(3);
+
+			//+-1ns 41V nopz 1 SiPM
+			//f->SetParName(0, "N0");					f->SetParameter(0, his->Integral());
+			//f->SetParName(1, "#mu");				f->SetParameter(1, 3.3);// 1.6);
+			//f->SetParName(2, "#lambda");			f->SetParameter(2, .01); //0.2 or 3
+			//f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 4.3);//3.6
+			//f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 1.5);		f->SetParLimits(4, 1.e-9, 1.e3);	//f->FixParameter(4, 0.1);
+			//f->SetParName(5, "Gain");				f->SetParameter(5, 21.);	//f->FixParameter(5, 10.);
+			//f->SetParName(6, "Pedestal");			f->SetParameter(6, 3.9);
+			//f->SetParName(7, "norm_0");				f->SetParameter(7, 0.9); //f->FixParameter(7, 1.);
+			//f->SetParName(8, "x_0");				f->SetParameter(8, 7.);
+
+			//+-1ns 41V nopz 1 SiPM switch 5 tune 8350
+			f->SetParName(0, "N0");					f->SetParameter(0, his->Integral());
+			f->SetParName(1, "#mu");				f->SetParameter(1, 0.7);// 1.6);
+			f->SetParName(2, "#lambda");			f->SetParameter(2, .04); //0.2 or 3
+			f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 2.1);//3.6
+			f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4);		f->SetParLimits(4, 1.e-9, 1.e3);	//f->FixParameter(4, 0.1);
+			f->SetParName(5, "Gain");				f->SetParameter(5, 18.);	//f->FixParameter(5, 10.);
+			f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
+			f->SetParName(7, "norm_0");				f->SetParameter(7, 0.7); //f->FixParameter(7, 1.);
+			f->SetParName(8, "x_0");				f->SetParameter(8, 5.);
+
+			//+-1ns 41V nopz 2 SiPMs
+			//f->SetParName(0, "N0");					f->SetParameter(0, his->Integral());
+			//f->SetParName(1, "#mu");				f->SetParameter(1, 4.);
+			//f->SetParName(2, "#lambda");			f->SetParameter(2, .1);		//f->FixParameter(2, .05);
+			//f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 4.);
+			//f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, .7);		f->SetParLimits(4, 1.e-9, 1.e3);	//f->FixParameter(4, 0.1);
+			//f->SetParName(5, "Gain");				f->SetParameter(5, 15.2);	//f->FixParameter(5, 10.);
+			//f->SetParName(6, "Pedestal");			f->SetParameter(6, 15.);
+			//f->SetParName(7, "norm_0");				f->SetParameter(7, 1.5); //f->FixParameter(7, 1.);
+			//f->SetParName(8, "x_0");				f->SetParameter(8, 16.);
+
+			if (i < max_channel_nr_to_fit) {
+				cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+				TFitResultPtr fresults = his->Fit(f, "RS");
+			}
+
+			his->GetYaxis()->SetTitle("#Entries");
+			his->GetXaxis()->SetTitle("mV");
+			his->Draw();
+		}
+	}
+	chargec->Update();
+	root_out->WriteObject(chargec, "MaxAmplitudeSpectra");
 }
 
 void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, double threshold) {
