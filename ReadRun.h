@@ -132,8 +132,8 @@ public:
 	void PrintChargeSpectrumPMT(float, float, float = 0, float = 300, float = -50, float = 600, int = 750, double = 4);
 
 	// functions for time distribution
-	TH1F* TimeDist(int, float = 0, float = 300, float = 0, float = 300, int = 100);
-	void PrintTimeDist(float = 0, float = 300, float = 0, float = 300, int = 100);
+	TH1F* TimeDist(int, float = 0, float = 300, float = 0, float = 300, int = 100, int = 0);
+	void PrintTimeDist(float = 0, float = 300, float = 0, float = 300, int = 100, int = 0);
 
 	// print FFT
 	void PrintFFTWF(int = 1, float = 0., float = 0., int = 1);

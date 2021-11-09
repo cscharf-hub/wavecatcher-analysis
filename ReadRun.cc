@@ -644,8 +644,8 @@ int* ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float sta
 	foundindices[0] = 0;
 
 	if (start < 0 || end < 0) {									// fixed integration window relative to maximum of sum spectrum for each channel
-		foundindices[1] = his->GetXaxis()->FindBin(static_cast<float>(maxSumBin[channel]) * SP - windowlow);
-		foundindices[2] = his->GetXaxis()->FindBin(static_cast<float>(maxSumBin[channel]) * SP + windowhi);
+		foundindices[1] = his->GetXaxis()->FindBin(his->GetXaxis()->GetBinCenter(maxSumBin[channel]) - windowlow);
+		foundindices[2] = his->GetXaxis()->FindBin(his->GetXaxis()->GetBinCenter(maxSumBin[channel]) + windowhi);
 	}
 	else if (windowlow == start && windowhi == end) {				// fixed integration window for all channels
 		foundindices[1] = his->GetXaxis()->FindBin(windowlow);
@@ -660,7 +660,7 @@ int* ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float sta
 			return 0;
 		}
 
-		float max = -1e3;
+		float max = 0.;
 		float val = 0;
 		for (int i = istart; i < iend; i++) {
 			val = his->GetBinContent(i);
@@ -670,8 +670,8 @@ int* ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float sta
 			}
 		}
 
-		foundindices[1] = his->GetXaxis()->FindBin(static_cast<float>(foundindices[0]) * SP - windowlow);
-		foundindices[2] = his->GetXaxis()->FindBin(static_cast<float>(foundindices[0]) * SP + windowhi);
+		foundindices[1] = his->GetXaxis()->FindBin(his->GetXaxis()->GetBinCenter(foundindices[0]) - windowlow);
+		foundindices[2] = his->GetXaxis()->FindBin(his->GetXaxis()->GetBinCenter(foundindices[0]) + windowhi);
 	}
 	return foundindices;
 }
@@ -885,7 +885,7 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 // time distribution of max in a certain time window
 // Maybe add functions for ToT and max+min amplitude in range?
 
-TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestart, float rangeend, int nbins) {
+TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestart, float rangeend, int nbins, int which) {
 	// find peak time for a given channel in time window [from, to] and return the peak time histogram with x range [rangestart, rangeend] and the number of bins nbins
 
 	TString name(Form("timedist_ch%02d", active_channels[channel_index]));
@@ -894,12 +894,24 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 	for (int j = 0; j < nevents; j++) {
 		auto his = (TH1F*)((TH1F*)rundata->At(j * nchannels + channel_index))->Clone();
 		if (from >= 0 && to > 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
-		h1->Fill(his->GetXaxis()->GetBinCenter(his->GetMaximumBin()));	// fill peak time histogram
+
+		if (which == 0) { // time of maximum time histogram
+			h1->Fill(his->GetXaxis()->GetBinCenter(his->GetMaximumBin()));	
+		}
+		else { // time of 50% cdf
+			double max = his->GetMaximum();
+			int from_n = his->GetXaxis()->FindBin(from);
+			do {
+				from_n++;
+			} 
+			while (his->GetBinContent(from_n) < .5*max && from_n < his->GetXaxis()->FindBin(to));
+			h1->Fill(his->GetXaxis()->GetBinCenter(from_n));
+		}
 	}
 	return h1;
 }
 
-void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangeend, int nbins) {
+void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangeend, int nbins, int which) {
 	// print ReadRun::TimeDist for all channels
 
 	gStyle->SetOptStat(1111); // 11 is title + entries
@@ -914,7 +926,7 @@ void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangee
 			current_canvas++;
 
 			TH1F* his;
-			his = TimeDist(i, from, to, rangestart, rangeend, nbins);
+			his = TimeDist(i, from, to, rangestart, rangeend, nbins, which);
 			time_dist_c->cd(current_canvas);
 
 			his->GetYaxis()->SetTitle("#Entries");
