@@ -664,11 +664,10 @@ int* ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float sta
 		float val = 0;
 		for (int i = istart; i < iend; i++) {
 			val = his->GetBinContent(i);
-				if (val > max) {
-					max = val;
-					foundindices[0] = i;
-				}
-			
+			if (val > max) {
+				max = val;
+				foundindices[0] = i;
+			}
 		}
 
 		foundindices[1] = his->GetXaxis()->FindBin(his->GetXaxis()->GetBinCenter(foundindices[0]) - windowlow);
@@ -829,12 +828,67 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 	root_out->WriteObject(chargec, "ChargeSpectra");
 }
 
-void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, double threshold) {
+void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins) {
 	// print ReadRun::ChargeSpectrum for all channels optimized for PMT signals
+
+	//gStyle->SetOptStat(0); // 11 is title + entries
+
+	TCanvas* chargec = new TCanvas("charge spectra PMT", "charge spectra PMT", 1600, 1000);
+	SplitCanvas(chargec);
+
+	int current_canvas = 0;
+	float threshold_bin_center = 0.;
+
+	for (int i = 0; i < nchannels; i++) {
+		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+			current_canvas++;
+
+			TH1F* his;
+			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins);
+			chargec->cd(current_canvas);
+
+			his->GetYaxis()->SetTitle("#Entries");
+			his->GetXaxis()->SetTitle("integral in mV#timesns");
+			his->Draw();
+			stringstream allname; allname << his->GetEntries() << " entries";
+			his->SetTitle(allname.str().c_str());
+
+			// fit sum of two gaussians
+			// estimate starting values of fit by fitting only one gauss
+			auto gauss = new TF1("gauss", "gaus", rangestart, rangeend);
+			TFitResultPtr fres_est = his->Fit(gauss, "QRS");
+			// now use these fit results to fit the sum of two gauss
+			auto two_gauss = new TF1("two gaussians", "gaus(0)+gaus(3)", rangestart, rangeend); two_gauss->SetTitle("Sum of two gauss");
+			two_gauss->SetParameters(fres_est->Parameter(0) * .95, fres_est->Parameter(1) * .95, fres_est->Parameter(2) * .95, fres_est->Parameter(0) * .3, fres_est->Parameter(1) * 1.05, fres_est->Parameter(2) * .85); // factors are pretty much random
+
+			//two_gauss->SetLineColor(4);
+			TFitResultPtr fresults = his->Fit(two_gauss, "RS");
+			two_gauss->Draw("same");
+
+			auto pedestal = new TF1("pedestal", "gaus", rangestart, rangeend); pedestal->SetTitle("pedestal");
+			pedestal->SetParameters(fresults->Parameter(0), fresults->Parameter(1), fresults->Parameter(2));
+			pedestal->SetLineColor(3);
+			pedestal->Draw("same");
+
+			auto pepeak = new TF1("pepeak", "gaus", rangestart, rangeend); pepeak->SetTitle("pepeak");
+			pepeak->SetParameters(fresults->Parameter(3), fresults->Parameter(4), fresults->Parameter(5));
+			pepeak->SetLineColor(4);
+			pepeak->Draw("same");
+
+			gPad->BuildLegend();
+		}
+	}
+
+	chargec->Update();
+	root_out->WriteObject(chargec, "ChargeSpectraPMT");
+}
+
+void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, double threshold) {
+	// print ReadRun::ChargeSpectrum for all channels optimized for PMT signals visualizing a threshold
 
 	gStyle->SetOptStat(0); // 11 is title + entries
 
-	TCanvas* chargec = new TCanvas("charge spectra PMT", "charge spectra PMT", 1600, 1000);
+	TCanvas* chargec = new TCanvas("charge spectra PMT threshold", "charge spectra PMT threshold", 1600, 1000);
 	SplitCanvas(chargec);
 
 	int current_canvas = 0;
@@ -880,7 +934,7 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 	cout << "\n PMT charge spectrum is counting events above threshold from bin center >= " << threshold_bin_center << " mV " << "for a threshold setting of " << threshold << " mV\n\n";
 
 	chargec->Update();
-	root_out->WriteObject(chargec, "ChargeSpectraPMT");
+	root_out->WriteObject(chargec, "ChargeSpectraPMTthreshold");
 }
 
 // time distribution of max in a certain time window
@@ -897,15 +951,14 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 		if (from >= 0 && to > 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
 
 		if (which == 0) { // time of maximum time histogram
-			h1->Fill(his->GetXaxis()->GetBinCenter(his->GetMaximumBin()));	
+			h1->Fill(his->GetXaxis()->GetBinCenter(his->GetMaximumBin()));
 		}
 		else { // time of 50% cdf
 			double max = his->GetMaximum();
 			int from_n = his->GetXaxis()->FindBin(from);
 			do {
 				from_n++;
-			} 
-			while (his->GetBinContent(from_n) < .5*max && from_n < his->GetXaxis()->FindBin(to));
+			} while (his->GetBinContent(from_n) < .5 * max && from_n < his->GetXaxis()->FindBin(to));
 			h1->Fill(his->GetXaxis()->GetBinCenter(from_n));
 		}
 	}
