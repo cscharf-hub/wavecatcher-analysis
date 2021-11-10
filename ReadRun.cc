@@ -660,14 +660,15 @@ int* ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float sta
 			return 0;
 		}
 
-		float max = 0.;
+		float max = -9.e99;
 		float val = 0;
 		for (int i = istart; i < iend; i++) {
 			val = his->GetBinContent(i);
-			if (val > max) {
-				max = val;
-				foundindices[0] = i;
-			}
+				if (val > max) {
+					max = val;
+					foundindices[0] = i;
+				}
+			
 		}
 
 		foundindices[1] = his->GetXaxis()->FindBin(his->GetXaxis()->GetBinCenter(foundindices[0]) - windowlow);
