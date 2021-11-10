@@ -87,7 +87,8 @@ void read_ps_sr90_source() // main
 	// plot all charge spectrum of channels
 	mymeas.PrintChargeSpectrum(intwindowminus, intwindowplus, findmaxfrom, findmaxto, -1e2, 2.e3, 500, 0, 0, 0);
 
-	mymeas.PrintChargeSpectrumPMT(0, 0, findmaxfrom, findmaxto, -2e1, 1.8e2, 202, 4.);
+	mymeas.PrintChargeSpectrumPMT(0, 0, findmaxfrom, findmaxto, -2e1, 1.8e2, 202);
+	mymeas.PrintChargeSpectrumPMTthreshold(0, 0, findmaxfrom, findmaxto, -2e1, 1.8e2, 202, 4.);
 
 	// timing of maximum
 	mymeas.PrintTimeDist(findmaxfrom, findmaxto, findmaxfrom - 5, findmaxto + 5, 60);
