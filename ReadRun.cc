@@ -856,13 +856,13 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 			// fit sum of two gaussians
 			// estimate starting values of fit by fitting only one gauss
 			auto gauss = new TF1("gauss", "gaus", rangestart, rangeend);
-			TFitResultPtr fres_est = his->Fit(gauss, "QRS");
+			TFitResultPtr fres_est = his->Fit(gauss, "QRSL");
 			// now use these fit results to fit the sum of two gauss
 			auto two_gauss = new TF1("two gaussians", "gaus(0)+gaus(3)", rangestart, rangeend); two_gauss->SetTitle("Sum of two gauss");
 			two_gauss->SetParameters(fres_est->Parameter(0) * .95, fres_est->Parameter(1) * .95, fres_est->Parameter(2) * .95, fres_est->Parameter(0) * .3, fres_est->Parameter(1) * 1.05, fres_est->Parameter(2) * .85); // factors are pretty much random
 
 			//two_gauss->SetLineColor(4);
-			TFitResultPtr fresults = his->Fit(two_gauss, "RS");
+			TFitResultPtr fresults = his->Fit(two_gauss, "RSL");
 			two_gauss->Draw("same");
 
 			auto pedestal = new TF1("pedestal", "gaus", rangestart, rangeend); pedestal->SetTitle("pedestal");
