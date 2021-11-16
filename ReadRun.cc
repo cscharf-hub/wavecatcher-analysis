@@ -348,11 +348,11 @@ void ReadRun::CorrectBaseline(float tCut, float tCutEnd) {
 		// end of temp for strange PMT signals in cosmics setup
 
 		if (tCutEnd <= 0) { //
-			corr = his->Integral(1, iCut) / (iCut - 1);
+			corr = his->Integral(1, iCut) / static_cast<float>(iCut);
 		}
 		else {
 			iCutEnd = his->GetXaxis()->FindBin(tCutEnd);
-			corr = his->Integral(iCut, iCutEnd) / (iCutEnd - iCut);
+			corr = his->Integral(iCut, iCutEnd) / static_cast<float>(iCutEnd - iCut + 1);
 		}
 
 		// write corrected values to histograms
@@ -458,7 +458,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool doaverage,
 
 			corr = 0.;
 			if (!doaverage) {
-				corr = his->Integral(iintwindowstart, iintwindowstart + nIntegrationWindow) / static_cast<float>(nIntegrationWindow);
+				corr = his->Integral(iintwindowstart, iintwindowstart + nIntegrationWindow) / static_cast<float>(nIntegrationWindow + 1);
 			}
 			else {
 				for (int i = iintwindowstart; i < iintwindowstart + nIntegrationWindow; i++) corr += yvals[i];
@@ -549,7 +549,7 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool doaverage, double 
 
 			corr = 0.;
 			if (!doaverage) {
-				corr = his->Integral(iintwindowstart, iintwindowstart + nIntegrationWindow) / static_cast<float>(nIntegrationWindow);
+				corr = his->Integral(iintwindowstart, iintwindowstart + nIntegrationWindow) / static_cast<float>(nIntegrationWindow + 1);
 			}
 			else {
 				for (int i = iintwindowstart; i < iintwindowstart + nIntegrationWindow; i++) corr += yvals[i];
