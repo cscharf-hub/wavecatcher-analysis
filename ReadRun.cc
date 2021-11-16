@@ -654,6 +654,7 @@ int* ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float sta
 	else {															// fixed integration window relative to maximum of each individual waveform
 		istart = his->GetXaxis()->FindBin(start);
 		iend = his->GetXaxis()->FindBin(end);
+		foundindices[0] = istart;
 
 		if (istart<1 || iend>his->GetNbinsX()) {
 			cout << "\nError: start or end out of range" << endl;
@@ -837,7 +838,6 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 	SplitCanvas(chargec);
 
 	int current_canvas = 0;
-	float threshold_bin_center = 0.;
 
 	for (int i = 0; i < nchannels; i++) {
 		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
@@ -953,7 +953,7 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 		if (which == 0) { // time of maximum time histogram
 			h1->Fill(his->GetXaxis()->GetBinCenter(his->GetMaximumBin()));
 		}
-		else { // time of 50% cdf
+		else { // time of 50% cfd
 			double max = his->GetMaximum();
 			int from_n = his->GetXaxis()->FindBin(from);
 			do {
