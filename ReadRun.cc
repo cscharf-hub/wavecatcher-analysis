@@ -342,11 +342,6 @@ void ReadRun::CorrectBaseline(float tCut, float tCutEnd) {
 		TH1F* his = ((TH1F*)rundata->At(j));
 		iCut = his->GetXaxis()->FindBin(tCut);
 
-		// start of temp for strange PMT signals in cosmics setup
-		//int currchannel = j - nchannels * floor(j / nchannels);
-		//if (currchannel > 7 && his->GetMaximum() < 5) cout << "\nevent:\t" << 1 + floor(j / nchannels) << "\tchannel:\t" << currchannel;
-		// end of temp for strange PMT signals in cosmics setup
-
 		if (tCutEnd <= 0) { //
 			corr = his->Integral(1, iCut) / static_cast<float>(iCut);
 		}
@@ -767,53 +762,24 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins);
 			chargec->cd(current_canvas);
 
-			//Fitf fitf;
-			//TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 7);
-			//f->SetLineColor(3);
-			//f->SetParName(0, "N0");					f->SetParameter(0, his->Integral()/3.);
-			//f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
-			//f->SetParName(2, "#lambda");			f->SetParameter(2, .15); //0.2 or 3
-			//f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 3.2);//3.6
-			//f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, .12);		f->SetParLimits(4, 1.e-9, 1.e3);	//f->FixParameter(4, 0.1);
-			//f->SetParName(5, "Gain");				f->SetParameter(5, 10.);	//f->FixParameter(5, 10.);
-			//f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);//7.);									//f->FixParameter(6, 0.);
-
 			Fitf_biased fitf_biased;
 			TF1* f = new TF1("fitf", fitf_biased, fitrangestart, fitrangeend, 9);
 			f->SetLineColor(3);
-
-			//+-1ns 41V nopz 1 SiPM
-			//f->SetParName(0, "N0");					f->SetParameter(0, his->Integral());
-			//f->SetParName(1, "#mu");				f->SetParameter(1, 3.3);// 1.6);
-			//f->SetParName(2, "#lambda");			f->SetParameter(2, .01); //0.2 or 3
-			//f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 4.3);//3.6
-			//f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 1.5);		f->SetParLimits(4, 1.e-9, 1.e3);	//f->FixParameter(4, 0.1);
-			//f->SetParName(5, "Gain");				f->SetParameter(5, 21.);	//f->FixParameter(5, 10.);
-			//f->SetParName(6, "Pedestal");			f->SetParameter(6, 3.9);
-			//f->SetParName(7, "norm_0");				f->SetParameter(7, 0.9); //f->FixParameter(7, 1.);
-			//f->SetParName(8, "x_0");				f->SetParameter(8, 7.);
 
 			//+-1ns 41V nopz 1 SiPM switch 5 tune 8350
 			f->SetParName(0, "N0");					f->SetParameter(0, his->Integral());
 			f->SetParName(1, "#mu");				f->SetParameter(1, 0.7);// 1.6);
 			f->SetParName(2, "#lambda");			f->SetParameter(2, .04); //0.2 or 3
 			f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 2.1);//3.6
-			f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4);		f->SetParLimits(4, 1.e-9, 1.e3);	//f->FixParameter(4, 0.1);
+			f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4);//		f->SetParLimits(4, 1.e-9, 1.e3);	//f->FixParameter(4, 0.1);
 			f->SetParName(5, "Gain");				f->SetParameter(5, 18.);	//f->FixParameter(5, 10.);
 			f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
 			f->SetParName(7, "norm_0");				f->SetParameter(7, 0.7); //f->FixParameter(7, 1.);
 			f->SetParName(8, "x_0");				f->SetParameter(8, 5.);
 
-			//+-1ns 41V nopz 2 SiPMs
-			//f->SetParName(0, "N0");					f->SetParameter(0, his->Integral());
-			//f->SetParName(1, "#mu");				f->SetParameter(1, 4.);
-			//f->SetParName(2, "#lambda");			f->SetParameter(2, .1);		//f->FixParameter(2, .05);
-			//f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 4.);
-			//f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, .7);		f->SetParLimits(4, 1.e-9, 1.e3);	//f->FixParameter(4, 0.1);
-			//f->SetParName(5, "Gain");				f->SetParameter(5, 15.2);	//f->FixParameter(5, 10.);
-			//f->SetParName(6, "Pedestal");			f->SetParameter(6, 15.);
-			//f->SetParName(7, "norm_0");				f->SetParameter(7, 1.5); //f->FixParameter(7, 1.);
-			//f->SetParName(8, "x_0");				f->SetParameter(8, 16.);
+			if (!PrintChargeSpectrum_pars.empty()) {
+				for (int j = 0; j <= 8; j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+			}
 
 			if (i < max_channel_nr_to_fit) {
 				cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -860,6 +826,12 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 			// now use these fit results to fit the sum of two gauss
 			auto two_gauss = new TF1("two gaussians", "gaus(0)+gaus(3)", rangestart, rangeend); two_gauss->SetTitle("Sum of two gauss");
 			two_gauss->SetParameters(fres_est->Parameter(0) * .95, fres_est->Parameter(1) * .95, fres_est->Parameter(2) * .95, fres_est->Parameter(0) * .3, fres_est->Parameter(1) * 1.05, fres_est->Parameter(2) * .85); // factors are pretty much random
+			two_gauss->SetParName(0, "A_{pedestal}");
+			two_gauss->SetParName(1, "#mu_{pedestal}");
+			two_gauss->SetParName(2, "#sigma_{pedestal}");
+			if (!PrintChargeSpectrumPMT_pars.empty()) {
+				for (int j = 0; j <= 5; j++) two_gauss->SetParameter(j, PrintChargeSpectrumPMT_pars[j]);
+			}
 
 			//two_gauss->SetLineColor(4);
 			TFitResultPtr fresults = his->Fit(two_gauss, "RSL");

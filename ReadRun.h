@@ -131,7 +131,9 @@ public:
 	void PrintChargeSpectrumWF(float, float, float = 0, float = 300, int = 1, float = 0., float = 0.);
 	TH1F* ChargeSpectrum(int, float, float, float = 0, float = 300, float = -50, float = 600, int = 750);
 	void PrintChargeSpectrum(float, float, float = 0, float = 300, float = -50, float = 600, int = 750, float = 0., float = 0., int = 8);
+	vector<float> PrintChargeSpectrum_pars;
 	void PrintChargeSpectrumPMT(float, float, float = 0, float = 300, float = -50, float = 600, int = 750);
+	vector<float> PrintChargeSpectrumPMT_pars;
 	void PrintChargeSpectrumPMTthreshold(float, float, float = 0, float = 300, float = -50, float = 600, int = 750, double = 4);
 
 	// functions for time distribution
