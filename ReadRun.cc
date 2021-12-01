@@ -734,7 +734,6 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 		h1->Fill(his->Integral(windowind[1], windowind[2]));					// fill charge spectrum
 		delete[] windowind;
 	}
-
 	return h1;
 }
 
@@ -760,6 +759,12 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 
 			TH1F* his;
 			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins);
+			his->GetYaxis()->SetTitle("#Entries");
+			his->GetXaxis()->SetTitle("integral in mV#timesns");
+
+			TString name(Form("ChargeSpectrum channel_%02d", active_channels[i]));
+			root_out->WriteObject(his, name.Data());
+
 			chargec->cd(current_canvas);
 
 			Fitf_biased fitf_biased;
@@ -786,8 +791,6 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				TFitResultPtr fresults = his->Fit(f, "RS");
 			}
 
-			his->GetYaxis()->SetTitle("#Entries");
-			his->GetXaxis()->SetTitle("integral in mV#timesns");
 			his->Draw();
 		}
 	}
@@ -819,6 +822,9 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 			stringstream allname; allname << his->GetEntries() << " entries";
 			his->SetTitle(allname.str().c_str());
 
+			TString name(Form("ChargeSpectrumPMT channel_%02d", active_channels[i]));
+			root_out->WriteObject(his, name.Data());
+
 			// fit sum of two gaussians
 			// estimate starting values of fit by fitting only one gauss
 			auto gauss = new TF1("gauss", "gaus", rangestart, rangeend);
@@ -826,11 +832,22 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 			// now use these fit results to fit the sum of two gauss
 			auto two_gauss = new TF1("two gaussians", "gaus(0)+gaus(3)", rangestart, rangeend); two_gauss->SetTitle("Sum of two gauss");
 			two_gauss->SetParameters(fres_est->Parameter(0) * .95, fres_est->Parameter(1) * .95, fres_est->Parameter(2) * .95, fres_est->Parameter(0) * .3, fres_est->Parameter(1) * 1.05, fres_est->Parameter(2) * .85); // factors are pretty much random
+			//auto two_gauss = new TF1("four gaussians", "gaus(0)+gaus(3)+gaus(6)+gaus(9)", rangestart, rangeend);
 			two_gauss->SetParName(0, "A_{pedestal}");
 			two_gauss->SetParName(1, "#mu_{pedestal}");
 			two_gauss->SetParName(2, "#sigma_{pedestal}");
+			two_gauss->SetParName(3, "A_{SPE}");
+			two_gauss->SetParName(4, "#mu_{SPE}");
+			two_gauss->SetParName(5, "#sigma_{SPE}");
+			//two_gauss->SetParName(6, "A_{2PE}");
+			//two_gauss->SetParName(7, "#mu_{2PE}");
+			//two_gauss->SetParName(8, "#sigma_{2PE}");
+			//two_gauss->SetParName(9, "A_{3PE}");
+			//two_gauss->SetParName(10, "#mu_{3PE}");
+			//two_gauss->SetParName(11, "#sigma_{3PE}");
+
 			if (!PrintChargeSpectrumPMT_pars.empty()) {
-				for (int j = 0; j <= 5; j++) two_gauss->SetParameter(j, PrintChargeSpectrumPMT_pars[j]);
+				for (int j = 0; j <= PrintChargeSpectrumPMT_pars.size(); j++) two_gauss->SetParameter(j, PrintChargeSpectrumPMT_pars[j]);
 			}
 
 			//two_gauss->SetLineColor(4);
@@ -934,6 +951,7 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 			h1->Fill(his->GetXaxis()->GetBinCenter(from_n));
 		}
 	}
+	root_out->WriteObject(h1, name.Data());
 	return h1;
 }
 
@@ -956,15 +974,55 @@ void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangee
 			time_dist_c->cd(current_canvas);
 
 			his->GetYaxis()->SetTitle("#Entries");
-			his->GetXaxis()->SetTitle("integral in mV#timesns");
+			his->GetXaxis()->SetTitle("times [ns]");
 			his->Draw();
-			stringstream name; name << "t#_{max} for " << from << "<t<" << to << " ns";
+			stringstream name; name << "t_{max} for " << from << "<t<" << to << " ns";
 			his->SetTitle(name.str().c_str());
+
+			TString name_save(Form("TimeDist channel_%02d", active_channels[i]));
+			root_out->WriteObject(his, name_save.Data());
 		}
 	}
 
 	time_dist_c->Update();
 	root_out->WriteObject(time_dist_c, "TimeDist");
+}
+
+TGraph2D* ReadRun::MaxDist(int channel_index, float from, float to) {
+	// find maximum amplitude for a given channel in time window [from, to] and return 3d histogram with the number of bins nbinsy,z
+	
+	TString name(Form("maxdist_ch%02d", active_channels[channel_index]));
+	TGraph2D* g3d = new TGraph2D((1024+2)*nevents);
+	g3d->SetTitle("waveforms; t [ns]; max. amplitude [mv]; amplitude [mV]");
+	
+	for (int j = 0; j < nevents; j++) {
+		auto his = (TH1F*)((TH1F*)rundata->At(j * nchannels + channel_index))->Clone();
+		if (from >= 0 && to > 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
+		double max = his->GetMaximum();
+		for (int i = 0; i < 1024; i++) g3d->SetPoint(j * 1024 + i, his->GetXaxis()->GetBinCenter(i), max, his->GetBinContent(i));
+			//g3d->SetPoint(j * 1024 + i, ((TH1F*)rundata->At(j * nchannels + channel_index))->GetXaxis()->GetBinCenter(i), max, ((TH1F*)rundata->At(j * nchannels + channel_index))->GetBinContent(i));
+	}
+	root_out->WriteObject(g3d, name.Data());
+	return g3d;
+}
+
+void ReadRun::PrintMaxDist(float from, float to) {
+	// print ReadRun::MaxDist for all channels
+	TCanvas* max_dist_c = new TCanvas("wf grouped by maximum", "wf grouped by maximum", 1600, 1000);
+	SplitCanvas(max_dist_c);
+
+	int current_canvas = 0;
+
+	for (int i = 0; i < nchannels; i++) {
+		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+			current_canvas++;
+			auto g3d = MaxDist(i, from, to);
+			max_dist_c->cd(current_canvas);
+			g3d->Draw();
+		}
+	}
+	max_dist_c->Update();
+	root_out->WriteObject(max_dist_c, "MaxDist");
 }
 
 // helper functions
@@ -1038,7 +1096,7 @@ int ReadRun::GetEventIndex(int eventnr) {
 
 void ReadRun::SplitCanvas(TCanvas*& c) {
 	if (plot_active_channels.empty()) c->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
-	else c->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
+	else if (plot_active_channels.size() > 1) c->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
 }
 
 void ReadRun::Convolute(double*& result, double* first, double* second, int size1, int size2) {

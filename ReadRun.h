@@ -14,6 +14,7 @@
 #include <TVirtualFFT.h>
 #include <TLine.h>
 #include <TGraph.h>
+#include <TGraph2D.h>
 #include <TMultiGraph.h>
 #include <TString.h>
 #include <TCanvas.h>
@@ -139,6 +140,8 @@ public:
 	// functions for time distribution
 	TH1F* TimeDist(int, float = 0, float = 300, float = 0, float = 300, int = 100, int = 0);
 	void PrintTimeDist(float = 0, float = 300, float = 0, float = 300, int = 100, int = 0);
+	TGraph2D* MaxDist(int, float = 0, float = 300);
+	void PrintMaxDist(float = 0, float = 300);
 
 	// print FFT
 	void PrintFFTWF(int = 1, float = 0., float = 0., int = 1);
@@ -170,7 +173,7 @@ public:
 	double coef;				// ?????
 	int binNumber;				// 1024 samples per waveform
 
-	int* maxSumBin;				// For fixed intergration window (triggered acqusition)
+	int* maxSumBin;				// For fixed integration window (triggered acquisition)
 
 	vector<int> active_channels; // stores the numbers of the active channels
 	vector<int> plot_active_channels; // stores the numbers of the active channels which should be plotted
