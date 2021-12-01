@@ -15,7 +15,7 @@ ReadRun::ReadRun(int bla) {
 	cout << "\ninit" << endl;
 }
 
-ReadRun::ReadRun(string path, bool changesignofPMTs, bool save_all_waveforms) {
+ReadRun::ReadRun(string path, bool changesignofPMTs, string out_file_name, bool save_all_waveforms) {
 	// reader modified from
 	// WaveCatcher binary -> root converter
 	// by manu chauveau@cenbg.in2p3.fr
@@ -23,7 +23,7 @@ ReadRun::ReadRun(string path, bool changesignofPMTs, bool save_all_waveforms) {
 
 	bool out = false; //experimental, not working
 
-	root_out = TFile::Open("out.root", "recreate");
+	root_out = TFile::Open(out_file_name.c_str(), "recreate");
 
 	if (save_all_waveforms) root_out_wf = TFile::Open("outwf.root", "recreate");
 

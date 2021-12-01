@@ -159,7 +159,7 @@ public:
 	void SmoothArray(double*&, int, double = 1., bool = false);	// filtering
 	
 	ReadRun(int); // can be used if only certain functions of the class are to be used with data not from the wavecatcher
-	ReadRun(string, bool = false, bool = false); // file name, bool whether or not to change sign of PMT channels (channel number>8), bool whether to save ALL waveforms to root file (only advisable for runs with small number of events)
+	ReadRun(string, bool = false, string = "out.root", bool = false); // file name, bool whether or not to change sign of PMT channels (channel number>8), bool whether to save ALL waveforms to root file (only advisable for runs with small number of events)
 
 	virtual ~ReadRun();
 
@@ -197,7 +197,7 @@ public:
 		//1 - mu: for generalized poisson distribution
 		//2 - lambda: Borel-branching parameter for prompt crosstalk probability 1-exp(-lambda)
 
-		//3,4 -sogma0, sigma1
+		//3,4 -sigma0, sigma1
 		//5 - G: gain
 		//6 - B: Pedestal
 		double sum = 0;
@@ -231,7 +231,7 @@ public:
 		//1 - mu: for generalized poisson distribution
 		//2 - lambda: Borel-branching parameter for prompt crosstalk probability 1-exp(-lambda)
 
-		//3,4 -sogma0, sigma1
+		//3,4 -sigma0, sigma1
 		//5 - G: gain
 		//6 - B: Virtual pedestal shift of pe peaks
 		//7 - Pedestal scaling for biased pedestal
@@ -265,3 +265,4 @@ public:
 		return sum;
 	};
 };
+
