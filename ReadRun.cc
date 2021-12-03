@@ -1040,7 +1040,7 @@ stringstream ReadRun::list_files(const char* dirname, const char* ext) {
 			fname = file->GetName();
 			if (!file->IsDirectory() && fname.EndsWith(ext)) {
 				ss << fname.Data() << "\n";
-				cout << fname.Data() << "\n";
+				//cout << fname.Data() << "\n";
 			}
 		}
 		TIter next2(files);
@@ -1048,7 +1048,7 @@ stringstream ReadRun::list_files(const char* dirname, const char* ext) {
 			fname = file->GetName();
 			if (!file->IsDirectory() && !fname.EndsWith(ext) && fname.Contains(ext)) {
 				ss << fname.Data() << "\n";
-				cout << fname.Data() << "\n";
+				//cout << fname.Data() << "\n";
 			}
 		}
 	}

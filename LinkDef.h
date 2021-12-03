@@ -7,6 +7,7 @@
 #pragma link C++ class ReadRun+;
 #pragma link C++ class Fitf+;
 #pragma link C++ class Fitf_biased+;
+#pragma link C++ class Fitf_PMT+;
 
 #pragma link C++ global gROOT;
 
