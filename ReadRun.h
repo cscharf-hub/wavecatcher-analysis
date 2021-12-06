@@ -292,7 +292,7 @@ public:
 			if (kint != 0) normgn_term /= (p[6] * TMath::Sqrt(2. * TMath::Pi() * k));
 			double gn_term = (1. - p[1]) * normgn_term;
 			if (kint != 0) gn_term *= TMath::Exp(-1. * TMath::Power(x[0] - k * p[7] - p[4], 2.) / (2. * k * p[6] * p[6]));
-			else if (x[0] != k * p[7] + p[4]) gn_term *= 0.;
+			else gn_term *= 0.;
 
 			double Qn = p[4] + k * p[7];
 			double sigman = TMath::Sqrt(p[3] * p[3] + k * p[6] * p[6]);
