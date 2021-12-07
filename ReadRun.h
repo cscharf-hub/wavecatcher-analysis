@@ -130,7 +130,7 @@ public:
 	// functions for charge spectrum
 	int* GetIntWindow(TH1F*, float, float, float, float, int);
 	void PrintChargeSpectrumWF(float, float, float = 0, float = 300, int = 1, float = 0., float = 0.);
-	TH1F* ChargeSpectrum(int, float, float, float = 0, float = 300, float = -50, float = 600, int = 750);
+	TH1F* ChargeSpectrum(int, float, float, float = 0, float = 300, float = -50, float = 600, int = 750, string = "width");
 	void PrintChargeSpectrum(float, float, float = 0, float = 300, float = -50, float = 600, int = 750, float = 0., float = 0., int = 8);
 	vector<float> PrintChargeSpectrum_pars;
 	void PrintChargeSpectrumPMT(float, float, float = 0, float = 300, float = -50, float = 600, int = 750);
@@ -283,7 +283,7 @@ public:
 
 		double pmt_charge_spectrum = 0.;
 
-		for (int kint = 0; kint <= 15; kint++) {
+		for (int kint = 0; kint <= 20; kint++) {
 			double k = static_cast<double>(kint);
 
 			double poiss = TMath::Power(p[5], k) * TMath::Exp(-p[5]) / TMath::Factorial(kint);
@@ -292,7 +292,53 @@ public:
 			if (kint != 0) normgn_term /= (p[6] * TMath::Sqrt(2. * TMath::Pi() * k));
 			double gn_term = (1. - p[1]) * normgn_term;
 			if (kint != 0) gn_term *= TMath::Exp(-1. * TMath::Power(x[0] - k * p[7] - p[4], 2.) / (2. * k * p[6] * p[6]));
-			else if (x[0] != k * p[8] - p[4]) gn_term *= 0.;
+			else if (x[0] != p[4]) gn_term *= 0.; // delta function
+
+			double Qn = p[4] + k * p[7];
+			double sigman = TMath::Sqrt(p[3] * p[3] + k * p[6] * p[6]);
+			double ignxe_term_exp = p[2] / 2. * TMath::Exp(-1. * p[2] * (x[0] - Qn - p[2] * sigman * sigman));
+
+			double sgn_arg = x[0] - Qn - sigman * sigman * p[2];
+			double arg_sgn = 1.;
+			if (sgn_arg < 0.) arg_sgn = -1.;
+			double ignxe_term_erf = TMath::Erf(fabs(p[4] - Qn - sigman * sigman * p[2]) / (sigman * TMath::Sqrt(2.))) + arg_sgn * TMath::Erf(fabs(sgn_arg) / (sigman * TMath::Sqrt(2.)));
+
+			pmt_charge_spectrum += p[0] * poiss * (gn_term + p[1] * ignxe_term_exp * ignxe_term_erf);
+		}
+		if (pmt_charge_spectrum < 0.) pmt_charge_spectrum = 0.;
+		return pmt_charge_spectrum;
+	};
+};
+
+class Fitf_PMT_pedestal {
+public:
+	// Gauss-Poisson
+	// https://doi.org/10.1016/0168-9002(94)90183-X 
+
+	double operator() (double* x, double* p) {
+		//0 - A:		normalization to number of events in fit region
+		//1 - w:		probability for type II BG
+		//2 - alpha:	coefficient of exponential decrease of typ II BG
+		//3 - sigma0:	sigma of pedestal
+		//4 - Q0:		position of pedestal
+		//5 - mu:		mean number of PE
+		//6 - sigma1:	width of 1 PE peak
+		//7 - Q1:		position of 1 PE peak
+		//8 - norm0:	norm of 0 PE peak
+
+		double pmt_charge_spectrum = 0.;
+
+		for (int kint = 0; kint <= 15; kint++) {
+			double k = static_cast<double>(kint);
+
+			double poiss = TMath::Power(p[5], k) * TMath::Exp(-p[5]) / TMath::Factorial(kint);
+
+			double normgn_term = 1.;
+			if (kint != 0) normgn_term /= (p[6] * TMath::Sqrt(2. * TMath::Pi() * k));
+			else normgn_term *= p[8] / (p[4] * TMath::Sqrt(2. * TMath::Pi()));
+			double gn_term = (1. - p[1]) * normgn_term;
+			if (kint != 0) gn_term *= TMath::Exp(-1. * TMath::Power(x[0] - k * p[7] - p[4], 2.) / (2. * k * p[6] * p[6]));
+			else  gn_term *= TMath::Exp(-1. * TMath::Power(x[0] - p[4], 2.) / (2. * p[3] * p[3]));
 
 			double Qn = p[4] + k * p[7];
 			double sigman = TMath::Sqrt(p[3] * p[3] + k * p[6] * p[6]);

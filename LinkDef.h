@@ -8,6 +8,7 @@
 #pragma link C++ class Fitf+;
 #pragma link C++ class Fitf_biased+;
 #pragma link C++ class Fitf_PMT+;
+#pragma link C++ class Fitf_PMT_pedestal+;
 
 #pragma link C++ global gROOT;
 

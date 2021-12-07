@@ -722,8 +722,8 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 	root_out->WriteObject(intwinc, name.Data());
 }
 
-TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins) {
-	// integrate all pulses in range (start, end) from t_max - windowlow to t_max + windowhi for a given channel and return the charge histogram with x range (rangestart, rangeend) and the number of bins nbins
+TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, string integral_option) {
+	// integrate all pulses in range (start, end) from t_max - windowlow to t_max + windowhi for a given channel and return the charge histogram with x range (rangestart, rangeend) and the number of bins nbins. integral_option = "width" multiplies the integral value with the bin width
 
 	TString name(Form("channel__%02d", active_channels[channel_index]));
 	TH1F* h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
@@ -731,7 +731,7 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 	for (int j = 0; j < nevents; j++) {
 		TH1F* his = ((TH1F*)rundata->At(j * nchannels + channel_index));
 		int* windowind = GetIntWindow(his, windowlow, windowhi, start, end, channel_index);	// find integration window
-		h1->Fill(his->Integral(windowind[1], windowind[2]));					// fill charge spectrum
+		h1->Fill(his->Integral(windowind[1], windowind[2], integral_option.c_str()));					// fill charge spectrum
 		delete[] windowind;
 	}
 	return h1;
@@ -772,15 +772,15 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			f->SetLineColor(3);
 
 			//+-1ns 41V nopz 1 SiPM switch 5 tune 8350
-			f->SetParName(0, "N0");					f->SetParameter(0, his->Integral());
-			f->SetParName(1, "#mu");				f->SetParameter(1, 0.7);// 1.6);
-			f->SetParName(2, "#lambda");			f->SetParameter(2, .04); //0.2 or 3
+			f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
+			f->SetParName(1, "#mu");				f->SetParameter(1, 2.);// 1.6);
+			f->SetParName(2, "#lambda");			f->SetParameter(2, .04);// f->FixParameter(2, 1.); //0.2 or 3
 			f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 2.1);//3.6
 			f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4);//		f->SetParLimits(4, 1.e-9, 1.e3);	//f->FixParameter(4, 0.1);
-			f->SetParName(5, "Gain");				f->SetParameter(5, 18.);	//f->FixParameter(5, 10.);
+			f->SetParName(5, "Gain");				f->SetParameter(5, 30.);	//f->FixParameter(5, 10.);
 			f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
-			f->SetParName(7, "norm_0");				f->SetParameter(7, 0.7); //f->FixParameter(7, 1.);
-			f->SetParName(8, "x_0");				f->SetParameter(8, 5.);
+			f->SetParName(7, "norm_{0}");			f->SetParameter(7, 0.7); //f->FixParameter(7, 1.);
+			f->SetParName(8, "x_{0}");				f->SetParameter(8, 5.);
 
 			if (!PrintChargeSpectrum_pars.empty()) {
 				for (int j = 0; j <= 8; j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
