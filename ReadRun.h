@@ -355,3 +355,30 @@ public:
 		return pmt_charge_spectrum;
 	};
 };
+
+class Fitf_PMT_ideal {
+public:
+	// Gauss-Poisson
+	// https://doi.org/10.1016/0168-9002(94)90183-X 
+
+	double operator() (double* x, double* p) {
+		//0 - A_s:		norm. of PE spectrum
+		//1 - mu:		mean number of PE
+		//2 - sigma1:	width of 1st PE peak
+		//3 - Q1:		position (gain*e) of 1st peak
+		double pmt_charge_spectrum = 0.;
+
+		for (int kint = 1; kint <= 100; kint++) {
+			double k = static_cast<double>(kint);
+
+			double poiss = TMath::Power(p[1], k) * TMath::Exp(-1. * p[1]) / TMath::Factorial(kint);
+
+			double norm = 1. / (p[2] * TMath::Sqrt(2. * TMath::Pi() * k));
+
+			double gauss = TMath::Exp(-1. * TMath::Power(x[0] - k * p[3], 2) / (2. * k * p[2] * p[2]));
+
+			pmt_charge_spectrum += p[0] * poiss * norm * gauss;
+		}
+		return pmt_charge_spectrum;
+	};
+};
