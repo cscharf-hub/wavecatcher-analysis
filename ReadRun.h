@@ -201,7 +201,7 @@ public:
 		//5 - G: gain
 		//6 - B: Pedestal
 		double sum = 0;
-		for (int kint = 0; kint <= 15; kint++) {
+		for (int kint = 0; kint <= 50; kint++) {
 			double mu = p[1];
 			double lambda = p[2];
 
@@ -237,7 +237,7 @@ public:
 		//7 - Pedestal scaling for biased pedestal
 		//8 - Position of biased pedestal
 		double sum = 0;
-		for (int kint = 0; kint <= 15; kint++) {
+		for (int kint = 0; kint <= 50; kint++) {
 			double mu = p[1];
 			double lambda = p[2];
 
@@ -283,7 +283,7 @@ public:
 
 		double pmt_charge_spectrum = 0.;
 
-		for (int kint = 0; kint <= 20; kint++) {
+		for (int kint = 0; kint <= 50; kint++) {
 			double k = static_cast<double>(kint);
 
 			double poiss = TMath::Power(p[5], k) * TMath::Exp(-p[5]) / TMath::Factorial(kint);
@@ -328,7 +328,7 @@ public:
 
 		double pmt_charge_spectrum = 0.;
 
-		for (int kint = 0; kint <= 15; kint++) {
+		for (int kint = 0; kint <= 50; kint++) {
 			double k = static_cast<double>(kint);
 
 			double poiss = TMath::Power(p[5], k) * TMath::Exp(-p[5]) / TMath::Factorial(kint);

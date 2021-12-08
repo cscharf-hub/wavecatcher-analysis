@@ -307,9 +307,10 @@ void ReadRun::PlotChannelSums(bool doaverage) {
 
 	TCanvas* sumc = new TCanvas("Sums", "", 1600, 1000);
 	mgsums->Draw("APL");
-	mgsums->GetYaxis()->SetRangeUser(-1e4, 10e4);
+	mgsums->GetYaxis()->SetRangeUser(-1e4, 1e6);
 	sumc->BuildLegend(0.85, 0.70, .99, .95);
-	root_out->WriteObject(sumc, "channelsums");
+	root_out->WriteObject(mgsums, "channelsums");
+	root_out->WriteObject(sumc, "channelsums_c");
 }
 
 // averaging all waveforms (for testing)
@@ -679,13 +680,14 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 	TString name(Form("waveforms_event__%05d", eventnr));
 	TCanvas* intwinc = new TCanvas(name.Data(), name.Data(), 1600, 1000);
 	SplitCanvas(intwinc);
+	int event_index = GetEventIndex(eventnr);
 
 	int current_canvas = 0;
 	for (int i = 0; i < nchannels; i++) {
 		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
 			current_canvas++;
 
-			TH1F* his = Getwf(i, GetEventIndex(eventnr));
+			TH1F* his = Getwf(i, event_index);
 			int* windowind = GetIntWindow(his, windowlow, windowhi, start, end, i);
 			// create lines to indicate the integration window
 			TLine* low = new TLine(his->GetXaxis()->GetBinCenter(windowind[1]), -5, his->GetXaxis()->GetBinCenter(windowind[1]), 10);
@@ -696,13 +698,13 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 			zero->SetLineColor(1);
 			delete[] windowind;
 
-			TLine* baselinel = new TLine(baseline_correction_result[eventnr * nchannels + i][2], -1, baseline_correction_result[eventnr * nchannels + i][2], 1);
+			TLine* baselinel = new TLine(baseline_correction_result[event_index * nchannels + i][2], -1, baseline_correction_result[event_index * nchannels + i][2], 1);
 			baselinel->SetLineColor(6);
 			baselinel->SetLineWidth(2);
-			TLine* baselineh = new TLine(baseline_correction_result[eventnr * nchannels + i][3], -1, baseline_correction_result[eventnr * nchannels + i][3], 1);
+			TLine* baselineh = new TLine(baseline_correction_result[event_index * nchannels + i][3], -1, baseline_correction_result[event_index * nchannels + i][3], 1);
 			baselineh->SetLineColor(6);
 			baselineh->SetLineWidth(2);
-			TLine* baseline = new TLine(baseline_correction_result[eventnr * nchannels + i][2], 0, baseline_correction_result[eventnr * nchannels + i][3], 0);
+			TLine* baseline = new TLine(baseline_correction_result[event_index * nchannels + i][2], 0, baseline_correction_result[event_index * nchannels + i][3], 0);
 			baseline->SetLineColor(6);
 
 			// draw to canvas
