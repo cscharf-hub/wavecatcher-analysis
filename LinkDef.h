@@ -10,6 +10,7 @@
 #pragma link C++ class Fitf_PMT+;
 #pragma link C++ class Fitf_PMT_pedestal+;
 #pragma link C++ class Fitf_PMT_ideal+;
+#pragma link C++ class Fitf_langaus+;
 
 #pragma link C++ global gROOT;
 
