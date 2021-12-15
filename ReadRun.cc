@@ -224,6 +224,7 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name,
 					// channel sums
 					amplValuessum[ch][s] += static_cast<double>(val);
 
+					// skip events where there are large positive amplitudes in the PMT channels (real PMT photoelectron signals are negative, positive signals are pick up noise)
 					if (skip_event_threshold != 0 && output_channel > 8 && val >= skip_event_threshold) {
 						event_flag = true;
 					}
@@ -762,9 +763,8 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 	return h1;
 }
 
-void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, float fitrangestart, float fitrangeend, int max_channel_nr_to_fit) {
+void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, float fitrangestart, float fitrangeend, int max_channel_nr_to_fit, int which_fitf) {
 	// print ReadRun::ChargeSpectrum for all channels optimized for SiPM signals
-	// TODO: INCLUDE BETTER WAY TO READ STARTING VALUES OF FIT PARAMETERS FROM FILE STORED IN DATA DIRECTORY FOR EACH MEASUREMENT
 
 	gStyle->SetOptStat("ne");
 	gStyle->SetOptFit(1111);
@@ -792,28 +792,61 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 
 			chargec->cd(current_canvas);
 
-			Fitf fitf;
-			TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 7);
-			f->SetLineColor(3);
+			if (which_fitf == 1) { // landau gauss convolution for large number of photons
+				Fitf_langaus fitf;
+				TF1* f = new TF1("fitf_langaus", fitf, fitrangestart, fitrangeend, 4); f->SetLineColor(3);
 
-			//+-1ns 41V nopz 1 SiPM switch 5 tune 8350
-			f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
-			f->SetParName(1, "#mu");				f->SetParameter(1, 2.);// 1.6);
-			f->SetParName(2, "#lambda");			f->SetParameter(2, .04);// f->FixParameter(2, 1.); //0.2 or 3
-			f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 2.1);//3.6
-			f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4);//		f->SetParLimits(4, 1.e-9, 1.e3);	//f->FixParameter(4, 0.1);
-			f->SetParName(5, "Gain");				f->SetParameter(5, 30.);	//f->FixParameter(5, 10.);
-			f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
-			//f->SetParName(7, "norm_{0}");			f->SetParameter(7, 0.7); //f->FixParameter(7, 1.);	// for fitf_biased
-			//f->SetParName(8, "x_{0}");				f->SetParameter(8, 5.);							// for fitf_biased
+				f->SetParName(0, "Width");				f->SetParameter(0, 35);
+				f->SetParName(1, "MPV");				f->SetParameter(1, 1000);
+				f->SetParName(2, "Area");			    f->SetParameter(2, 10000);
+				f->SetParName(3, "#sigma_{Gauss}");		f->SetParameter(3, 100);
 
-			if (!PrintChargeSpectrum_pars.empty()) {
-				for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
-			}
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
-			if (i < max_channel_nr_to_fit) {
-				cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
-				TFitResultPtr fresults = his->Fit(f, "LRS");
+				if (i < max_channel_nr_to_fit) {
+					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+					TFitResultPtr fresults = his->Fit(f, "LRS");
+				}
+			} 
+			else if (which_fitf == 2) { // if pedestal is biased because of peak finder algorithm
+				Fitf_biased fitf;
+				TF1* f = new TF1("fitf_biased", fitf, fitrangestart, fitrangeend, 9); f->SetLineColor(3);
+
+				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
+				f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
+				f->SetParName(2, "#lambda");			f->SetParameter(2, .04);
+				f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 2.1);
+				f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4); //f->SetParLimits(4, 1.e-9, 1.e3);
+				f->SetParName(5, "Gain");				f->SetParameter(5, 30.); //f->FixParameter(5, 10.);
+				f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
+				f->SetParName(7, "norm_{0}");			f->SetParameter(7, 0.7);
+				f->SetParName(8, "x_{0}");				f->SetParameter(8, 5.);
+
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+
+				if (i < max_channel_nr_to_fit) {
+					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+					TFitResultPtr fresults = his->Fit(f, "LRS");
+				}
+			} 
+			else { // default SiPM fit function
+				Fitf fitf;
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 7); f->SetLineColor(3);
+
+				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
+				f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
+				f->SetParName(2, "#lambda");			f->SetParameter(2, .04);
+				f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 2.1);
+				f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4);
+				f->SetParName(5, "Gain");				f->SetParameter(5, 30.);//f->FixParameter(5, 10.);
+				f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
+
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+
+				if (i < max_channel_nr_to_fit) {
+					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+					TFitResultPtr fresults = his->Fit(f, "LRS");
+				}
 			}
 
 			his->Draw();

@@ -88,7 +88,9 @@ void read_cosmics() // main
 	//tstc->BuildLegend(0.85, 0.70, .99, .95);
 
 	mymeas.plot_active_channels = { 0, 1, 2, 3, 4, 5, 6, 7 };
+	
 	mymeas.PrintChargeSpectrum_pars = { 4e4, 5., .25, 30, 10, 120, 0 };
+	//mymeas.PrintChargeSpectrum_pars = { 100, 1e3, 4e4, 240};
 
 	// sums of all events per channel
 	mymeas.PlotChannelSums(true);
@@ -109,7 +111,7 @@ void read_cosmics() // main
 		mymeas.PrintChargeSpectrum(intwindowminus, intwindowplus, findmaxfrom, findmaxto, -5, 100, 100);
 	}
 	else {
-		mymeas.PrintChargeSpectrum(intwindowminus, intwindowplus, findmaxfrom, findmaxto, -400, 3000, 340);
+		mymeas.PrintChargeSpectrum(intwindowminus, intwindowplus, findmaxfrom, findmaxto, -200, 3000, 640, 400, 3000, 8, 0);
 	}
 
 	int event1 = 214;
