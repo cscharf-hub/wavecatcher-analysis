@@ -9,7 +9,7 @@ using namespace std;
 
 void read_cosmics() // main
 {
-	int which = 7; //select meas
+	int which = 10; //select meas
 
 	// better create separate file just for DC measurements
 	bool isDC = false;
@@ -52,6 +52,18 @@ void read_cosmics() // main
 		path += "1_Test_12_10_2021/"; // different PSU
 		break;
 	}//
+	case(8): {
+		path += "310_cosmics_pcbc_1908_day_nopz/"; // ?
+		break;
+	}//
+	case(9): {
+		path += "328_cosmics_pcbc_2510_day_nopz/"; // ?
+		break;
+	}//
+	case(10): {
+		path += "334_cosmics_pcbc_0511_day_nopz/"; // ?
+		break;
+	}//
 	default: {
 		path += "35_0505_night/"; // new w/ two non-active PMTs
 		break;
@@ -62,7 +74,7 @@ void read_cosmics() // main
 	ReadRun mymeas(path);
 
 	//apply baseline correction to ALL waveforms <- NEEDED but slow when not compiled
-	int which_blc = 0;
+	int which_blc = -1;
 	if (which_blc == 0) {
 		//mymeas.SmoothAll(1., true);
 		mymeas.CorrectBaseline(0., 50.);	//
@@ -71,12 +83,16 @@ void read_cosmics() // main
 		mymeas.CorrectBaselineMinSlopeRMS(20, true, 5, 352, 300, false);
 	}
 	else {
-		mymeas.CorrectBaselineMin(20, true, 1., 372, 0, false, 8);
+		mymeas.CorrectBaselineMin(30, true, 2., 372, 250, false, 8);
 	}
+	
+	mymeas.DerivativeAll();
+	mymeas.SmoothAll(1, true);
 
-	//mymeas.FractionEventsAboveThreshold(4, 7, true, true);
+	//plotting
 
-	////plotting
+	mymeas.plot_active_channels = { 0, 1, 2, 3, 4, 5, 6, 7 };
+	mymeas.PrintChargeSpectrum_pars = { 1e5, 6., .05, 200, 10, 600, 0, 1, 0};
 
 	//investigate individual waveforms
 	//TCanvas* tstc = new TCanvas("tstc", "", 1600, 1000);
@@ -89,9 +105,12 @@ void read_cosmics() // main
 
 	// investigate charge spectrum. should see photo electron peaks here
 	float intwindowminus = 10.;	// lower integration window in ns rel. to max
-	float intwindowplus = 15.;	// upper integration window in ns rel. to max
-	float findmaxfrom = 100.;	// assume signal from laser arrives between here ...
+	float intwindowplus = 15;	// upper integration window in ns rel. to max
+	float findmaxfrom = 90.;	// assume signal from laser arrives between here ...
 	float findmaxto = 125.;		// ... and here (depends on trigger delay setting)
+
+	// print events above a threshold to identify interesting events
+	mymeas.FractionEventsAboveThreshold(4, true, true, 5, 300);
 
 	if (isDC) {
 		findmaxfrom = 10 + intwindowminus;
@@ -103,22 +122,24 @@ void read_cosmics() // main
 		mymeas.PrintChargeSpectrum(intwindowminus, intwindowplus, findmaxfrom, findmaxto, -5, 100, 100);
 	}
 	else {
-		mymeas.PrintChargeSpectrum(intwindowminus, intwindowplus, findmaxfrom, findmaxto, -50, 5000, 400);
+		mymeas.PrintChargeSpectrum(intwindowminus, intwindowplus, findmaxfrom, findmaxto, -5, 250, 500);
 	}
-
-	int event1 = 214;
-	int event2 = 1421;
-	int event3 = 1500;
+	
+	// plot waveforms of individual events
+	//plot range
+	double ymin = -1;
+	double ymax = 5;
 
 	// plot waveforms for certain events with integration window
-	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event1, -15, 150.);
-	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event2, -15, 150);
-	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event3, -15, 150);
-
 	bool printfft = false;
-	if (printfft) {
-		mymeas.PrintFFTWF(event1, 0, .6, 64);
-		mymeas.PrintFFTWF(event2, 0, .6, 64);
-		mymeas.PrintFFTWF(event3, 0, .6, 64);
+	gROOT->SetBatch(kTRUE); // only write to root file
+	for (int i = 1; i < mymeas.nevents; i += static_cast<int>(mymeas.nevents / 50)) {
+		mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, i, ymin, ymax);
+		if (printfft) mymeas.PrintFFTWF(i, 0, .6, 64);
 	}
+	gROOT->SetBatch(kFALSE);
+
+	// plot waveforms for certain events with integration window
+	int event1 = 214;
+	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, event1, ymin, ymax);
 }
