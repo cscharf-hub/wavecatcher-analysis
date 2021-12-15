@@ -55,8 +55,11 @@ void read_ps_sr90_source() // main
 	}
 	}
 
+	// initialize class
+	ReadRun mymeas(0);
+
 	// read data
-	ReadRun mymeas(path, true);
+	mymeas.ReadRun(path, true);
 
 	// only plot certain channels
 	mymeas.plot_active_channels = { 9, 14, 15 };
