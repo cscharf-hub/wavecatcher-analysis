@@ -328,6 +328,20 @@ void ReadRun::SmoothAll(double sigma, bool doconv) { //deprecated since it can b
 	}
 }
 
+// derivative of all waveforms (for measurements w/o pole-zero cancellation)
+
+void ReadRun::DerivativeAll() { 
+	// just for testing
+	cout << "\nderivative of wfs";
+	for (int j = 0; j < nwf; j++) {
+		TH1F* his = ((TH1F*)rundata->At(j));
+		double* yvals = gety(his);
+		for (int i = 1; i < his->GetNbinsX() - 1; i++) his->SetBinContent(i, yvals[i + 1] - yvals[i]);
+		delete[] yvals;
+		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
+	}
+}
+
 // baseline correction
 
 void ReadRun::CorrectBaseline(float tCut, float tCutEnd) {
@@ -769,8 +783,8 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 
 			chargec->cd(current_canvas);
 
-			Fitf_biased fitf_biased;
-			TF1* f = new TF1("fitf", fitf_biased, fitrangestart, fitrangeend, 9);
+			Fitf fitf;
+			TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 7);
 			f->SetLineColor(3);
 
 			//+-1ns 41V nopz 1 SiPM switch 5 tune 8350
@@ -781,8 +795,8 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4);//		f->SetParLimits(4, 1.e-9, 1.e3);	//f->FixParameter(4, 0.1);
 			f->SetParName(5, "Gain");				f->SetParameter(5, 30.);	//f->FixParameter(5, 10.);
 			f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
-			f->SetParName(7, "norm_{0}");			f->SetParameter(7, 0.7); //f->FixParameter(7, 1.);
-			f->SetParName(8, "x_{0}");				f->SetParameter(8, 5.);
+			//f->SetParName(7, "norm_{0}");			f->SetParameter(7, 0.7); //f->FixParameter(7, 1.);	// for fitf_biased
+			//f->SetParName(8, "x_{0}");				f->SetParameter(8, 5.);							// for fitf_biased
 
 			if (!PrintChargeSpectrum_pars.empty()) {
 				for (int j = 0; j <= 8; j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
@@ -790,7 +804,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 
 			if (i < max_channel_nr_to_fit) {
 				cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
-				TFitResultPtr fresults = his->Fit(f, "RS");
+				TFitResultPtr fresults = his->Fit(f, "LRS");
 			}
 
 			his->Draw();
@@ -992,17 +1006,17 @@ void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangee
 
 TGraph2D* ReadRun::MaxDist(int channel_index, float from, float to) {
 	// find maximum amplitude for a given channel in time window [from, to] and return 3d histogram with the number of bins nbinsy,z
-	
+
 	TString name(Form("maxdist_ch%02d", active_channels[channel_index]));
-	TGraph2D* g3d = new TGraph2D((1024+2)*nevents);
+	TGraph2D* g3d = new TGraph2D((1024 + 2) * nevents);
 	g3d->SetTitle("waveforms; t [ns]; max. amplitude [mv]; amplitude [mV]");
-	
+
 	for (int j = 0; j < nevents; j++) {
 		auto his = (TH1F*)((TH1F*)rundata->At(j * nchannels + channel_index))->Clone();
 		if (from >= 0 && to > 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
 		double max = his->GetMaximum();
 		for (int i = 0; i < 1024; i++) g3d->SetPoint(j * 1024 + i, his->GetXaxis()->GetBinCenter(i), max, his->GetBinContent(i));
-			//g3d->SetPoint(j * 1024 + i, ((TH1F*)rundata->At(j * nchannels + channel_index))->GetXaxis()->GetBinCenter(i), max, ((TH1F*)rundata->At(j * nchannels + channel_index))->GetBinContent(i));
+		//g3d->SetPoint(j * 1024 + i, ((TH1F*)rundata->At(j * nchannels + channel_index))->GetXaxis()->GetBinCenter(i), max, ((TH1F*)rundata->At(j * nchannels + channel_index))->GetBinContent(i));
 	}
 	root_out->WriteObject(g3d, name.Data());
 	return g3d;
