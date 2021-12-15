@@ -159,7 +159,7 @@ public:
 	void Convolute(double*&, double*, double*, int, int);		// convolution for filtering waveforms
 	void SmoothArray(double*&, int, double = 1., bool = false);	// filtering
 
-	ReadRun(int); // Constructor of the class
+	ReadRun(double = 0); // Constructor of the class
 	
 	void ReadFile(string, bool = false, string = "out.root", bool = false); // file name, bool whether or not to change sign of PMT channels (channel number>8), bool whether to save ALL waveforms to root file (only advisable for runs with small number of events)
 
@@ -180,8 +180,10 @@ public:
 	vector<int> active_channels; // stores the numbers of the active channels
 	vector<int> plot_active_channels; // stores the numbers of the active channels which should be plotted
 
-	vector<vector<float>> baseline_correction_result; // store baseline values
+	vector<bool> skip_event; // stores the events which should be skipped in the analysis
+	double skip_event_threshold; // threshold (usually 4 mV) for PMT signal (hardcoded channel >8) to skip events where PMTs pick up radio frequency noise
 
+	vector<vector<float>> baseline_correction_result; // store baseline values
 
 	TFile* root_out;
 	TFile* root_out_wf;

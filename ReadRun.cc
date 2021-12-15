@@ -11,8 +11,9 @@
 
 ClassImp(ReadRun)
 
-ReadRun::ReadRun(int bla) {
+ReadRun::ReadRun(double PMT_threshold) {
 	cout << "\ninit" << endl;
+	skip_event_threshold = PMT_threshold;
 }
 
 void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name, bool save_all_waveforms) {
@@ -164,6 +165,7 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name,
 
 		while (input_file.read((char*)(&an_event), sizeof(an_event))) {
 			//event loop
+			bool event_flag = false;
 
 			if (out) output_file.write((char*)(&an_event), sizeof(an_event));
 
@@ -221,6 +223,10 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name,
 
 					// channel sums
 					amplValuessum[ch][s] += static_cast<double>(val);
+
+					if (skip_event_threshold != 0 && output_channel > 8 && val >= skip_event_threshold) {
+						event_flag = true;
+					}
 				}
 
 				//hCh->SetLineColor(ch + 1); // gets a bit too colorful
@@ -240,6 +246,7 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name,
 			} // for ch
 
 			eventnr_storage.push_back(output_event);	//  Adds the current event number(the one from the WaveCatcher) to the storage vector
+			skip_event.push_back(event_flag);
 			event_counter++;
 		} // while an_event
 
@@ -745,10 +752,12 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 	TH1F* h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
 
 	for (int j = 0; j < nevents; j++) {
-		TH1F* his = ((TH1F*)rundata->At(j * nchannels + channel_index));
-		int* windowind = GetIntWindow(his, windowlow, windowhi, start, end, channel_index);	// find integration window
-		h1->Fill(his->Integral(windowind[1], windowind[2], integral_option.c_str()));					// fill charge spectrum
-		delete[] windowind;
+		if (!skip_event[j]) {
+			TH1F* his = ((TH1F*)rundata->At(j * nchannels + channel_index));
+			int* windowind = GetIntWindow(his, windowlow, windowhi, start, end, channel_index);	// find integration window
+			h1->Fill(his->Integral(windowind[1], windowind[2], integral_option.c_str()));		// fill charge spectrum
+			delete[] windowind;
+		}
 	}
 	return h1;
 }

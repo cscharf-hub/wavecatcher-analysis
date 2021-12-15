@@ -58,8 +58,8 @@ void read_cosmics() // main
 	}
 	}
 
-	// initialize class
-	ReadRun mymeas(0);
+	// initialize class and discard events where the PMT signal is > 4 mV
+	ReadRun mymeas(4);
 
 	// read data
 	mymeas.ReadRun(path, true);
