@@ -30,8 +30,11 @@ void read_exampledata_notcompiled() // main
 	}
 	}
 
+	// initialize class
+	ReadRun mymeas(0);
+
 	// read data
-	ReadRun mymeas(path, true);
+	mymeas.ReadRun(path, true);
 
 	// only plot channels specified below (can be uncommented to analyze all active channels in data)
 	int channel_to_plot = 9;

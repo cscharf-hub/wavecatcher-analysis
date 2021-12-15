@@ -74,8 +74,11 @@ void read() // main
 	}
 	}
 
+	// initialize class
+	ReadRun mymeas(0);
+
 	// read data
-	ReadRun mymeas(path);
+	mymeas.ReadRun(path, true);
 
 	//apply baseline correction to ALL waveforms <- NEEDED but slow when not compiled
 	int which_blc = 2;

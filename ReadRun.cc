@@ -15,7 +15,7 @@ ReadRun::ReadRun(int bla) {
 	cout << "\ninit" << endl;
 }
 
-ReadRun::ReadRun(string path, bool changesignofPMTs, string out_file_name, bool save_all_waveforms) {
+void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name, bool save_all_waveforms) {
 	// reader modified from
 	// WaveCatcher binary -> root converter
 	// by manu chauveau@cenbg.in2p3.fr
@@ -799,7 +799,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			//f->SetParName(8, "x_{0}");				f->SetParameter(8, 5.);							// for fitf_biased
 
 			if (!PrintChargeSpectrum_pars.empty()) {
-				for (int j = 0; j <= 8; j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 			}
 
 			if (i < max_channel_nr_to_fit) {
@@ -816,8 +816,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 
 void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins) {
 	// print ReadRun::ChargeSpectrum for all channels optimized for PMT signals
-
-	//gStyle->SetOptStat(0); // 11 is title + entries
+	// just for plotting. To analyze the data use Fitf_PMT_pedestal for low number of photons and Fitf_langaus for >10-15 photons
 
 	TCanvas* chargec = new TCanvas("charge spectra PMT", "charge spectra PMT", 1600, 1000);
 	SplitCanvas(chargec);
@@ -848,22 +847,15 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 			// now use these fit results to fit the sum of two gauss
 			auto two_gauss = new TF1("two gaussians", "gaus(0)+gaus(3)", rangestart, rangeend); two_gauss->SetTitle("Sum of two gauss");
 			two_gauss->SetParameters(fres_est->Parameter(0) * .95, fres_est->Parameter(1) * .95, fres_est->Parameter(2) * .95, fres_est->Parameter(0) * .3, fres_est->Parameter(1) * 1.05, fres_est->Parameter(2) * .85); // factors are pretty much random
-			//auto two_gauss = new TF1("four gaussians", "gaus(0)+gaus(3)+gaus(6)+gaus(9)", rangestart, rangeend);
 			two_gauss->SetParName(0, "A_{pedestal}");
 			two_gauss->SetParName(1, "#mu_{pedestal}");
 			two_gauss->SetParName(2, "#sigma_{pedestal}");
 			two_gauss->SetParName(3, "A_{SPE}");
 			two_gauss->SetParName(4, "#mu_{SPE}");
 			two_gauss->SetParName(5, "#sigma_{SPE}");
-			//two_gauss->SetParName(6, "A_{2PE}");
-			//two_gauss->SetParName(7, "#mu_{2PE}");
-			//two_gauss->SetParName(8, "#sigma_{2PE}");
-			//two_gauss->SetParName(9, "A_{3PE}");
-			//two_gauss->SetParName(10, "#mu_{3PE}");
-			//two_gauss->SetParName(11, "#sigma_{3PE}");
 
 			if (!PrintChargeSpectrumPMT_pars.empty()) {
-				for (int j = 0; j <= PrintChargeSpectrumPMT_pars.size(); j++) two_gauss->SetParameter(j, PrintChargeSpectrumPMT_pars[j]);
+				for (int j = 0; j < PrintChargeSpectrumPMT_pars.size(); j++) two_gauss->SetParameter(j, PrintChargeSpectrumPMT_pars[j]);
 			}
 
 			//two_gauss->SetLineColor(4);

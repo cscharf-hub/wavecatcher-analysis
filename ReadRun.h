@@ -159,8 +159,9 @@ public:
 	void Convolute(double*&, double*, double*, int, int);		// convolution for filtering waveforms
 	void SmoothArray(double*&, int, double = 1., bool = false);	// filtering
 
-	ReadRun(int); // can be used if only certain functions of the class are to be used with data not from the wavecatcher
-	ReadRun(string, bool = false, string = "out.root", bool = false); // file name, bool whether or not to change sign of PMT channels (channel number>8), bool whether to save ALL waveforms to root file (only advisable for runs with small number of events)
+	ReadRun(int); // Constructor of the class
+	
+	void ReadFile(string, bool = false, string = "out.root", bool = false); // file name, bool whether or not to change sign of PMT channels (channel number>8), bool whether to save ALL waveforms to root file (only advisable for runs with small number of events)
 
 	virtual ~ReadRun();
 
