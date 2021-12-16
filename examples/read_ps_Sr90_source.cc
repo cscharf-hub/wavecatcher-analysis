@@ -59,7 +59,7 @@ void read_ps_sr90_source() // main
 	ReadRun mymeas(0);
 
 	// read data
-	mymeas.ReadRun(path, true);
+	mymeas.ReadFile(path, true);
 
 	// only plot certain channels
 	mymeas.plot_active_channels = { 9, 14, 15 };

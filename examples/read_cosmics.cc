@@ -62,7 +62,7 @@ void read_cosmics() // main
 	ReadRun mymeas(4);
 
 	// read data
-	mymeas.ReadRun(path, true);
+	mymeas.ReadFile(path, true);
 
 	//apply baseline correction to ALL waveforms <- NEEDED but slow when not compiled
 	int which_blc = 0;
