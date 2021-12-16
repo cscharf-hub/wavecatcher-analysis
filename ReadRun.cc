@@ -12,8 +12,15 @@
 ClassImp(ReadRun)
 
 ReadRun::ReadRun(double PMT_threshold) {
-	cout << "\ninit" << endl;
+	// PMT_threshold -> set to 0 to do nothing. If a value is set, events where the maximum value is > PMT_threshold in channel > 7 are removed from the analysis (for cosmics setup). Used to filter out events where the PMTs have triggered on picked-up radio frequency noise signals
+	cout << "\ninitializing ..." << endl;
 	skip_event_threshold = PMT_threshold;
+	if (skip_event_threshold > 0) {
+		cout << "\n removing events where channels 8-16 have entries exceeding +" << skip_event_threshold << " mV amplitude\n\n";
+	}
+	else if (skip_event_threshold < 0) {
+		cout << "\n removing events where channels 8-16 have entries below " << skip_event_threshold << " mV amplitude\n\n";
+	}
 }
 
 void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name, bool save_all_waveforms) {
@@ -65,6 +72,7 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name,
 	int currentPrint = -1;
 	int wfcounter = 0;
 	int event_counter = 0;
+	int removed_event_counter = 0;
 
 	while (inFileList >> fileName) {
 		// file loop
@@ -225,7 +233,7 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name,
 					amplValuessum[ch][s] += static_cast<double>(val);
 
 					// skip events where there are large positive amplitudes in the PMT channels (real PMT photoelectron signals are negative, positive signals are pick up noise)
-					if (skip_event_threshold != 0 && output_channel > 8 && val >= skip_event_threshold) {
+					if (skip_event_threshold != 0 && (skip_event_threshold > 0 && output_channel > 8 && val >= skip_event_threshold) || skip_event_threshold < 0 && output_channel > 8 && val <= skip_event_threshold) {
 						event_flag = true;
 					}
 				}
@@ -249,6 +257,7 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name,
 			eventnr_storage.push_back(output_event);	//  Adds the current event number(the one from the WaveCatcher) to the storage vector
 			skip_event.push_back(event_flag);
 			event_counter++;
+			if (event_flag) removed_event_counter++;
 		} // while an_event
 
 		input_file.close();
@@ -274,6 +283,8 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name,
 	nwf = wfcounter;
 
 	if (save_all_waveforms) root_out_wf->Close();
+
+	if (skip_event_threshold != 0) cout << "\n\n total number of events: " << nevents << "\n number of removed events: " << removed_event_counter << "\n\n";
 }
 
 ReadRun::~ReadRun() {
