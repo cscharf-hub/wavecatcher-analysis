@@ -367,36 +367,49 @@ void ReadRun::CorrectBaseline(float tCut, float tCutEnd) {
 	// corrects the baseline (DC offset) of all waveformsf
 	// tCut: time denoting the end or the beginning (if tCutEnd is set) of integration window
 	// for no bl correction set tCut < 0
+	// call method before ReadFile() if you want it to happen while reading
 
+	printf("\nUsing method CorrectBaseline\n");
+	tCutg = tCut;
+	tCutEndg = tCutEnd;
+	if (nwf == 0) {
+		Using_BaselineCorrection_in_file_loop = true;
+	}
+	else {
+		printf("Baseline correction (%d waveforms) :: ", nwf);
+		for (int j = 0; j < nwf; j++) {
+			//TH1F* his = ((TH1F*)rundata->At(j));
+			CorrectBaseline_function((TH1F*)rundata->At(j), tCut, tCutEnd, j);
+
+			if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
+		}
+	}
+}
+
+void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int nwaveform) {
 	int iCut, iCutEnd;
 	float corr = 0;
-	printf("\nBaseline correction (%d waveforms) :: ", nwf);
 
-	for (int j = 0; j < nwf; j++) {
-		TH1F* his = ((TH1F*)rundata->At(j));
-		iCut = his->GetXaxis()->FindBin(tCut);
+	iCut = his->GetXaxis()->FindBin(tCut);
 
-		if (tCutEnd <= 0) { //
-			corr = his->Integral(1, iCut) / static_cast<float>(iCut);
-		}
-		else {
-			iCutEnd = his->GetXaxis()->FindBin(tCutEnd);
-			corr = his->Integral(iCut, iCutEnd) / static_cast<float>(iCutEnd - iCut + 1);
-		}
-
-		// write corrected values to histograms
-		if (tCut >= 0) {
-			for (int i = 1; i < his->GetNbinsX(); i++) his->SetBinContent(i, his->GetBinContent(i) - corr);
-		}
-
-		baseline_correction_result.push_back(vector<float>());
-		baseline_correction_result[j].push_back(corr);
-		baseline_correction_result[j].push_back(0);
-		baseline_correction_result[j].push_back(tCut);
-		baseline_correction_result[j].push_back(tCutEnd);
-
-		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
+	if (tCutEnd <= 0) { //
+		corr = his->Integral(1, iCut) / static_cast<float>(iCut);
 	}
+	else {
+		iCutEnd = his->GetXaxis()->FindBin(tCutEnd);
+		corr = his->Integral(iCut, iCutEnd) / static_cast<float>(iCutEnd - iCut + 1);
+	}
+
+	// write corrected values to histograms
+	if (tCut >= 0) {
+		for (int i = 1; i < his->GetNbinsX(); i++) his->SetBinContent(i, his->GetBinContent(i) - corr);
+	}
+
+	baseline_correction_result.push_back(vector<float>());
+	baseline_correction_result[nwaveform].push_back(corr);
+	baseline_correction_result[nwaveform].push_back(0);
+	baseline_correction_result[nwaveform].push_back(tCut);
+	baseline_correction_result[nwaveform].push_back(tCutEnd);
 }
 
 void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool doaverage, double sigma, int max_bin_for_baseline, int start_at, bool search_min, bool convolution, int skip_channel) {
@@ -514,17 +527,17 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool doaverage,
 	}
 	delete[] slope;
 
-	TCanvas* sumc = new TCanvas("sumc", "sumc", 1600, 1000);
-	TH1F* hiss = new TH1F("sum", "sum", 1e4, -2, 2);
-	TH1F* hiss0 = new TH1F("sum0", "sum0", 1e4, -2, 2);
-	TH1F* hisssq = new TH1F("sqsum", "sqsum", 1e4, -2, 2);
-	for (int i = 0; i < nwf; i++) {
-		hiss->Fill(baseline_correction_result[i][4]);
-		hiss0->Fill(baseline_correction_result[i][5]);
-		hisssq->Fill(baseline_correction_result[i][6]);
-	}
-	hiss0->SetLineColor(2); hisssq->SetLineColor(1);
-	hiss->Draw(); hiss0->Draw("same"); hisssq->Draw("same");
+	//TCanvas* sumc = new TCanvas("sumc", "sumc", 1600, 1000);
+	//TH1F* hiss = new TH1F("sum", "sum", 1e4, -2, 2);
+	//TH1F* hiss0 = new TH1F("sum0", "sum0", 1e4, -2, 2);
+	//TH1F* hisssq = new TH1F("sqsum", "sqsum", 1e4, -2, 2);
+	//for (int i = 0; i < nwf; i++) {
+	//	hiss->Fill(baseline_correction_result[i][4]);
+	//	hiss0->Fill(baseline_correction_result[i][5]);
+	//	hisssq->Fill(baseline_correction_result[i][6]);
+	//}
+	//hiss0->SetLineColor(2); hisssq->SetLineColor(1);
+	//hiss->Draw(); hiss0->Draw("same"); hisssq->Draw("same");
 }
 
 void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool doaverage, double sigma, int max_bin_for_baseline, int start_at, bool convolution, int skip_channel) {
@@ -661,6 +674,29 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 	//
 	cout << "\nfraction of events w/ at least 2 channels above threshold: " << 100. * static_cast<float>(occurences2ch) / static_cast<float>(nevents) << "%\n";
 	cout << "\tfor a total of " << nevents << " events\n" << endl;
+}
+
+void ReadRun::SkipEventsPerChannel(vector<double> thresholds, bool verbose) {
+	// In case you want to have indiviual thresholds in individual channels
+	// Argument vector<double> thresholds should have a value for each active channel saved in the data, in ascending order (ch0, ch1 ...)
+	// Needs to be called before the charge spectrum etc functions
+	cout << "\n\n Removing events with individual threshold per channel!!!\n\n";
+	int counter = 0;
+
+	for (int j = 0; j < nwf; j++) {
+		auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
+
+		int currchannel = j - nchannels * floor(j / nchannels);
+		if (currchannel <= thresholds.size() && !skip_event[floor(j / nchannels)] && ((thresholds[currchannel] > 0 && his->GetMaximum() > thresholds[currchannel]) || (thresholds[currchannel] < 0 && his->GetMinimum() < thresholds[currchannel]))) {
+
+			int currevent = eventnr_storage[floor(j / nchannels)];
+			if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
+			skip_event[floor(j / nchannels)] = true;
+			counter++;
+		}
+	}
+
+	cout << "\n\n\t" << counter << " events will be cut out of " << nevents << "\n\n";
 }
 
 // functions for charge spectrum

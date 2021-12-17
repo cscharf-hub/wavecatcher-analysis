@@ -66,6 +66,11 @@ private:
 
 	vector<unsigned int> eventnr_storage;	//  DORAMAS: The events will be stored here in the order they have been read
 
+	// for baseline correction before 
+	bool Using_BaselineCorrection_in_file_loop = false;
+	float tCutg;
+	float tCutEndg;
+
 #pragma pack(1) // padding suppression
 // struct copied from
 // WaveCatcher binary -> root converter
@@ -117,6 +122,7 @@ public:
 
 	// baseline correction (shifts all waveforms individually)
 	void CorrectBaseline(float, float = -999);
+	void CorrectBaseline_function(TH1F*, float, float, int);
 
 	void CorrectBaselineMinSlopeRMS(int = 100, bool = false, double = 10, int = 0, int = 0, bool = false, bool = false, int = 8);
 
@@ -181,7 +187,9 @@ public:
 	vector<int> plot_active_channels; // stores the numbers of the active channels which should be plotted
 
 	vector<bool> skip_event; // stores the events which should be skipped in the analysis
-	double skip_event_threshold; // threshold (usually 4 mV) for PMT signal (hardcoded channel >8) to skip events where PMTs pick up radio frequency noise
+	double skip_event_threshold; // threshold (usually 4 mV) for PMT signal (hardcoded channel >8) to skip events where PMTs pick up radio frequency noise (NO BASELINE CORRECTION!)
+	void SkipEventsPerChannel(vector<double>, bool = false);  // in case you want to have indiviual thresholds in individual channels
+	 
 
 	vector<vector<float>> baseline_correction_result; // store baseline values
 
