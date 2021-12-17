@@ -122,7 +122,7 @@ public:
 
 	void CorrectBaselineMin(int = 100, bool = false, double = 10, int = 0, int = 0, bool = false, int = 8);
 
-	void FractionEventsAboveThreshold(float = 4, bool = true, bool = true, double = 0., double = 0.);
+	void FractionEventsAboveThreshold(float = 4, bool = true, bool = true, double = 0., double = 0., bool = false);
 
 	// average all waveforms to simplify peak ID
 	void SmoothAll(double = 5, bool = false);

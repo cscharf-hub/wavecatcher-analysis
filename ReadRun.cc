@@ -602,7 +602,7 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool doaverage, double 
 	}
 }
 
-void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool greater, double from, double to) {
+void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool greater, double from, double to, bool verbose) {
 	// find events with max/min above/below a certain threshold
 	// threshold -> in mV
 	// max -> true uses max, false uses min
@@ -636,7 +636,8 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 		if (find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[currchannel]) != plot_active_channels.end()) {
 			if ((max && greater && his->GetMaximum() > threshold) || (max && !greater && his->GetMaximum() < threshold) || (!max && greater && his->GetMinimum() > threshold) || (!max && !greater && his->GetMinimum() < threshold)) {
 				currevent = eventnr_storage[floor(j / nchannels)];
-				/*cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel];*/
+				
+				if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel];
 
 				// We must use 'distance' to make sure the position in 'counter_above' matches with the corresponding channel's position at 'plot_active_channels'
 				counter_abovethr[distance(plot_active_channels.begin(), find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[currchannel]))] += 1;
@@ -647,10 +648,11 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 					o2ch = occurences;
 				}
 				lastevent = currevent;
-				//
 			}
 		}
 	}
+
+	if (verbose) cout << endl;
 
 	//  Loop to show the fraction of events above threshold for each channel that will be plotted
 	for (int i = 0; i < plot_active_channels.size(); i++) {
@@ -997,19 +999,21 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 	auto h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
 
 	for (int j = 0; j < nevents; j++) {
-		auto his = (TH1F*)((TH1F*)rundata->At(j * nchannels + channel_index))->Clone();
-		if (from >= 0 && to > 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
+		if (!skip_event[j]) {
+			auto his = (TH1F*)((TH1F*)rundata->At(j * nchannels + channel_index))->Clone();
+			if (from >= 0 && to > 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
 
-		if (which == 0) { // time of maximum time histogram
-			h1->Fill(his->GetXaxis()->GetBinCenter(his->GetMaximumBin()));
-		}
-		else { // time of 50% cfd
-			double max = his->GetMaximum();
-			int from_n = his->GetXaxis()->FindBin(from);
-			do {
-				from_n++;
-			} while (his->GetBinContent(from_n) < .5 * max && from_n < his->GetXaxis()->FindBin(to));
-			h1->Fill(his->GetXaxis()->GetBinCenter(from_n));
+			if (which == 0) { // time of maximum time histogram
+				h1->Fill(his->GetXaxis()->GetBinCenter(his->GetMaximumBin()));
+			}
+			else { // time of 50% cfd
+				double max = his->GetMaximum();
+				int from_n = his->GetXaxis()->FindBin(from);
+				do {
+					from_n++;
+				} while (his->GetBinContent(from_n) < .5 * max && from_n < his->GetXaxis()->FindBin(to));
+				h1->Fill(his->GetXaxis()->GetBinCenter(from_n));
+			}
 		}
 	}
 	root_out->WriteObject(h1, name.Data());
@@ -1057,11 +1061,12 @@ TGraph2D* ReadRun::MaxDist(int channel_index, float from, float to) {
 	g3d->SetTitle("waveforms; t [ns]; max. amplitude [mv]; amplitude [mV]");
 
 	for (int j = 0; j < nevents; j++) {
-		auto his = (TH1F*)((TH1F*)rundata->At(j * nchannels + channel_index))->Clone();
-		if (from >= 0 && to > 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
-		double max = his->GetMaximum();
-		for (int i = 0; i < 1024; i++) g3d->SetPoint(j * 1024 + i, his->GetXaxis()->GetBinCenter(i), max, his->GetBinContent(i));
-		//g3d->SetPoint(j * 1024 + i, ((TH1F*)rundata->At(j * nchannels + channel_index))->GetXaxis()->GetBinCenter(i), max, ((TH1F*)rundata->At(j * nchannels + channel_index))->GetBinContent(i));
+		if (!skip_event[j]) {
+			auto his = (TH1F*)((TH1F*)rundata->At(j * nchannels + channel_index))->Clone();
+			if (from >= 0 && to > 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
+			double max = his->GetMaximum();
+			for (int i = 0; i < 1024; i++) g3d->SetPoint(j * 1024 + i, his->GetXaxis()->GetBinCenter(i), max, his->GetBinContent(i));
+		}
 	}
 	root_out->WriteObject(g3d, name.Data());
 	return g3d;
