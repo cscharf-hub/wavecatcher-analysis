@@ -21,6 +21,7 @@ ReadRun::ReadRun(double PMT_threshold) {
 	else if (skip_event_threshold < 0) {
 		cout << "\n removing events where channels 8-16 have entries below " << skip_event_threshold << " mV amplitude\n\n";
 	}
+	nwf = 0;
 }
 
 void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name, bool save_all_waveforms) {
@@ -679,6 +680,7 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 void ReadRun::SkipEventsPerChannel(vector<double> thresholds, bool verbose) {
 	// In case you want to have indiviual thresholds in individual channels
 	// Argument vector<double> thresholds should have a value for each active channel saved in the data, in ascending order (ch0, ch1 ...)
+	// Set threshold to 0 to skip channel
 	// Needs to be called before the charge spectrum etc functions
 	cout << "\n\n Removing events with individual threshold per channel!!!\n\n";
 	int counter = 0;
@@ -687,7 +689,7 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, bool verbose) {
 		auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
 
 		int currchannel = j - nchannels * floor(j / nchannels);
-		if (currchannel <= thresholds.size() && !skip_event[floor(j / nchannels)] && ((thresholds[currchannel] > 0 && his->GetMaximum() > thresholds[currchannel]) || (thresholds[currchannel] < 0 && his->GetMinimum() < thresholds[currchannel]))) {
+		if (currchannel <= thresholds.size() && thresholds[currchannel] != 0 && !skip_event[floor(j / nchannels)] && ((thresholds[currchannel] > 0 && his->GetMaximum() > thresholds[currchannel]) || (thresholds[currchannel] < 0 && his->GetMinimum() < thresholds[currchannel]))) {
 
 			int currevent = eventnr_storage[floor(j / nchannels)];
 			if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
