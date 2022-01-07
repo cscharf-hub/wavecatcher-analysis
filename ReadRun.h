@@ -165,7 +165,7 @@ public:
 	void Convolute(double*&, double*, double*, int, int);		// convolution for filtering waveforms
 	void SmoothArray(double*&, int, double = 1., bool = false);	// filtering
 
-	ReadRun(double = 0); // Constructor of the class
+	ReadRun(double = 0, int = 1); // Constructor of the class with arguments to filter noise events in the cosmics setup. Default values do nothing
 
 	void ReadFile(string, bool = false, string = "out.root", bool = false); // file name, bool whether or not to change sign of PMT channels (channel number>8), bool whether to save ALL waveforms to root file (only advisable for runs with small number of events)
 
@@ -188,8 +188,8 @@ public:
 
 	vector<bool> skip_event; // stores the events which should be skipped in the analysis
 	double skip_event_threshold; // threshold (usually 4 mV) for PMT signal (hardcoded channel >8) to skip events where PMTs pick up radio frequency noise (NO BASELINE CORRECTION!)
+	int skip_event_threshold_nch; // define how many PMT channels need to be above threshold to discard event (RF pick up should be seen by alls PMTs)
 	void SkipEventsPerChannel(vector<double>, bool = false);  // in case you want to have indiviual thresholds in individual channels
-	 
 
 	vector<vector<float>> baseline_correction_result; // store baseline values
 
@@ -347,7 +347,7 @@ public:
 
 			double normgn_term = 1.;
 			if (kint != 0) normgn_term /= (p[6] * TMath::Sqrt(2. * TMath::Pi() * k));
-			else normgn_term *= p[8] / (p[4] * TMath::Sqrt(2. * TMath::Pi()));
+			else normgn_term *= p[8] / (p[3] * TMath::Sqrt(2. * TMath::Pi()));
 			double gn_term = (1. - p[1]) * normgn_term;
 			if (kint != 0) gn_term *= TMath::Exp(-1. * TMath::Power(x[0] - k * p[7] - p[4], 2.) / (2. * k * p[6] * p[6]));
 			else  gn_term *= TMath::Exp(-1. * TMath::Power(x[0] - p[4], 2.) / (2. * p[3] * p[3]));

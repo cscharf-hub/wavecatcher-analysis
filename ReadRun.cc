@@ -11,15 +11,16 @@
 
 ClassImp(ReadRun)
 
-ReadRun::ReadRun(double PMT_threshold) {
+ReadRun::ReadRun(double PMT_threshold, int channels_above_threshold) {
 	// PMT_threshold -> set to 0 to do nothing. If a value is set, events where the maximum value is > PMT_threshold in channel > 7 are removed from the analysis (for cosmics setup). Used to filter out events where the PMTs have triggered on picked-up radio frequency noise signals
 	cout << "\ninitializing ..." << endl;
 	skip_event_threshold = PMT_threshold;
+	skip_event_threshold_nch = channels_above_threshold;
 	if (skip_event_threshold > 0) {
-		cout << "\n removing events where channels 8-16 have entries exceeding +" << skip_event_threshold << " mV amplitude\n\n";
+		cout << "\n removing events where channels 9-16 have entries exceeding +" << skip_event_threshold << " mV amplitude in at least " << channels_above_threshold << " PMTs\n\n";
 	}
 	else if (skip_event_threshold < 0) {
-		cout << "\n removing events where channels 8-16 have entries below " << skip_event_threshold << " mV amplitude\n\n";
+		cout << "\n removing events where channels 9-16 have entries below " << skip_event_threshold << " mV amplitude in at least " << channels_above_threshold << " PMTs\n\n";
 	}
 	nwf = 0;
 }
@@ -174,7 +175,7 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name,
 
 		while (input_file.read((char*)(&an_event), sizeof(an_event))) {
 			//event loop
-			bool event_flag = false;
+			int event_flag_cnt = 0;
 
 			if (out) output_file.write((char*)(&an_event), sizeof(an_event));
 
@@ -232,10 +233,17 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name,
 
 					// channel sums
 					amplValuessum[ch][s] += static_cast<double>(val);
+				}
 
-					// skip events where there are large positive amplitudes in the PMT channels (real PMT photoelectron signals are negative, positive signals are pick up noise)
+				// baseline correction
+				if (Using_BaselineCorrection_in_file_loop) {
+					CorrectBaseline_function(hCh, tCutg, tCutEndg, wfcounter);
+				}
+
+				// skip events where there are large positive amplitudes in the PMT channels (real PMT photoelectron signals are negative, positive signals are pick up noise)
+				for (int s = 0; s < binNumber; ++s) {
 					if (skip_event_threshold != 0 && (skip_event_threshold > 0 && output_channel > 8 && val >= skip_event_threshold) || skip_event_threshold < 0 && output_channel > 8 && val <= skip_event_threshold) {
-						event_flag = true;
+						event_flag_cnt++;
 					}
 				}
 
@@ -255,6 +263,8 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name,
 				wfcounter++;
 			} // for ch
 
+			bool event_flag = false;
+			if (event_flag_cnt >= skip_event_threshold_nch) event_flag = true;
 			eventnr_storage.push_back(output_event);	//  Adds the current event number(the one from the WaveCatcher) to the storage vector
 			skip_event.push_back(event_flag);
 			event_counter++;
@@ -406,11 +416,13 @@ void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int
 		for (int i = 1; i < his->GetNbinsX(); i++) his->SetBinContent(i, his->GetBinContent(i) - corr);
 	}
 
-	baseline_correction_result.push_back(vector<float>());
-	baseline_correction_result[nwaveform].push_back(corr);
-	baseline_correction_result[nwaveform].push_back(0);
-	baseline_correction_result[nwaveform].push_back(tCut);
-	baseline_correction_result[nwaveform].push_back(tCutEnd);
+	if (!Using_BaselineCorrection_in_file_loop) {
+		baseline_correction_result.push_back(vector<float>());
+		baseline_correction_result[nwaveform].push_back(corr);
+		baseline_correction_result[nwaveform].push_back(0);
+		baseline_correction_result[nwaveform].push_back(tCut);
+		baseline_correction_result[nwaveform].push_back(tCutEnd);
+	}
 }
 
 void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool doaverage, double sigma, int max_bin_for_baseline, int start_at, bool search_min, bool convolution, int skip_channel) {
