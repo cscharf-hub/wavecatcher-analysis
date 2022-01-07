@@ -347,7 +347,7 @@ public:
 
 			double normgn_term = 1.;
 			if (kint != 0) normgn_term /= (p[6] * TMath::Sqrt(2. * TMath::Pi() * k));
-			else normgn_term *= p[8] / (p[4] * TMath::Sqrt(2. * TMath::Pi()));
+			else normgn_term *= p[8] / (p[3] * TMath::Sqrt(2. * TMath::Pi()));
 			double gn_term = (1. - p[1]) * normgn_term;
 			if (kint != 0) gn_term *= TMath::Exp(-1. * TMath::Power(x[0] - k * p[7] - p[4], 2.) / (2. * k * p[6] * p[6]));
 			else  gn_term *= TMath::Exp(-1. * TMath::Power(x[0] - p[4], 2.) / (2. * p[3] * p[3]));
