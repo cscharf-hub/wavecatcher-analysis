@@ -25,7 +25,7 @@ ReadRun::ReadRun(double PMT_threshold, int channels_above_threshold) {
 	nwf = 0;
 }
 
-void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name, bool save_all_waveforms) {
+void ReadRun::ReadFile(string path, bool changesignofPMTs, int change_sign_from_ch_num, string out_file_name, bool save_all_waveforms, bool debug) {
 	// reader modified from
 	// WaveCatcher binary -> root converter
 	// by manu chauveau@cenbg.in2p3.fr
@@ -49,8 +49,8 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name,
 	TClonesArray& testrundata = *rundata;
 
 	// verbosity
-	bool debug_header = 0;
-	bool debug_data = 0;
+	bool debug_header = debug;
+	bool debug_data = debug;
 
 	unsigned short output_channel;
 	unsigned int output_event;
@@ -187,6 +187,8 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name,
 
 			if (debug_data && output_event % 200 == 0) printf("EventNr: %d, nCh: %d\n", output_event, output_nbchannels);
 
+			//cout << "EvN:" << an_event.EventNumber << " EpT:" << an_event.EpochTime << " Yr:" << an_event.Year << " TDCt:" << an_event.TDCsamIndex;
+
 			for (int ch = 0; ch < output_nbchannels; ++ch) {
 				//
 				channel_data_with_measurement a_channel_data;
@@ -222,7 +224,7 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, string out_file_name,
 				float val = 0.;
 				for (int s = 0; s < binNumber; ++s) {
 					val = a_channel_data.waveform[s] * coef * 1000.;
-					if (changesignofPMTs && output_channel > 8) val *= -1.;
+					if (changesignofPMTs && output_channel >= change_sign_from_ch_num) val *= -1.;
 					hCh->SetBinContent(s + 1, val);
 					//hCh->SetBinError(s, 0.5); //The error of each value in each bin is set to 0.5 mV -> Why??
 
@@ -303,8 +305,8 @@ ReadRun::~ReadRun() {
 	//rundata->Clear();
 	//delete[] maxSumBin;
 	//delete baseline_correction_result;
-	plot_active_channels.clear();
-	root_out->Close();
+	//plot_active_channels.clear();
+	//root_out->Close();
 	cout << "deleting nothing currently..." << endl;
 }
 
@@ -891,6 +893,12 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
 					TFitResultPtr fresults = his->Fit(f, "LRS");
 				}
+
+				// get number of excess events in the pedestal in the fit region. To get the absolute number of excess events the full pedestal needs to be inside of the fit range (fitrangestart, fitrangeend)
+				//double excessEventsInPedestal = f->Integral(fitrangestart, fitrangeend)/.3125;
+				//f->SetParameter(7, 1.);
+				//excessEventsInPedestal -= f->Integral(fitrangestart, fitrangeend)/.3125;
+				//cout << "\nNumber of excess events in the pedestal within the fit range:\t" << excessEventsInPedestal << "\n\n";
 			} 
 			else { // default SiPM fit function
 				Fitf fitf;
@@ -1039,8 +1047,7 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 	root_out->WriteObject(chargec, "ChargeSpectraPMTthreshold");
 }
 
-// time distribution of max in a certain time window
-// Maybe add functions for ToT and max+min amplitude in range?
+// time distribution of maximum, 50% CFD, or 10% - 90% rise time in a certain time window
 
 TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestart, float rangeend, int nbins, int which) {
 	// find peak time for a given channel in time window [from, to] and return the peak time histogram with x range [rangestart, rangeend] and the number of bins nbins
@@ -1053,20 +1060,37 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 			auto his = (TH1F*)((TH1F*)rundata->At(j * nchannels + channel_index))->Clone();
 			if (from >= 0 && to > 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
 
-			if (which == 0) { // time of maximum time histogram
+			int from_n = his->GetXaxis()->FindBin(from);
+			int to_n = his->GetXaxis()->FindBin(to);
+
+			if (which == 0) { // time of maximum 
 				h1->Fill(his->GetXaxis()->GetBinCenter(his->GetMaximumBin()));
 			}
-			else { // time of 50% cfd
+			else if (which == 1) { // time of 50% CFD
 				double max = his->GetMaximum();
-				int from_n = his->GetXaxis()->FindBin(from);
 				do {
 					from_n++;
-				} while (his->GetBinContent(from_n) < .5 * max && from_n < his->GetXaxis()->FindBin(to));
-				h1->Fill(his->GetXaxis()->GetBinCenter(from_n));
+				} while (his->GetBinContent(from_n) <= .5 * max && from_n < to_n);
+
+				h1->Fill(LinearInterpolation(.5 * max, his->GetXaxis()->GetBinCenter(from_n - 1), his->GetXaxis()->GetBinCenter(from_n), his->GetBinContent(from_n - 1), his->GetBinContent(from_n)));
+			}
+			else { // 10%-90% rise time
+				double max = his->GetMaximum();
+				int n10 = -1;
+				int n90 = -1;
+				do {
+					from_n++;
+					if (n10 == -1 && his->GetBinContent(from_n) >= .1 * max && his->GetBinContent(from_n - 1) <= .1 * max) n10 = from_n;
+					if (n90 == -1 && his->GetBinContent(from_n) >= .9 * max && his->GetBinContent(from_n - 1) <= .9 * max) n90 = from_n;
+				} while (his->GetBinContent(from_n) <= max && from_n < to_n);
+
+				float t10 = LinearInterpolation(.1 * max, his->GetXaxis()->GetBinCenter(n10 - 1), his->GetXaxis()->GetBinCenter(n10), his->GetBinContent(n10 - 1), his->GetBinContent(n10));
+				float t90 = LinearInterpolation(.9 * max, his->GetXaxis()->GetBinCenter(n90 - 1), his->GetXaxis()->GetBinCenter(n90), his->GetBinContent(n90 - 1), his->GetBinContent(n90));
+
+				h1->Fill(t90-t10);
 			}
 		}
 	}
-	root_out->WriteObject(h1, name.Data());
 	return h1;
 }
 
@@ -1102,6 +1126,27 @@ void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangee
 	time_dist_c->Update();
 	root_out->WriteObject(time_dist_c, "TimeDist");
 }
+
+//TH1F* ReadRun::TimeDiffCut(int channel_index1, int channel_index2, float threshold, float from, float to, float rangestart, float rangeend, int nbins, int which) {
+//	// find 50% of peak time for given channels in time window [from, to] and return the time difference histogram with x range [rangestart, rangeend] and the number of bins nbins
+//	// and remove all events with a time difference larger than peak +/- threshold from further analysis (flag skip_event[i] = true)
+//
+//	TString name(Form("timediff_ch%02d", active_channels[channel_index]));
+//	auto h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
+//
+//	TH1F* channel1;
+//	channel1 = TimeDist(channel_index1, from, to, rangestart, rangeend, nbins, which);
+//	TH1F* channel2;
+//	channel2 = TimeDist(channel_index1, from, to, rangestart, rangeend, nbins, which);
+//
+//	for (int j = 0; j < nevents; j++) {
+//		if (!skip_event[j]) {
+//			//if ()
+//		}
+//	}
+//
+//	return h1;
+//}
 
 TGraph2D* ReadRun::MaxDist(int channel_index, float from, float to) {
 	// find maximum amplitude for a given channel in time window [from, to] and return 3d histogram with the number of bins nbinsy,z
@@ -1213,6 +1258,10 @@ int ReadRun::GetEventIndex(int eventnr) {
 void ReadRun::SplitCanvas(TCanvas*& c) {
 	if (plot_active_channels.empty()) c->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
 	else if (plot_active_channels.size() > 1) c->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
+}
+
+float ReadRun::LinearInterpolation(float ym, float x1, float x2, float y1, float y2) {
+	return x1 + (ym - y1) * (x2 - x1) / (y2 - y1);
 }
 
 void ReadRun::Convolute(double*& result, double* first, double* second, int size1, int size2) {

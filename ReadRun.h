@@ -160,6 +160,8 @@ public:
 	double* gety(int, int);								// y values for waveform(ch, event)
 	double* gety(TH1F*);								// y values for histogram
 
+	float LinearInterpolation(float, float, float, float, float); // linear interpolation
+
 	int GetEventIndex(int);										// get index of a triggered event (finds the correct event if files are not read sequentially)
 	void SplitCanvas(TCanvas*&);								// split canvas into pads to display all active channels on one canvas
 	void Convolute(double*&, double*, double*, int, int);		// convolution for filtering waveforms
@@ -167,7 +169,7 @@ public:
 
 	ReadRun(double = 0, int = 1); // Constructor of the class with arguments to filter noise events in the cosmics setup. Default values do nothing
 
-	void ReadFile(string, bool = false, string = "out.root", bool = false); // file name, bool whether or not to change sign of PMT channels (channel number>8), bool whether to save ALL waveforms to root file (only advisable for runs with small number of events)
+	void ReadFile(string, bool = false, int = 9, string = "out.root", bool = false, bool = false); // file name, bool whether or not to change sign of PMT channels (channel number>8), bool whether to save ALL waveforms to root file (only advisable for runs with small number of events)
 
 	virtual ~ReadRun();
 
