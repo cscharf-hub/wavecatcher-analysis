@@ -188,6 +188,8 @@ public:
 	vector<int> active_channels; // stores the numbers of the active channels
 	vector<int> plot_active_channels; // stores the numbers of the active channels which should be plotted
 
+	vector<TFitResultPtr> fit_results; // stores the fit results of all channels and all function calls in ascending order for all different PrintChargeSpectrum functions
+
 	vector<bool> skip_event; // stores the events which should be skipped in the analysis
 	double skip_event_threshold; // threshold (usually 4 mV) for PMT signal (hardcoded channel >8) to skip events where PMTs pick up radio frequency noise (NO BASELINE CORRECTION!)
 	int skip_event_threshold_nch; // define how many PMT channels need to be above threshold to discard event (RF pick up should be seen by alls PMTs)
@@ -204,7 +206,7 @@ public:
 
 class Fitf {
 public:
-	// as used by jan
+	// as used by jan (missing after-pulses and dark counts)
 
 	double operator() (double* x, double* p) {
 		//0 - N0: Normalization (~Number of events)
@@ -231,6 +233,76 @@ public:
 			double gp = mu * TMath::Power((mu + k * lambda), k - 1) * TMath::Exp(-(mu + k * lambda)) / TMath::Factorial(kint);
 
 			sum += p[0] * gp * (1. / sqrt(2. * TMath::Pi()) / sigmaK) * TMath::Exp(-TMath::Power(((x[0] - (k * G + B)) / sqrt(2) / sigmaK), 2));
+		}
+		return sum;
+	};
+};
+
+class Fitf_full {
+public:
+	// as used by Robert Klanner
+	// still missing dark counts in integration window (3.3 in paper)
+	// please check for possible bugs
+
+	double operator() (double* x, double* p) {
+		//0 - N0: Normalization (~Number of events)
+		//1 - mu:  mean number of photons initiating a Geiger discharg
+		//2 - lambda: Borel-branching parameter for prompt crosstalk probability 1-exp(-lambda)
+
+		//3,4 -sigma0, sigma1
+		//5 - G: gain
+		//6 - B: Pedestal
+
+		//7 - alpha: after-pulsing probability
+		//8 - beta: the inverse of the exponential slope of the after-pulse	PH distribution
+
+		double sum = 0;
+		for (int kint = 0; kint <= 10; kint++) {
+			double mu = p[1];
+			double lambda = p[2];
+
+			double sigma0 = p[3];
+			double sigma1 = p[4];
+
+			double G = p[5];
+			double B = p[6];
+
+			double alpha = p[7];
+			double beta = p[8];
+
+			//numbe of fired cells
+			double k = static_cast<double>(kint);
+			//pulse width
+			double sigmaK = sqrt(sigma0 * sigma0 + k * sigma1 * sigma1);
+			double gausnormsigmak = 1 / (sqrt(2. * TMath::Pi()) * sigmaK);
+			//generalized poisson envelope
+			double gp = mu * TMath::Power((mu + k * lambda), k - 1) * TMath::Exp(-(mu + k * lambda)) / TMath::Factorial(kint);
+			//gauss peak
+			double gauss = gausnormsigmak * TMath::Exp(-1. * TMath::Power(x[0] - (k * G + B), 2.) / (sigmaK * sigmaK * 2.));
+
+
+			if (kint == 0) {
+				sum += p[0] * gp * gauss;
+			}
+			else {
+				//after-pulse + delayed cross talk
+				double bk0 = TMath::Power(1. - alpha, k);
+				double bk1 = TMath::Factorial(kint) / TMath::Factorial(kint - 1) * alpha * TMath::Power(1. - alpha, k - 1);
+				double pk1 = TMath::Exp(-1. * (x[0] - (k * G + B)) / beta) * gausnormsigmak / beta * sigmaK * sqrt(TMath::Pi() / 2) * (TMath::Erf((x[0] - (k * G + B)) / (sqrt(2) * sigmaK)) + 1.);
+
+
+				if (kint == 1) sum += p[0] * gp * (bk0 * gauss + bk1 * pk1);
+				else {
+					double api2k = 0.;
+					for (int ii = 2; ii < kint; ii++) {
+						double iid = static_cast<double>(ii);
+						double bkialpha = TMath::Factorial(kint) / (TMath::Factorial(ii) * TMath::Factorial(kint - ii)) * TMath::Power(alpha, iid) * TMath::Power((1. - alpha), (k - iid));
+						double dpkidph = TMath::Power((x[0] - (k * G + B)), (iid - 1.)) / (TMath::Factorial(ii - 1) * TMath::Power(beta, iid)) * TMath::Exp(-1. * (x[0] - (k * G + B)) / beta);
+						api2k += bkialpha * dpkidph;
+					}
+					sum += p[0] * gp * (bk0 * gauss + bk1 * pk1 + api2k);
+				}
+			}
 		}
 		return sum;
 	};

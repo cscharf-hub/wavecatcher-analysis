@@ -488,13 +488,13 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool doaverage,
 				search_before = imax - min_distance_from_max;
 			}
 
-			for (int i = start_at; i < search_before; i += 1) { // currently in steps of 3 bins (~1 ns) to make it faster
+			for (int i = start_at; i < search_before; i += 3) { // currently in steps of 3 bins (~1 ns) to make it faster
 				sum = 0.;
 				sum0 = 0.;
 				sqsum = 0.;
 				change = 0.;
 				sign = 1.;
-				for (int k = i; k < nIntegrationWindow + i; k++) {
+				for (int k = i; k < nIntegrationWindow + i; k += 3) {
 					sum += slope[k];
 					sum0 += yvals[k] / 100; // completely random choice
 					sqsum += (slope[k] * slope[k]);
@@ -837,6 +837,9 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 	if (fitrangestart == 0.) fitrangestart = rangestart;
 	if (fitrangeend == 0.) fitrangeend = rangeend;
 
+	string integral_option = ""; // use amplitude spectrum (not good for fitting, will be biased)
+	if (windowlow != windowhi) integral_option = "width"; // use charge (integral)
+
 	TCanvas* chargec = new TCanvas("charge spectra", "charge spectra", 1600, 1000);
 	SplitCanvas(chargec);
 
@@ -848,15 +851,17 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			current_canvas++;
 
 			TH1F* his;
-			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins);
+			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins, integral_option);
 			his->GetYaxis()->SetTitle("#Entries");
-			his->GetXaxis()->SetTitle("integral in mV#timesns");
+			if (windowlow != windowhi) his->GetXaxis()->SetTitle("integral in mV#timesns");
+			else his->GetXaxis()->SetTitle("amplitude in mV");
 
 			TString name(Form("ChargeSpectrum channel_%02d", active_channels[i]));
 			root_out->WriteObject(his, name.Data());
 
 			chargec->cd(current_canvas);
 
+			//do the fit
 			if (which_fitf == 1) { // landau gauss convolution for large number of photons
 				Fitf_langaus fitf;
 				TF1* f = new TF1("fitf_langaus", fitf, fitrangestart, fitrangeend, 4); f->SetLineColor(3);
@@ -871,6 +876,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
 					TFitResultPtr fresults = his->Fit(f, "LRS");
+					fit_results.push_back(fresults);
 				}
 			} 
 			else if (which_fitf == 2) { // if pedestal is biased because of peak finder algorithm
@@ -892,6 +898,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
 					TFitResultPtr fresults = his->Fit(f, "LRS");
+					fit_results.push_back(fresults);
 				}
 
 				// get number of excess events in the pedestal in the fit region. To get the absolute number of excess events the full pedestal needs to be inside of the fit range (fitrangestart, fitrangeend)
@@ -900,6 +907,28 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				//excessEventsInPedestal -= f->Integral(fitrangestart, fitrangeend)/.3125;
 				//cout << "\nNumber of excess events in the pedestal within the fit range:\t" << excessEventsInPedestal << "\n\n";
 			} 
+			else if (which_fitf == 3) { // SiPM fit function with exponential delayed afterpulsing
+				Fitf_full fitf;
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 9); f->SetLineColor(3);
+
+				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
+				f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
+				f->SetParName(2, "#lambda");			f->SetParameter(2, .04);
+				f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 2.1);
+				f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4);
+				f->SetParName(5, "Gain");				f->SetParameter(5, 30.); //f->FixParameter(5, 40.);
+				f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
+				f->SetParName(7, "#alpha");				f->SetParameter(7, .1); //f->FixParameter(7, .2);
+				f->SetParName(8, "#beta");				f->SetParameter(8, 80.); //f->FixParameter(8, 80);
+
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+
+				if (i < max_channel_nr_to_fit) {
+					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+					TFitResultPtr fresults = his->Fit(f, "LRS");
+					fit_results.push_back(fresults);
+				}
+			}
 			else { // default SiPM fit function
 				Fitf fitf;
 				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 7); f->SetLineColor(3);
@@ -909,7 +938,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetParName(2, "#lambda");			f->SetParameter(2, .04);
 				f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 2.1);
 				f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4);
-				f->SetParName(5, "Gain");				f->SetParameter(5, 30.);//f->FixParameter(5, 10.);
+				f->SetParName(5, "Gain");				f->SetParameter(5, 30.); //f->FixParameter(5, 40.);
 				f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
 
 				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
@@ -917,12 +946,13 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
 					TFitResultPtr fresults = his->Fit(f, "LRS");
+					fit_results.push_back(fresults);
 				}
 			}
-
 			his->Draw();
 		}
 	}
+
 	chargec->Update();
 	root_out->WriteObject(chargec, "ChargeSpectra");
 }
@@ -973,6 +1003,8 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 
 			//two_gauss->SetLineColor(4);
 			TFitResultPtr fresults = his->Fit(two_gauss, "RSL");
+			fit_results.push_back(fresults);
+
 			two_gauss->Draw("same");
 
 			auto pedestal = new TF1("pedestal", "gaus", rangestart, rangeend); pedestal->SetTitle("pedestal");
@@ -998,6 +1030,12 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 
 	gStyle->SetOptStat(0); // 11 is title + entries
 
+	// show fraction of events above 0.5 pe charge = pedestal + gain/2
+	// dark count rate for SiPMs
+	// need to call the SiPM fitfunction before this one for this functionality
+	bool calculate_SiPM_DCR = false;
+	if (threshold == 999) calculate_SiPM_DCR = true;
+
 	TCanvas* chargec = new TCanvas("charge spectra PMT threshold", "charge spectra PMT threshold", 1600, 1000);
 	SplitCanvas(chargec);
 
@@ -1006,6 +1044,9 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 
 	for (int i = 0; i < nchannels; i++) {
 		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+			
+			if (calculate_SiPM_DCR) threshold = fit_results[current_canvas]->Parameter(6) + fit_results[current_canvas]->Parameter(5)/2.;
+
 			current_canvas++;
 
 			TH1F* his;
@@ -1024,7 +1065,12 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 			his_lo->SetFillColor(2);
 			his_lo->Draw("LF2 same");
 			stringstream loname;
-			loname << 100. * his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() << "% <= " << threshold << " mV";
+			if (!calculate_SiPM_DCR) {
+				loname << 100. * his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() << "% <= " << threshold << " mV";
+			}
+			else {
+				loname << "<0.5 pe=" << threshold << " mV -> " << his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() / (1.e-6 * (windowhi - windowlow)) << " kHz";
+			}
 			his_lo->SetTitle(loname.str().c_str());
 
 			auto his_hi = (TH1F*)his->Clone();
@@ -1033,7 +1079,12 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 			his_hi->SetFillColor(1);
 			his_hi->Draw("LF2 same");
 			stringstream hiname;
-			hiname << 100. * his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() << "% > " << threshold << " mV";
+			if (!calculate_SiPM_DCR) {
+				hiname << 100. * his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() << "% > " << threshold << " mV";
+			}
+			else {
+				hiname << ">0.5 pe=" << threshold << " mV -> " << his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() / (1.e-6 * (windowhi - windowlow)) << " kHz";
+			}
 			his_hi->SetTitle(hiname.str().c_str());
 
 			threshold_bin_center = his->GetXaxis()->GetBinCenter(his->GetXaxis()->FindBin(threshold) + 1);
