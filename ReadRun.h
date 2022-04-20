@@ -173,6 +173,7 @@ public:
 
 	virtual ~ReadRun();
 
+	string data_path;			// path to data. Can be used to save analysis results in the data folder
 	//int nbinsdata;
 	int nevents;				// number of triggered events
 	int nchannels;

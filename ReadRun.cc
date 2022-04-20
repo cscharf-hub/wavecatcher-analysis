@@ -31,6 +31,9 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, int change_sign_from_
 	// by manu chauveau@cenbg.in2p3.fr
 	// see https://owncloud.lal.in2p3.fr/public.php?service=files&t=56e4a2c53a991cb08f73d03f1ce58ba2
 
+	// save output path
+	data_path = path;
+
 	bool out = false; //experimental, not working
 
 	root_out = TFile::Open(out_file_name.c_str(), "recreate");
@@ -1069,7 +1072,7 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 				loname << 100. * his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() << "% <= " << threshold << " mV";
 			}
 			else {
-				loname << "<0.5 pe=" << threshold << " mV -> " << his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() / (1.e-6 * (windowhi - windowlow)) << " kHz";
+				loname << "<0.5 pe=" << threshold << " mV -> " << his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() / (1.e-6 * (end - start)) << " kHz";
 			}
 			his_lo->SetTitle(loname.str().c_str());
 
@@ -1083,7 +1086,7 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 				hiname << 100. * his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() << "% > " << threshold << " mV";
 			}
 			else {
-				hiname << ">0.5 pe=" << threshold << " mV -> " << his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() / (1.e-6 * (windowhi - windowlow)) << " kHz";
+				hiname << ">0.5 pe=" << threshold << " mV -> " << his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() / (1.e-6 * (end - start)) << " kHz";
 			}
 			his_hi->SetTitle(hiname.str().c_str());
 
