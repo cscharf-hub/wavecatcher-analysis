@@ -13,7 +13,9 @@ ClassImp(ReadRun)
 
 ReadRun::ReadRun(double PMT_threshold, int channels_above_threshold) {
 	// PMT_threshold -> set to 0 to do nothing. If a value is set, events where the maximum value is > PMT_threshold in channel > 7 are removed from the analysis (for cosmics setup). Used to filter out events where the PMTs have triggered on picked-up radio frequency noise signals
+	
 	cout << "\ninitializing ..." << endl;
+	
 	skip_event_threshold = PMT_threshold;
 	skip_event_threshold_nch = channels_above_threshold;
 	if (skip_event_threshold > 0) {
@@ -23,6 +25,10 @@ ReadRun::ReadRun(double PMT_threshold, int channels_above_threshold) {
 		cout << "\n removing events where channels 9-16 have entries below " << skip_event_threshold << " mV amplitude in at least " << channels_above_threshold << " PMTs\n\n";
 	}
 	nwf = 0;
+
+	PrintChargeSpectrum_cnt = 0;
+	PrintChargeSpectrumPMT_cnt = 0;
+	PrintChargeSpectrumPMTthreshold_cnt = 0;
 }
 
 void ReadRun::ReadFile(string path, bool changesignofPMTs, int change_sign_from_ch_num, string out_file_name, bool save_all_waveforms, bool debug) {
@@ -833,6 +839,7 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 
 void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, float fitrangestart, float fitrangeend, int max_channel_nr_to_fit, int which_fitf) {
 	// print ReadRun::ChargeSpectrum for all channels optimized for SiPM signals
+	PrintChargeSpectrum_cnt++;
 
 	gStyle->SetOptStat("ne");
 	gStyle->SetOptFit(1111);
@@ -843,7 +850,8 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 	string integral_option = ""; // use amplitude spectrum (not good for fitting, will be biased)
 	if (windowlow != windowhi) integral_option = "width"; // use charge (integral)
 
-	TCanvas* chargec = new TCanvas("charge spectra", "charge spectra", 1600, 1000);
+	string ctitle("charge spectra" + to_string(PrintChargeSpectrum_cnt));
+	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 1600, 1000);
 	SplitCanvas(chargec);
 
 	cout << "\n\nThere is data recorded in " << active_channels.size() << " channels \n\n\n";
@@ -1001,8 +1009,10 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins) {
 	// print ReadRun::ChargeSpectrum for all channels optimized for PMT signals
 	// just for plotting. To analyze the data use Fitf_PMT_pedestal for low number of photons and Fitf_langaus for >10-15 photons
+	PrintChargeSpectrumPMT_cnt++;
 
-	TCanvas* chargec = new TCanvas("charge spectra PMT", "charge spectra PMT", 1600, 1000);
+	string ctitle("charge spectra PMT" + to_string(PrintChargeSpectrumPMT_cnt));
+	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 1600, 1000);
 	SplitCanvas(chargec);
 
 	string integral_option = ""; // use amplitude spectrum (not good for fitting, will be biased)
@@ -1072,7 +1082,8 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 }
 
 void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, double threshold) {
-	// print ReadRun::ChargeSpectrum for all channels optimized for PMT signals visualizing a threshold
+	// print ReadRun::ChargeSpectrum for all channels optimized for PMT signals visualizing a threshold and SiPM dark count rate
+	PrintChargeSpectrumPMTthreshold_cnt++;
 
 	gStyle->SetOptStat(0); // 11 is title + entries
 
@@ -1085,7 +1096,8 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 	string integral_option = ""; // use amplitude spectrum (not good for fitting, will be biased)
 	if (windowlow != windowhi) integral_option = "width"; // use charge (integral)
 
-	TCanvas* chargec = new TCanvas("charge spectra PMT threshold", "charge spectra PMT threshold", 1600, 1000);
+	string ctitle("charge spectra PMT threshold" + to_string(PrintChargeSpectrumPMTthreshold_cnt));
+	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 1600, 1000);
 	SplitCanvas(chargec);
 
 	int current_canvas = 0;

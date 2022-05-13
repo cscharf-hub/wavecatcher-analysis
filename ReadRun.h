@@ -71,6 +71,12 @@ private:
 	float tCutg;
 	float tCutEndg;
 
+	// for multiple executions of the same plotting function
+	int PrintChargeSpectrum_cnt;
+	int PrintChargeSpectrumPMT_cnt;
+	int PrintChargeSpectrumPMTthreshold_cnt;
+
+
 #pragma pack(1) // padding suppression
 // struct copied from
 // WaveCatcher binary -> root converter
