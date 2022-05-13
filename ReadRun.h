@@ -156,7 +156,7 @@ public:
 	// helper functions
 	stringstream list_files(const char*, const char*);	// find data files
 	TH1F* Getwf(int, int, int = 1);						// channel, eventnr, color
-	double* getx();										// x values
+	double* getx(double = 0.);							// x values
 	double* gety(int, int);								// y values for waveform(ch, event)
 	double* gety(TH1F*);								// y values for histogram
 

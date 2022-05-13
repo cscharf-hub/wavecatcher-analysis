@@ -932,6 +932,44 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 					fit_results.push_back(fresults);
 				}
 			}
+			else if (which_fitf == 4) { // ideal PMT fit function
+				Fitf_PMT_ideal fitf;
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 4); f->SetLineColor(3);
+				
+				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
+				f->SetParName(1, "#mu");				f->SetParameter(1, 1.);
+				f->SetParName(2, "#sigma");			f->SetParameter(2, 5.);
+				f->SetParName(3, "gain");				f->SetParameter(3, 10.);
+
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+
+				if (i < max_channel_nr_to_fit) {
+					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+					TFitResultPtr fresults = his->Fit(f, "LRS");
+					fit_results.push_back(fresults);
+				}
+			}
+			else if (which_fitf == 5) { // PMT fit function
+				Fitf_PMT fitf;
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 8); f->SetLineColor(3);
+				
+				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
+				f->SetParName(1, "w");					f->SetParameter(1, .05);	//probability for type II BG
+				f->SetParName(2, "#alpha");				f->SetParameter(2, .05);	//coefficient of exponential decrease of typ II BG
+				f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 5.);
+				f->SetParName(4, "Q_{0}");				f->SetParameter(4, 0.);
+				f->SetParName(5, "#mu");				f->SetParameter(5, 1.);
+				f->SetParName(6, "#sigma_{1}");			f->SetParameter(6, 5.);
+				f->SetParName(7, "Q_{1}");				f->SetParameter(7, 10.);
+				
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+
+				if (i < max_channel_nr_to_fit) {
+					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+					TFitResultPtr fresults = his->Fit(f, "LRS");
+					fit_results.push_back(fresults);
+				}
+			}
 			else { // default SiPM fit function
 				Fitf fitf;
 				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 7); f->SetLineColor(3);
@@ -967,6 +1005,9 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 	TCanvas* chargec = new TCanvas("charge spectra PMT", "charge spectra PMT", 1600, 1000);
 	SplitCanvas(chargec);
 
+	string integral_option = ""; // use amplitude spectrum (not good for fitting, will be biased)
+	if (windowlow != windowhi) integral_option = "width"; // use charge (integral)
+
 	int current_canvas = 0;
 
 	for (int i = 0; i < nchannels; i++) {
@@ -974,7 +1015,9 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 			current_canvas++;
 
 			TH1F* his;
-			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins);
+			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins, integral_option);
+			if (windowlow != windowhi) his->GetXaxis()->SetTitle("integral in mV#timesns");
+			else his->GetXaxis()->SetTitle("amplitude in mV");
 			chargec->cd(current_canvas);
 
 			his->GetYaxis()->SetTitle("#Entries");
@@ -1039,6 +1082,9 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 	bool calculate_SiPM_DCR = false;
 	if (threshold == 999) calculate_SiPM_DCR = true;
 
+	string integral_option = ""; // use amplitude spectrum (not good for fitting, will be biased)
+	if (windowlow != windowhi) integral_option = "width"; // use charge (integral)
+
 	TCanvas* chargec = new TCanvas("charge spectra PMT threshold", "charge spectra PMT threshold", 1600, 1000);
 	SplitCanvas(chargec);
 
@@ -1053,7 +1099,9 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 			current_canvas++;
 
 			TH1F* his;
-			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins);
+			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins, integral_option);
+			if (windowlow != windowhi) his->GetXaxis()->SetTitle("integral in mV#timesns");
+			else his->GetXaxis()->SetTitle("amplitude in mV");
 			chargec->cd(current_canvas);
 
 			his->GetYaxis()->SetTitle("#Entries");
@@ -1072,7 +1120,7 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 				loname << 100. * his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() << "% <= " << threshold << " mV";
 			}
 			else {
-				loname << "<0.5 pe=" << threshold << " mV -> " << his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() / (1.e-6 * (end - start)) << " kHz";
+				loname << "<0.5 pe=" << threshold << " mV -> " << his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() / (1.e-3 * (end - start)) << " MHz";
 			}
 			his_lo->SetTitle(loname.str().c_str());
 
@@ -1086,7 +1134,7 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 				hiname << 100. * his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() << "% > " << threshold << " mV";
 			}
 			else {
-				hiname << ">0.5 pe=" << threshold << " mV -> " << his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() / (1.e-6 * (end - start)) << " kHz";
+				hiname << ">0.5 pe=" << threshold << " mV -> " << his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() / (1.e-3 * (end - start)) << " MHz";
 			}
 			his_hi->SetTitle(hiname.str().c_str());
 
@@ -1278,10 +1326,10 @@ TH1F* ReadRun::Getwf(int channelnr, int eventnr, int color) {
 	return his;
 }
 
-double* ReadRun::getx() {
+double* ReadRun::getx(double shift) {
 	double* xvals = new double[1024];
 	for (int i = 0; i < 1024; i++) {
-		xvals[i] = static_cast<double>(SP) * static_cast<double>(i);
+		xvals[i] = static_cast<double>(SP + shift) * static_cast<double>(i);
 	}
 	return xvals;
 }
