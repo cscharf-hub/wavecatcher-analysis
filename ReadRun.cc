@@ -321,10 +321,10 @@ ReadRun::~ReadRun() {
 
 // plot sums of all waveforms for each channel
 
-void ReadRun::PlotChannelSums(bool doaverage) {
+void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift) {
 	// doaverage: if true it will plot the running average +/- 4 bins
 
-	double* xv = getx();
+	double* xv = getx(shift);
 	TMultiGraph* mgsums = new TMultiGraph();
 	mgsums->SetTitle("channel sums; t [ns]; amplitude [arb.]");
 
@@ -332,7 +332,10 @@ void ReadRun::PlotChannelSums(bool doaverage) {
 		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
 			double* yv = amplValuessum[i];
 			if (doaverage) SmoothArray(yv, binNumber, 4);
+			
 			TGraph* gr = new TGraph(binNumber, xv, yv);
+			
+			if (normalize) gr->Scale(1./TMath::MaxElement(gr->GetN(),gr->GetY()));
 			delete[] yv;
 
 			TString name(Form("channel_%02d", active_channels[i]));
@@ -349,6 +352,7 @@ void ReadRun::PlotChannelSums(bool doaverage) {
 	TCanvas* sumc = new TCanvas("Sums", "", 1600, 1000);
 	mgsums->Draw("APL");
 	mgsums->GetYaxis()->SetRangeUser(-1e4, 1e6);
+	if (normalize) mgsums->GetYaxis()->SetRangeUser(-0.2, 1);
 	sumc->BuildLegend(0.85, 0.70, .99, .95);
 	root_out->WriteObject(mgsums, "channelsums");
 	root_out->WriteObject(sumc, "channelsums_c");
@@ -1102,6 +1106,7 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 
 	int current_canvas = 0;
 	float threshold_bin_center = 0.;
+	string unit(" mV");
 
 	for (int i = 0; i < nchannels; i++) {
 		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
@@ -1112,8 +1117,13 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 
 			TH1F* his;
 			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins, integral_option);
-			if (windowlow != windowhi) his->GetXaxis()->SetTitle("integral in mV#timesns");
-			else his->GetXaxis()->SetTitle("amplitude in mV");
+
+			his->GetXaxis()->SetTitle("amplitude in mV");
+			if (windowlow != windowhi) {
+				his->GetXaxis()->SetTitle("integral in mV#timesns");
+				unit = " mV#timesns";
+			}
+
 			chargec->cd(current_canvas);
 
 			his->GetYaxis()->SetTitle("#Entries");
@@ -1129,10 +1139,10 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 			his_lo->Draw("LF2 same");
 			stringstream loname;
 			if (!calculate_SiPM_DCR) {
-				loname << 100. * his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() << "% <= " << threshold << " mV";
+				loname << 100. * his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() << "% <= " << threshold << unit;
 			}
 			else {
-				loname << "<0.5 pe=" << threshold << " mV -> " << his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() / (1.e-3 * (end - start)) << " MHz";
+				loname << "<0.5 pe=" << threshold << unit << " -> " << his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() / (1.e-3 * (end - start)) << " MHz";
 			}
 			his_lo->SetTitle(loname.str().c_str());
 
@@ -1143,10 +1153,10 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 			his_hi->Draw("LF2 same");
 			stringstream hiname;
 			if (!calculate_SiPM_DCR) {
-				hiname << 100. * his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() << "% > " << threshold << " mV";
+				hiname << 100. * his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() << "% > " << threshold << unit;
 			}
 			else {
-				hiname << ">0.5 pe=" << threshold << " mV -> " << his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() / (1.e-3 * (end - start)) << " MHz";
+				hiname << ">0.5 pe=" << threshold << unit << " -> " << his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() / (1.e-3 * (end - start)) << " MHz";
 			}
 			his_hi->SetTitle(hiname.str().c_str());
 
@@ -1155,7 +1165,7 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 			gPad->BuildLegend();
 		}
 	}
-	cout << "\n PMT charge spectrum is counting events above threshold from bin center >= " << threshold_bin_center << " mV " << "for a threshold setting of " << threshold << " mV\n\n";
+	cout << "\n PMT charge spectrum is counting events above threshold from bin center >= " << threshold_bin_center << unit << " for a threshold setting of " << threshold << unit << "\n\n";
 
 	chargec->Update();
 	root_out->WriteObject(chargec, "ChargeSpectraPMTthreshold");
@@ -1341,7 +1351,7 @@ TH1F* ReadRun::Getwf(int channelnr, int eventnr, int color) {
 double* ReadRun::getx(double shift) {
 	double* xvals = new double[1024];
 	for (int i = 0; i < 1024; i++) {
-		xvals[i] = static_cast<double>(SP + shift) * static_cast<double>(i);
+		xvals[i] = static_cast<double>(SP) * static_cast<double>(i) + shift;
 	}
 	return xvals;
 }

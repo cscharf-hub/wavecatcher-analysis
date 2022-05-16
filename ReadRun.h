@@ -124,7 +124,7 @@ private:
 public:
 
 	// plots amplValuessum
-	void PlotChannelSums(bool = true);
+	void PlotChannelSums(bool = true, bool = false, double = 0.);
 
 	// baseline correction (shifts all waveforms individually)
 	void CorrectBaseline(float, float = -999);
