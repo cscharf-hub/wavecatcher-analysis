@@ -235,18 +235,27 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, int change_sign_from_
 					float max = 0.;
 					int nmax = 0;
 					float cf = tWF_CF;
-					
-					for (int s = 300; s < 500; ++s) {
+					int count_fall = 0;
+					double global_max = TMath::MaxElement(1024, a_channel_data.waveform);
+					if (global_max < TMath::Abs(TMath::MinElement(1024, a_channel_data.waveform))) global_max = TMath::Abs(TMath::MinElement(1024, a_channel_data.waveform));
+
+					for (int s = tWF_CF_lo; s < tWF_CF_hi; ++s) {
 						if (max < TMath::Abs(a_channel_data.waveform[s])) {
 							max = TMath::Abs(a_channel_data.waveform[s]);
 							nmax = s;
 						}
+
+						// stop search if the current maximum is at least 0.15 * global maximum and if there are at least three consecutive bins where the waveform amplitude is decreasing
+						if (max > 0.15 * global_max && s - nmax < 4 && TMath::Abs(a_channel_data.waveform[s]) < TMath::Abs(a_channel_data.waveform[s - 1])) count_fall++;
+						else count_fall = 0;
+						if (count_fall == 3) break;
 					}
 					cf *= max;
 					//cout << " || " << cf << ";" << max << ";" << nmax << ";";
-					for (int s = nmax; s > 300; --s) {
+					for (int s = nmax; s > tWF_CF_lo; --s) {
 						if (cf >= TMath::Abs(a_channel_data.waveform[s])) {
-							nshift = tWF_CF_bin - s;
+							if (cf - TMath::Abs(a_channel_data.waveform[s]) < TMath::Abs(a_channel_data.waveform[s-1]) - cf ) nshift = tWF_CF_bin - s;
+							else nshift = tWF_CF_bin - s - 1;
 							break;
 						}
 					}
