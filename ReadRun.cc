@@ -230,9 +230,35 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, int change_sign_from_
 				hCh->SetTitle(title.Data());
 				hCh->SetBins(binNumber, -0.5 * SP, 1023.5 * SP);
 
+				int nshift = 0;
+				if (Shift_WFs_in_file_loop) {
+					float max = 0.;
+					int nmax = 0;
+					float cf = tWF_CF;
+					
+					for (int s = 300; s < 500; ++s) {
+						if (max < TMath::Abs(a_channel_data.waveform[s])) {
+							max = TMath::Abs(a_channel_data.waveform[s]);
+							nmax = s;
+						}
+					}
+					cf *= max;
+					//cout << " || " << cf << ";" << max << ";" << nmax << ";";
+					for (int s = nmax; s > 300; --s) {
+						if (cf >= TMath::Abs(a_channel_data.waveform[s])) {
+							nshift = 375 - s;
+							break;
+						}
+					}
+					//cout << nshift;
+				}
+
 				float val = 0.;
 				for (int s = 0; s < binNumber; ++s) {
-					val = a_channel_data.waveform[s] * coef * 1000.;
+					int shiftind = s - nshift;
+					if (shiftind < 0) shiftind += 1023;
+					else if (shiftind > 1023) shiftind -= 1023;
+					val = a_channel_data.waveform[shiftind] * coef * 1000.;
 					if (changesignofPMTs && output_channel >= change_sign_from_ch_num) val *= -1.;
 					hCh->SetBinContent(s + 1, val);
 					//hCh->SetBinError(s, 0.5); //The error of each value in each bin is set to 0.5 mV -> Why??
@@ -250,6 +276,7 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, int change_sign_from_
 				if (Using_BaselineCorrection_in_file_loop) {
 					CorrectBaseline_function(hCh, tCutg, tCutEndg, wfcounter);
 				}
+
 
 				// skip events where there are large positive amplitudes in the PMT channels (real PMT photoelectron signals are negative, positive signals are pick up noise)
 				for (int s = 0; s < binNumber; ++s) {
@@ -321,7 +348,7 @@ ReadRun::~ReadRun() {
 
 // plot sums of all waveforms for each channel
 
-void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift) {
+void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, double sigma, bool doconv) {
 	// doaverage: if true it will plot the running average +/- 4 bins
 
 	double* xv = getx(shift);
@@ -331,7 +358,7 @@ void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift) {
 	for (int i = 0; i < nchannels; i++) {
 		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
 			double* yv = amplValuessum[i];
-			if (doaverage) SmoothArray(yv, binNumber, 4);
+			if (doaverage) SmoothArray(yv, binNumber, sigma, doconv);
 			
 			TGraph* gr = new TGraph(binNumber, xv, yv);
 			
@@ -1223,7 +1250,7 @@ void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangee
 
 	gStyle->SetOptStat(1111); // 11 is title + entries
 
-	TCanvas* time_dist_c = new TCanvas("timing of maximum", "timing of maximum", 1600, 1000);
+	TCanvas* time_dist_c = new TCanvas("timing of maximum", "timing of maximum", 600, 400);
 	SplitCanvas(time_dist_c);
 
 	int current_canvas = 0;

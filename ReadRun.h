@@ -66,11 +66,6 @@ private:
 
 	vector<unsigned int> eventnr_storage;	//  DORAMAS: The events will be stored here in the order they have been read
 
-	// for baseline correction before 
-	bool Using_BaselineCorrection_in_file_loop = false;
-	float tCutg;
-	float tCutEndg;
-
 	// for multiple executions of the same plotting function
 	int PrintChargeSpectrum_cnt;
 	int PrintChargeSpectrumPMT_cnt;
@@ -124,7 +119,7 @@ private:
 public:
 
 	// plots amplValuessum
-	void PlotChannelSums(bool = true, bool = false, double = 0.);
+	void PlotChannelSums(bool = true, bool = false, double = 0., double = 4., bool = false);
 
 	// baseline correction (shifts all waveforms individually)
 	void CorrectBaseline(float, float = -999);
@@ -206,6 +201,16 @@ public:
 
 	TFile* root_out;
 	TFile* root_out_wf;
+
+	//other controls 
+	// baseline correction during data reading
+	bool Using_BaselineCorrection_in_file_loop = false;
+	float tCutg;
+	float tCutEndg;
+	// shift waveforms with CFD so that all events
+	bool Shift_WFs_in_file_loop = false;	// call after initializing class and before reading data
+	float tWF_CF = 0.3;						// constant fraction of maximum (between ~0.1 and 1)
+	int tWF_CF_bin = 375;					// (time) bin to which all tWF_CF*maximum will be shifted to (375*.3125 ns=117.1875 ns)
 
 	ClassDef(ReadRun, 1)
 };
