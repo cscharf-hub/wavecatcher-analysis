@@ -12,7 +12,7 @@ CFLAGS  = -Dextname -Df2cFortran -I/usr/local/include
 #-I/home/chscharf/root/include/
 
 CPPFLAGS        =-I $(INCROOT)/ -I $(INCDIR)/
-CXXFLAGS        =-fPIC -g -O --std=c++14
+CXXFLAGS        =-fPIC -g -O --std=c++17
 MKDEPFLAGS      =-Y ${INCL} -m -w 110
 
 DICTB           =ReadRunDictUX
