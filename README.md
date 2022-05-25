@@ -9,3 +9,6 @@ You can speed up the analysis by compiling library. To compile it on linux or ma
 make -f makefile
 
 Then add gSystem->Load("ReadRunLib.sl"); to macro or to rootlogon.C and then execute .x read_exampledata.cc
+
+
+Needs CERN ROOT Release 6.24/02 or higher
