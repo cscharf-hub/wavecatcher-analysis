@@ -246,7 +246,7 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, int change_sign_from_
 					//cout << " || " << cf << ";" << max << ";" << nmax << ";";
 					for (int s = nmax; s > 300; --s) {
 						if (cf >= TMath::Abs(a_channel_data.waveform[s])) {
-							nshift = 375 - s;
+							nshift = tWF_CF_bin - s;
 							break;
 						}
 					}

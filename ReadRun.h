@@ -210,7 +210,7 @@ public:
 	// shift waveforms with CFD so that all events
 	bool Shift_WFs_in_file_loop = false;	// call after initializing class and before reading data
 	float tWF_CF = 0.3;						// constant fraction of maximum (between ~0.1 and 1)
-	int tWF_CF_bin = 375;					// (time) bin to which all tWF_CF*maximum will be shifted to (375*.3125 ns=117.1875 ns)
+	int tWF_CF_bin = 375;					// bin to which all tWF_CF*maximum will be shifted to; needs to be 300<tWF_CF_bin<500; 375*.3125 ns=117.1875 ns
 
 	ClassDef(ReadRun, 1)
 };
