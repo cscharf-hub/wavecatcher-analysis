@@ -246,7 +246,7 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, int change_sign_from_
 						}
 
 						// stop search if the current maximum is at least 0.15 * global maximum and if there are at least three consecutive bins where the waveform amplitude is decreasing
-						if (max > 0.15 * global_max && s - nmax < 4 && TMath::Abs(a_channel_data.waveform[s]) < TMath::Abs(a_channel_data.waveform[s - 1])) count_fall++;
+						if (max > 0.15 * global_max && s - nmax < 4 && TMath::Abs(a_channel_data.waveform[s+2]) + TMath::Abs(a_channel_data.waveform[s + 3]) < TMath::Abs(a_channel_data.waveform[s]) + TMath::Abs(a_channel_data.waveform[s+1])) count_fall++;
 						else count_fall = 0;
 						if (count_fall == 3) break;
 					}
@@ -834,15 +834,6 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 			zero->SetLineColor(1);
 			delete[] windowind;
 
-			TLine* baselinel = new TLine(baseline_correction_result[event_index * nchannels + i][2], -1, baseline_correction_result[event_index * nchannels + i][2], 1);
-			baselinel->SetLineColor(6);
-			baselinel->SetLineWidth(2);
-			TLine* baselineh = new TLine(baseline_correction_result[event_index * nchannels + i][3], -1, baseline_correction_result[event_index * nchannels + i][3], 1);
-			baselineh->SetLineColor(6);
-			baselineh->SetLineWidth(2);
-			TLine* baseline = new TLine(baseline_correction_result[event_index * nchannels + i][2], 0, baseline_correction_result[event_index * nchannels + i][3], 0);
-			baseline->SetLineColor(6);
-
 			// draw to canvas
 			intwinc->cd(current_canvas);
 			his->Draw();
@@ -850,9 +841,25 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 			low->Draw("same");
 			hi->Draw("same");
 			zero->Draw("same");
-			baselinel->Draw("same");
-			baselineh->Draw("same");
-			baseline->Draw("same");
+
+			// draw baseline parameters
+			if (baseline_correction_result.size() > event_index * nchannels + i) {
+				TLine* baselinel = new TLine(baseline_correction_result[event_index * nchannels + i][2], -1, baseline_correction_result[event_index * nchannels + i][2], 1);
+				baselinel->SetLineColor(6);
+				baselinel->SetLineWidth(2);
+				TLine* baselineh = new TLine(baseline_correction_result[event_index * nchannels + i][3], -1, baseline_correction_result[event_index * nchannels + i][3], 1);
+				baselineh->SetLineColor(6);
+				baselineh->SetLineWidth(2);
+				TLine* baseline = new TLine(baseline_correction_result[event_index * nchannels + i][2], 0, baseline_correction_result[event_index * nchannels + i][3], 0);
+				baseline->SetLineColor(6);
+				TLine* correction_value = new TLine(baseline_correction_result[event_index * nchannels + i][2], baseline_correction_result[event_index * nchannels + i][0], baseline_correction_result[event_index * nchannels + i][3], baseline_correction_result[event_index * nchannels + i][0]);
+				correction_value->SetLineColor(2);
+
+				baselinel->Draw("same");
+				baselineh->Draw("same");
+				baseline->Draw("same");
+				correction_value->Draw("same");
+			}
 		}
 	}
 	intwinc->Update();
@@ -1128,7 +1135,7 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 	gStyle->SetOptStat(0); // 11 is title + entries
 
 	// show fraction of events above 0.5 pe charge = pedestal + gain/2
-	// dark count rate for SiPMs
+	// dark count rate for SiPMs (currently only automated for fit function Fitf)
 	// need to call the SiPM fitfunction before this one for this functionality
 	bool calculate_SiPM_DCR = false;
 	if (threshold == 999) calculate_SiPM_DCR = true;
@@ -1173,28 +1180,30 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 			his_lo->SetLineColor(2);
 			his_lo->SetFillColor(2);
 			his_lo->Draw("LF2 same");
-			stringstream loname;
-			if (!calculate_SiPM_DCR) {
-				loname << 100. * his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() << "% <= " << threshold << unit;
-			}
-			else {
-				loname << "<0.5 pe=" << threshold << unit << " -> " << his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() / (1.e-3 * (end - start)) << " MHz";
-			}
-			his_lo->SetTitle(loname.str().c_str());
+
+			stringstream lonamefrac;
+			stringstream lonamerate;
+			lonamefrac << 100. * his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() << "% <= " << threshold << unit;
+			lonamerate << "<0.5 pe=" << threshold << unit << " -> " << his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() / (1.e-3 * (end - start)) << " MHz";
+			cout << "\n" << lonamerate.str().c_str() << endl;
+			cout << "\n" << lonamefrac.str().c_str() << endl;
+			his_lo->SetTitle(lonamerate.str().c_str());
+			if (!calculate_SiPM_DCR) his_lo->SetTitle(lonamefrac.str().c_str());
 
 			auto his_hi = (TH1F*)his->Clone();
 			his_hi->GetXaxis()->SetRange(his_hi->GetXaxis()->FindBin(threshold), his_lo->GetXaxis()->FindBin(rangeend));
 			his_hi->SetLineColor(1);
 			his_hi->SetFillColor(1);
 			his_hi->Draw("LF2 same");
-			stringstream hiname;
-			if (!calculate_SiPM_DCR) {
-				hiname << 100. * his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() << "% > " << threshold << unit;
-			}
-			else {
-				hiname << ">0.5 pe=" << threshold << unit << " -> " << his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() / (1.e-3 * (end - start)) << " MHz";
-			}
-			his_hi->SetTitle(hiname.str().c_str());
+
+			stringstream hinamefrac;
+			stringstream hinamerate;
+			hinamefrac << 100. * his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() << "% > " << threshold << unit;
+			hinamerate << ">0.5 pe=" << threshold << unit << " -> " << his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() / (1.e-3 * (end - start)) << " MHz";
+			cout << "\n" << hinamerate.str().c_str() << endl;
+			cout << "\n" << hinamefrac.str().c_str() << endl;
+			his_hi->SetTitle(hinamerate.str().c_str());
+			if (!calculate_SiPM_DCR) his_hi->SetTitle(hinamefrac.str().c_str());
 
 			threshold_bin_center = his->GetXaxis()->GetBinCenter(his->GetXaxis()->FindBin(threshold) + 1);
 
