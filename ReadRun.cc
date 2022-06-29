@@ -370,9 +370,8 @@ void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, doub
 			if (doaverage) SmoothArray(yv, binNumber, sigma, doconv);
 			
 			TGraph* gr = new TGraph(binNumber, xv, yv);
-			
-			if (normalize) gr->Scale(1./TMath::MaxElement(gr->GetN(),gr->GetY()));
 			delete[] yv;
+			if (normalize) gr->Scale(1./TMath::MaxElement(gr->GetN(),gr->GetY()));
 
 			TString name(Form("channel_%02d", active_channels[i]));
 			TString title(Form("Channel %d", active_channels[i]));
@@ -749,19 +748,47 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, bool verbose) {
 	int counter = 0;
 
 	for (int j = 0; j < nwf; j++) {
-		auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
+		if (!skip_event[floor(j / nchannels)]) {
+			auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
 
-		int currchannel = j - nchannels * floor(j / nchannels);
-		if (currchannel <= thresholds.size() && thresholds[currchannel] != 0 && !skip_event[floor(j / nchannels)] && ((thresholds[currchannel] > 0 && his->GetMaximum() > thresholds[currchannel]) || (thresholds[currchannel] < 0 && his->GetMinimum() < thresholds[currchannel]))) {
+			int currchannel = j - nchannels * floor(j / nchannels);
+			if (currchannel <= thresholds.size() && thresholds[currchannel] != 0 && !skip_event[floor(j / nchannels)] && ((thresholds[currchannel] > 0 && his->GetMaximum() > thresholds[currchannel]) || (thresholds[currchannel] < 0 && his->GetMinimum() < thresholds[currchannel]))) {
 
-			int currevent = eventnr_storage[floor(j / nchannels)];
-			if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
-			skip_event[floor(j / nchannels)] = true;
-			counter++;
+				int currevent = eventnr_storage[floor(j / nchannels)];
+				if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
+				skip_event[floor(j / nchannels)] = true;
+				counter++;
+			}
 		}
 	}
 
 	cout << "\n\n\t" << counter << " events will be cut out of " << nevents << "\n\n";
+}
+
+
+void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, float windowlow, float windowhi, bool verbose) {
+	// Same as SkipEventsPerChannel() but filtering all events with integrals above/below thresholds
+
+	cout << "\n\n Removing events with individual threshold per channel!!!\n\n";
+	int counter = 0;
+	float integ = 0;
+	
+	for (int j = 0; j < nwf; j++) {
+		if (!skip_event[floor(j / nchannels)]) {
+			auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
+			integ = his->Integral(his->GetXaxis()->FindBin(windowlow), his->GetXaxis()->FindBin(windowhi), "width");
+
+			int currchannel = j - nchannels * floor(j / nchannels);
+
+			if (currchannel <= thresholds.size() && thresholds[currchannel] != 0 && !skip_event[floor(j / nchannels)] && ((highlow[currchannel] && integ > thresholds[currchannel]) || (!highlow[currchannel] && integ < thresholds[currchannel]))) {
+				int currevent = eventnr_storage[floor(j / nchannels)];
+				if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
+				skip_event[floor(j / nchannels)] = true;
+				counter++;
+			}
+		}
+	}
+	cout << "\n\n\t" << counter << " events will be cut out of " << nevents << endl;
 }
 
 // functions for charge spectrum
@@ -1050,6 +1077,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 	}
 
 	chargec->Update();
+	if (save_png) chargec->SaveAs((data_path + ctitle + ".png").c_str());
 	root_out->WriteObject(chargec, "ChargeSpectra");
 }
 

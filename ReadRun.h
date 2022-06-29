@@ -175,6 +175,8 @@ public:
 	virtual ~ReadRun();
 
 	string data_path;			// path to data. Can be used to save analysis results in the data folder
+	bool save_png = false;		// save analysis results as png files in the data folder
+
 	//int nbinsdata;
 	int nevents;				// number of triggered events
 	int nchannels;
@@ -196,6 +198,7 @@ public:
 	double skip_event_threshold; // threshold (usually 4 mV) for PMT signal (hardcoded channel >8) to skip events where PMTs pick up radio frequency noise (NO BASELINE CORRECTION!)
 	int skip_event_threshold_nch; // define how many PMT channels need to be above threshold to discard event (RF pick up should be seen by alls PMTs)
 	void SkipEventsPerChannel(vector<double>, bool = false);  // in case you want to have indiviual thresholds in individual channels
+	void IntegralFilter(vector<double>, vector<bool>, float = 100., float = 200., bool = false); // Same as SkipEventsPerChannel() but filtering all events with integrals <(>) threshold
 
 	vector<vector<float>> baseline_correction_result; // store baseline values
 
