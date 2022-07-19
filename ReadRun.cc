@@ -245,8 +245,8 @@ void ReadRun::ReadFile(string path, bool changesignofPMTs, int change_sign_from_
 							nmax = s;
 						}
 
-						// stop search if the current maximum is at least 0.15 * global maximum and if there are at least three consecutive bins where the waveform amplitude is decreasing
-						if (max > 0.15 * global_max && s - nmax < 4 && TMath::Abs(a_channel_data.waveform[s+2]) + TMath::Abs(a_channel_data.waveform[s + 3]) < TMath::Abs(a_channel_data.waveform[s]) + TMath::Abs(a_channel_data.waveform[s+1])) count_fall++;
+						// stop search if the current maximum is at least 0.5 * global maximum and if there are at least three consecutive bins where the waveform amplitude is decreasing
+						if (max > .5 * global_max && s - nmax < 4 && TMath::Abs(a_channel_data.waveform[s+2]) + TMath::Abs(a_channel_data.waveform[s + 3]) < TMath::Abs(a_channel_data.waveform[s]) + TMath::Abs(a_channel_data.waveform[s+1])) count_fall++;
 						else count_fall = 0;
 						if (count_fall == 3) break;
 					}
@@ -739,17 +739,19 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 	cout << "\tfor a total of " << nevents << " events\n" << endl;
 }
 
-void ReadRun::SkipEventsPerChannel(vector<double> thresholds, bool verbose) {
+void ReadRun::SkipEventsPerChannel(vector<double> thresholds, double rangestart, double rangeend, bool verbose) { // merge with IntegralFilter()?
 	// In case you want to have indiviual thresholds in individual channels
 	// Argument vector<double> thresholds should have a value for each active channel saved in the data, in ascending order (ch0, ch1 ...)
-	// Set threshold to 0 to skip channel
+	// If zou want to enforce the threshold onlz in a certain range, set rangestart and rangeend
 	// Needs to be called before the charge spectrum etc functions
-	cout << "\n\n Removing events with individual threshold per channel!!!\n\n";
+	// Baseline correction should be called before this function
+	cout << "\n\n Removing events with individual amplitude threshold per channel!!!\n\n";
 	int counter = 0;
 
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[floor(j / nchannels)]) {
 			auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
+			if (rangestart != 0 && rangeend != 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(rangeend));
 
 			int currchannel = j - nchannels * floor(j / nchannels);
 			if (currchannel <= thresholds.size() && thresholds[currchannel] != 0 && !skip_event[floor(j / nchannels)] && ((thresholds[currchannel] > 0 && his->GetMaximum() > thresholds[currchannel]) || (thresholds[currchannel] < 0 && his->GetMinimum() < thresholds[currchannel]))) {
@@ -766,29 +768,52 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, bool verbose) {
 }
 
 
-void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, float windowlow, float windowhi, bool verbose) {
-	// Same as SkipEventsPerChannel() but filtering all events with integrals above/below thresholds
+void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, float windowlow, float windowhi, bool use_AND_condition, bool verbose) {
+	// Can be used to apply an integral cut to waveforms
+	// Argument vector<double> thresholds should have a value for each active channel saved in the data, in ascending order (ch0, ch1 ...)
+	// Needs to be called before the charge spectrum etc functions
+	// Baseline correction should be called before this function
 
-	cout << "\n\n Removing events with individual threshold per channel!!!\n\n";
+	cout << "\n\n Removing events with individual integral threshold per channel!!!\n\n";
 	int counter = 0;
 	float integ = 0;
 	
 	for (int j = 0; j < nwf; j++) {
-		if (!skip_event[floor(j / nchannels)]) {
+		int currevent_counter = floor(j / nchannels);
+
+		if (use_AND_condition || !skip_event[currevent_counter]) {
 			auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
 			integ = his->Integral(his->GetXaxis()->FindBin(windowlow), his->GetXaxis()->FindBin(windowhi), "width");
 
-			int currchannel = j - nchannels * floor(j / nchannels);
+			int currchannel = j - nchannels * currevent_counter;
 
-			if (currchannel <= thresholds.size() && thresholds[currchannel] != 0 && !skip_event[floor(j / nchannels)] && ((highlow[currchannel] && integ > thresholds[currchannel]) || (!highlow[currchannel] && integ < thresholds[currchannel]))) {
-				int currevent = eventnr_storage[floor(j / nchannels)];
+			if (currchannel <= thresholds.size() && thresholds[currchannel] != 0 && !skip_event[currevent_counter] && ((highlow[currchannel] && integ > thresholds[currchannel]) || (!highlow[currchannel] && integ < thresholds[currchannel]))) {
+				int currevent = eventnr_storage[currevent_counter];
 				if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
-				skip_event[floor(j / nchannels)] = true;
+				skip_event[currevent_counter] = true;
+				while (floor((j + 1) / nchannels) == currevent_counter) j++;
 				counter++;
+			}
+			else if (use_AND_condition && thresholds[currchannel] != 0 && skip_event[currevent_counter] && !highlow[currchannel]) {
+				int currevent = eventnr_storage[currevent_counter];
+				skip_event[currevent_counter] = false;
+				if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\thas been flagged good by integral";
 			}
 		}
 	}
 	cout << "\n\n\t" << counter << " events will be cut out of " << nevents << endl;
+}
+
+void ReadRun::PrintSkippedEvents() {
+	int counter = 0;
+	for (int j = 0; j < skip_event.size(); j++) {
+		if (skip_event[j]) {
+			int currevent = eventnr_storage[j];
+			cout << "\nevent:\t" << currevent;
+			counter++;
+		}
+	}
+	cout << "\n\ntotal number of skipped events:\t" << counter << "\tout of:\t" << nevents << endl;
 }
 
 // functions for charge spectrum
@@ -922,7 +947,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 	if (fitrangeend == 0.) fitrangeend = rangeend;
 
 	string integral_option = ""; // use amplitude spectrum (not good for fitting, will be biased)
-	if (windowlow != windowhi) integral_option = "width"; // use charge (integral)
+	if (windowlow + windowhi > 0.) integral_option = "width"; // use charge (integral)
 
 	string ctitle("charge spectra" + to_string(PrintChargeSpectrum_cnt));
 	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 1600, 1000);
@@ -938,7 +963,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			TH1F* his;
 			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins, integral_option);
 			his->GetYaxis()->SetTitle("#Entries");
-			if (windowlow != windowhi) his->GetXaxis()->SetTitle("integral in mV#timesns");
+			if (windowlow + windowhi > 0.) his->GetXaxis()->SetTitle("integral in mV#timesns");
 			else his->GetXaxis()->SetTitle("amplitude in mV");
 
 			TString name(Form("ChargeSpectrum channel_%02d", active_channels[i]));
@@ -1020,8 +1045,11 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				
 				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
 				f->SetParName(1, "#mu");				f->SetParameter(1, 1.);
-				f->SetParName(2, "#sigma");			f->SetParameter(2, 5.);
+				f->SetParName(2, "#sigma");				f->SetParameter(2, 5.);
 				f->SetParName(3, "gain");				f->SetParameter(3, 10.);
+
+				f->SetLineColor(2);
+				f->SetNpx(1000);
 
 				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
@@ -1036,14 +1064,42 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 8); f->SetLineColor(3);
 				
 				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
-				f->SetParName(1, "w");					f->SetParameter(1, .05);	//probability for type II BG
-				f->SetParName(2, "#alpha");				f->SetParameter(2, .05);	//coefficient of exponential decrease of typ II BG
-				f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 5.);
-				f->SetParName(4, "Q_{0}");				f->SetParameter(4, 0.);
+				f->SetParName(1, "w");					f->SetParameter(1, .05);	f->SetParLimits(1, 1.e-9, 1.e3); //probability for type II BG
+				f->SetParName(2, "#alpha");				f->SetParameter(2, .05);	f->SetParLimits(2, 1.e-9, 1.e3); //coefficient of exponential decrease of typ II BG
+				f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 5.);		f->SetParLimits(3, 1.e-9, 1.e3);
+				f->SetParName(4, "Q_{0}");				f->SetParameter(4, 0.);		
 				f->SetParName(5, "#mu");				f->SetParameter(5, 1.);
-				f->SetParName(6, "#sigma_{1}");			f->SetParameter(6, 5.);
+				f->SetParName(6, "#sigma_{1}");			f->SetParameter(6, 5.);		f->SetParLimits(6, 1.e-9, 1.e3);
 				f->SetParName(7, "Q_{1}");				f->SetParameter(7, 10.);
 				
+				f->SetLineColor(2);
+				f->SetNpx(1000);
+
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+
+				if (i < max_channel_nr_to_fit) {
+					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+					TFitResultPtr fresults = his->Fit(f, "LRS");
+					fit_results.push_back(fresults);
+				}
+			}
+			else if (which_fitf == 6) { // PMT fit function with biased pedestal
+				Fitf_PMT_pedestal fitf;
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 9); f->SetLineColor(3);
+
+				f->SetParName(0, "A");					f->SetParameter(0, his->Integral());
+				f->SetParName(1, "w");					f->SetParameter(1, .05);	f->SetParLimits(1, 1.e-9, 1.e3);	//probability for type II BG
+				f->SetParName(2, "#alpha");				f->SetParameter(2, .05);	f->SetParLimits(2, 1.e-9, 1.e3);	//coefficient of exponential decrease of typ II BG
+				f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 5.);		f->SetParLimits(3, 1.e-9, 1.e3);
+				f->SetParName(4, "Q_{0}");				f->SetParameter(4, 0.);
+				f->SetParName(5, "#mu");				f->SetParameter(5, 1.);
+				f->SetParName(6, "#sigma_{1}");			f->SetParameter(6, 5.);		f->SetParLimits(6, 1.e-9, 1.e3);
+				f->SetParName(7, "Q_{1}");				f->SetParameter(7, 10.);
+				f->SetParName(8, "A_{0}");				f->SetParameter(8, 40.);
+
+				f->SetLineColor(2);
+				f->SetNpx(1000);
+
 				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
@@ -1091,7 +1147,7 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 	SplitCanvas(chargec);
 
 	string integral_option = ""; // use amplitude spectrum (not good for fitting, will be biased)
-	if (windowlow != windowhi) integral_option = "width"; // use charge (integral)
+	if (windowlow + windowhi > 0.) integral_option = "width"; // use charge (integral)
 
 	int current_canvas = 0;
 
@@ -1101,7 +1157,7 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 
 			TH1F* his;
 			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins, integral_option);
-			if (windowlow != windowhi) his->GetXaxis()->SetTitle("integral in mV#timesns");
+			if (windowlow + windowhi > 0.) his->GetXaxis()->SetTitle("integral in mV#timesns");
 			else his->GetXaxis()->SetTitle("amplitude in mV");
 			chargec->cd(current_canvas);
 
@@ -1156,8 +1212,9 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 	root_out->WriteObject(chargec, "ChargeSpectraPMT");
 }
 
-void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, double threshold) {
-	// print ReadRun::ChargeSpectrum for all channels optimized for PMT signals visualizing a threshold and SiPM dark count rate
+void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, float rangestart, float rangeend, int nbins, double threshold, bool calculate_SiPM_DCR) {
+	// print ReadRun::ChargeSpectrum for all channels optimized for PMT signals visualizing a threshold 
+	// now also used to calculate SiPM dark count rate, make separate function?
 	PrintChargeSpectrumPMTthreshold_cnt++;
 
 	gStyle->SetOptStat(0); // 11 is title + entries
@@ -1165,40 +1222,38 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 	// show fraction of events above 0.5 pe charge = pedestal + gain/2
 	// dark count rate for SiPMs (currently only automated for fit function Fitf)
 	// need to call the SiPM fitfunction before this one for this functionality
-	bool calculate_SiPM_DCR = false;
-	if (threshold == 999) calculate_SiPM_DCR = true;
+	bool use_fit_result_for_threshold = false;
+	if (threshold == 999) {
+		calculate_SiPM_DCR = true;
+		use_fit_result_for_threshold = true;
+	}
 
 	string integral_option = ""; // use amplitude spectrum (not good for fitting, will be biased)
-	if (windowlow != windowhi) integral_option = "width"; // use charge (integral)
-
+	string unit(" mV");
+	string title("amplitude in mV");
+	if (windowlow + windowhi > 0.) {
+		integral_option = "width"; // use charge (integral)
+		unit = " mV#timesns";
+		title = "integral in mV#timesns";
+	}
 	string ctitle("charge spectra PMT threshold" + to_string(PrintChargeSpectrumPMTthreshold_cnt));
 	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 1600, 1000);
 	SplitCanvas(chargec);
 
 	int current_canvas = 0;
-	float threshold_bin_center = 0.;
-	string unit(" mV");
+	double threshold_bin_center = 0;
 
 	for (int i = 0; i < nchannels; i++) {
 		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
-			
-			if (calculate_SiPM_DCR) threshold = fit_results[current_canvas]->Parameter(6) + fit_results[current_canvas]->Parameter(5)/2.;
 
-			current_canvas++;
+			if (use_fit_result_for_threshold) threshold = fit_results[current_canvas]->Parameter(6) + fit_results[current_canvas]->Parameter(5) / 2.;
+
+			chargec->cd(++current_canvas);
 
 			TH1F* his;
-			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins, integral_option);
-
-			his->GetXaxis()->SetTitle("amplitude in mV");
-			if (windowlow != windowhi) {
-				his->GetXaxis()->SetTitle("integral in mV#timesns");
-				unit = " mV#timesns";
-			}
-
-			chargec->cd(current_canvas);
-
+			his = ChargeSpectrum(i, windowlow, windowhi, rangestart, rangeend, rangestart, rangeend, nbins, integral_option);
+			his->GetXaxis()->SetTitle(title.c_str());
 			his->GetYaxis()->SetTitle("#Entries");
-			his->GetXaxis()->SetTitle("integral in mV#timesns");
 			his->Draw();
 			stringstream allname; allname << his->GetEntries() << " entries";
 			his->SetTitle(allname.str().c_str());
@@ -1212,7 +1267,7 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 			stringstream lonamefrac;
 			stringstream lonamerate;
 			lonamefrac << 100. * his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() << "% <= " << threshold << unit;
-			lonamerate << "<0.5 pe=" << threshold << unit << " -> " << his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() / (1.e-3 * (end - start)) << " MHz";
+			lonamerate << "<0.5 pe=" << threshold << unit << " -> " << his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() / (1.e-3 * (rangeend - rangestart)) << " MHz";
 			cout << "\n" << lonamerate.str().c_str() << endl;
 			cout << "\n" << lonamefrac.str().c_str() << endl;
 			his_lo->SetTitle(lonamerate.str().c_str());
@@ -1227,21 +1282,47 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 			stringstream hinamefrac;
 			stringstream hinamerate;
 			hinamefrac << 100. * his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() << "% > " << threshold << unit;
-			hinamerate << ">0.5 pe=" << threshold << unit << " -> " << his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() / (1.e-3 * (end - start)) << " MHz";
+			hinamerate << ">0.5 pe=" << threshold << unit << " -> " << his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() / (1.e-3 * (rangeend - rangestart)) << " MHz";
 			cout << "\n" << hinamerate.str().c_str() << endl;
 			cout << "\n" << hinamefrac.str().c_str() << endl;
 			his_hi->SetTitle(hinamerate.str().c_str());
 			if (!calculate_SiPM_DCR) his_hi->SetTitle(hinamefrac.str().c_str());
+			
+			gPad->BuildLegend();
 
 			threshold_bin_center = his->GetXaxis()->GetBinCenter(his->GetXaxis()->FindBin(threshold) + 1);
-
-			gPad->BuildLegend();
+			cout << "\n PMT charge spectrum is counting events above threshold from bin center >= " << threshold_bin_center << unit << " for a threshold setting of " << threshold << unit << "\n\n";
 		}
 	}
-	cout << "\n PMT charge spectrum is counting events above threshold from bin center >= " << threshold_bin_center << unit << " for a threshold setting of " << threshold << unit << "\n\n";
 
 	chargec->Update();
 	root_out->WriteObject(chargec, "ChargeSpectraPMTthreshold");
+}
+
+void ReadRun::PrintDCR(float windowlow, float windowhi, float rangestart, float rangeend, double threshold) {
+	// now also used to calculate SiPM dark count rate, make separate function?
+	string integral_option = ""; // use amplitude spectrum (not good for fitting, will be biased)
+	string unit(" mV");
+	if (windowlow + windowhi > 0.) {
+		integral_option = "width"; // use charge (integral)
+		unit = " mV*ns";
+	}
+
+	for (int i = 0; i < nchannels; i++) {
+		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+
+			TH1F* his;
+			his = ChargeSpectrum(i, windowlow, windowhi, rangestart, rangeend, rangestart, rangeend, 500, integral_option);
+
+			stringstream lonamerate;
+			lonamerate << "<0.5 pe=" << threshold << unit << " -> " << his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() / (1.e-3 * (rangeend - rangestart)) << " MHz";
+			cout << "\n" << lonamerate.str().c_str() << endl;
+
+			stringstream hinamerate;
+			hinamerate << ">0.5 pe=" << threshold << unit << " -> " << his->Integral(his->GetXaxis()->FindBin(threshold) + 1, his->GetXaxis()->FindBin(rangeend)) / his->GetEntries() / (1.e-3 * (rangeend - rangestart)) << " MHz";
+			cout << "\n" << hinamerate.str().c_str() << endl;
+		}
+	}
 }
 
 // time distribution of maximum, 50% CFD, or 10% - 90% rise time in a certain time window

@@ -143,7 +143,10 @@ public:
 	vector<float> PrintChargeSpectrum_pars;
 	void PrintChargeSpectrumPMT(float, float, float = 0, float = 300, float = -50, float = 600, int = 750);
 	vector<float> PrintChargeSpectrumPMT_pars;
-	void PrintChargeSpectrumPMTthreshold(float, float, float = 0, float = 300, float = -50, float = 600, int = 750, double = 4);
+	void PrintChargeSpectrumPMTthreshold(float = 0, float = 0, float = 0, float = 300, int = 750, double = 4, bool = false);
+
+	// SiPM specific
+	void PrintDCR(float = 15, float = 85, float = 0, float = 300, double = 3); // based on PrintChargeSpectrumPMTthreshold()
 
 	// functions for time distribution
 	TH1F* TimeDist(int, float = 0, float = 300, float = 0, float = 300, int = 100, int = 0);
@@ -197,8 +200,9 @@ public:
 	vector<bool> skip_event; // stores the events which should be skipped in the analysis
 	double skip_event_threshold; // threshold (usually 4 mV) for PMT signal (hardcoded channel >8) to skip events where PMTs pick up radio frequency noise (NO BASELINE CORRECTION!)
 	int skip_event_threshold_nch; // define how many PMT channels need to be above threshold to discard event (RF pick up should be seen by alls PMTs)
-	void SkipEventsPerChannel(vector<double>, bool = false);  // in case you want to have indiviual thresholds in individual channels
-	void IntegralFilter(vector<double>, vector<bool>, float = 100., float = 200., bool = false); // Same as SkipEventsPerChannel() but filtering all events with integrals <(>) threshold
+	void SkipEventsPerChannel(vector<double>, double = 0, double = 0, bool = false);  // in case you want to have indiviual thresholds in individual channels
+	void IntegralFilter(vector<double>, vector<bool>, float = 100., float = 200., bool = false, bool = false); // Same as SkipEventsPerChannel() but filtering all events with integrals <(>) threshold
+	void PrintSkippedEvents();
 
 	vector<vector<float>> baseline_correction_result; // store baseline values
 
@@ -385,7 +389,7 @@ public:
 
 		double pmt_charge_spectrum = 0.;
 
-		for (int kint = 0; kint <= 50; kint++) {
+		for (int kint = 0; kint <= 25; kint++) {
 			double k = static_cast<double>(kint);
 
 			double poiss = TMath::Power(p[5], k) * TMath::Exp(-p[5]) / TMath::Factorial(kint);
@@ -430,7 +434,7 @@ public:
 
 		double pmt_charge_spectrum = 0.;
 
-		for (int kint = 0; kint <= 50; kint++) {
+		for (int kint = 0; kint <= 25; kint++) {
 			double k = static_cast<double>(kint);
 
 			double poiss = TMath::Power(p[5], k) * TMath::Exp(-p[5]) / TMath::Factorial(kint);
@@ -470,7 +474,7 @@ public:
 		//3 - Q1:		position (gain*e) of 1st peak
 		double pmt_charge_spectrum = 0.;
 
-		for (int kint = 1; kint <= 100; kint++) {
+		for (int kint = 1; kint <= 25; kint++) {
 			double k = static_cast<double>(kint);
 
 			double poiss = TMath::Power(p[1], k) * TMath::Exp(-1. * p[1]) / TMath::Factorial(kint);
