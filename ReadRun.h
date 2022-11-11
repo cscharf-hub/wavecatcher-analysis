@@ -11,6 +11,7 @@
 #include <TSystemDirectory.h>
 #include <TSystemFile.h>
 #include <TComplex.h>
+#include <TObjString.h>
 #include <TVirtualFFT.h>
 #include <TLine.h>
 #include <TGraph.h>
@@ -57,26 +58,28 @@ using namespace std;
 
 class ReadRun/* : public TObject*/ {
 private:
+	/// @brief Stores data
+	TClonesArray* rundata;
 
-	//int maxnchannels;				// number of channels (32)
-	TClonesArray* rundata;		// data array
-	//TClonesArray* blh;
+	/// @brief Collects sums of all waveforms for each channel
+	double** amplValuessum;
 
-	double** amplValuessum;		// collects sums of all waveforms for each channel
+	/// @brief Events will be stored here in the order they have been read
+	vector<unsigned int> eventnr_storage;
 
-	vector<unsigned int> eventnr_storage;	//  DORAMAS: The events will be stored here in the order they have been read
-
-	// for multiple executions of the same plotting function
+	/// @brief Index for multiple executions of the same plotting function
 	int PrintChargeSpectrum_cnt;
+	/// @brief Index for multiple executions of the same plotting function
 	int PrintChargeSpectrumPMT_cnt;
+	/// @brief Index for multiple executions of the same plotting function
 	int PrintChargeSpectrumPMTthreshold_cnt;
 
 
 #pragma pack(1) // padding suppression
-// struct copied from
-// WaveCatcher binary -> root converter
-// by manu chauveau@cenbg.in2p3.fr
-// see https://owncloud.lal.in2p3.fr/public.php?service=files&t=56e4a2c53a991cb08f73d03f1ce58ba2
+	// struct copied from
+	// WaveCatcher binary -> root converter
+	// by manu chauveau@cenbg.in2p3.fr
+	// see https://owncloud.lal.in2p3.fr/public.php?service=files&t=56e4a2c53a991cb08f73d03f1ce58ba2
 
 	struct event_data
 	{
@@ -129,6 +132,10 @@ public:
 
 	void CorrectBaselineMin(int = 100, bool = false, double = 10, int = 0, int = 0, bool = false, int = 8);
 
+	// get timing of peaks
+	void GetTimingCFD(float = .3, float = 100, float = 140, double = 0, bool = false);
+	void SkipEventsTimeDiffCut(int, int, double, double, bool = false);
+
 	void FractionEventsAboveThreshold(float = 4, bool = true, bool = true, double = 0., double = 0., bool = false);
 
 	// average all waveforms to simplify peak ID
@@ -140,8 +147,10 @@ public:
 	void PrintChargeSpectrumWF(float, float, float = 0, float = 300, int = 1, float = 0., float = 0.);
 	TH1F* ChargeSpectrum(int, float, float, float = 0, float = 300, float = -50, float = 600, int = 750, string = "width");
 	void PrintChargeSpectrum(float, float, float = 0, float = 300, float = -50, float = 600, int = 750, float = 0., float = 0., int = 8, int = 0);
+	/// @brief Starting values of the fit parameters for PrintChargeSpectrum()
 	vector<float> PrintChargeSpectrum_pars;
 	void PrintChargeSpectrumPMT(float, float, float = 0, float = 300, float = -50, float = 600, int = 750);
+	/// @brief Starting values of the fit parameters for PrintChargeSpectrumPMT()
 	vector<float> PrintChargeSpectrumPMT_pars;
 	void PrintChargeSpectrumPMTthreshold(float = 0, float = 0, float = 0, float = 300, int = 750, double = 4, bool = false);
 
@@ -149,10 +158,14 @@ public:
 	void PrintDCR(float = 15, float = 85, float = 0, float = 300, double = 3); // based on PrintChargeSpectrumPMTthreshold()
 
 	// functions for time distribution
-	TH1F* TimeDist(int, float = 0, float = 300, float = 0, float = 300, int = 100, int = 0);
-	void PrintTimeDist(float = 0, float = 300, float = 0, float = 300, int = 100, int = 0);
+	TH1F* TimeDist(int, float = 0, float = 300, float = 0, float = 300, int = 100, int = 0, float = .3);
+	void PrintTimeDist(float = 0, float = 300, float = 0, float = 300, int = 100, int = 0, float = .3);
 	TGraph2D* MaxDist(int, float = 0, float = 300);
 	void PrintMaxDist(float = 0, float = 300);
+
+	TH1F* His_GetTimingCFD(int, float, float);
+	void Print_GetTimingCFD(float = 100, float = 140, int = 0);
+
 
 	// print FFT
 	void PrintFFTWF(int = 1, float = 0., float = 0., int = 1);
@@ -163,6 +176,7 @@ public:
 	double* getx(double = 0.);							// x values
 	double* gety(int, int);								// y values for waveform(ch, event)
 	double* gety(TH1F*);								// y values for histogram
+	double* gety(TH1F*, int, int);						// y values for dedicated y range of a histogram 
 
 	float LinearInterpolation(float, float, float, float, float); // linear interpolation
 
@@ -171,55 +185,113 @@ public:
 	void Convolute(double*&, double*, double*, int, int);		// convolution for filtering waveforms
 	void SmoothArray(double*&, int, double = 1., bool = false);	// filtering
 
-	ReadRun(double = 0, int = 1); // Constructor of the class with arguments to filter noise events in the cosmics setup. Default values do nothing
+	/// @brief Constructor of the class with arguments to filter noise events in the cosmics setup. Default values do nothing 
+	ReadRun(double = 0, int = 1);
 
-	void ReadFile(string, bool = false, int = 9, string = "out.root", bool = false, bool = false); // file name, bool whether or not to change sign of PMT channels (channel number>8), bool whether to save ALL waveforms to root file (only advisable for runs with small number of events)
+	void ReadFile(string, bool = false, int = 9, string = "out.root", bool = false); // file name, bool whether or not to change sign of PMT channels (channel number>8)
 
 	virtual ~ReadRun();
 
-	string data_path;			// path to data. Can be used to save analysis results in the data folder
-	bool save_png = false;		// save analysis results as png files in the data folder
+	/// @brief Path to data
+	/// 
+	/// Can be used to save analysis results in the data folder
+	string data_path;
 
-	//int nbinsdata;
-	int nevents;				// number of triggered events
+	/// @brief Do analysis only for limited range of channels to reduce memory usage
+	/// 
+	/// For large datasets with many channels and many events \n
+	/// Only read and analyze channels from ReadRun::start_read_at_channel to ReadRun::end_read_at_channel. \n
+	/// The recorded channel with the lowest wavecatcher channel number is 0 (e.g. recorded channels 3 and 4, so start would be 0 and end 1). \n 
+	/// If set to -1 (default) all channels will be read in one go. \n
+	/// Else channels from "start_read_at_channel" to "end_read_at_channel" will be read. \n 
+	/// If "end_read_at_channel" is not defined will only read channel specified in "start_read_at_channel".
+	int start_read_at_channel = -1;	
+	/// @brief See ReadRun::start_read_at_channel
+	int end_read_at_channel = -1;
+
+	/// @brief Number of triggered events in data
+	int nevents;
+	/// @brief Number of active channels in data
 	int nchannels;
-	int nwf;					// number of waveforms (nchannels*nacquisitions)
+	/// @brief Total number of waveforms in data (nchannels*nacquisitions)
+	int nwf;
 
-	float SP;					// ns per bin
-	float pe;					// mV*ns ????
-	double coef;				// ?????
-	int binNumber;				// 1024 samples per waveform
+	/// @brief ns per bin in data (has to be .3125 ns)
+	float SP;
+	/// @brief Conversion coefficient for wavecatcher
+	/// 
+	/// From https://owncloud.lal.in2p3.fr/public.php?service=files&t=56e4a2c53a991cb08f73d03f1ce58ba2 
+	double coef;
+	/// @brief Number of bins (always 1024 samples per waveform)
+	int binNumber;
 
-	int* maxSumBin;				// For fixed integration window (triggered acquisition)
+	/// @brief Stores bin numbers where the sum of waveforms have their maximum
+	/// 
+	/// Can be used for fixed integration window relative to maximum of the sum of all waveforms per channel (ReadRun::amplValuessum)
+	int* maxSumBin;
 
-	vector<int> active_channels; // stores the numbers of the active channels
-	vector<int> plot_active_channels; // stores the numbers of the active channels which should be plotted
+	/// @brief Stores the numbers of the active channels
+	vector<int> active_channels;
+	/// @brief Stores the numbers of the active channels which should be plotted
+	///
+	/// You can select the channels you want with plot_active_channels.push_back(channel_to_plot); to add them to the list. \n 
+	/// If undefined all channels will be plotted.
+	vector<int> plot_active_channels;
 
-	vector<TFitResultPtr> fit_results; // stores the fit results of all channels and all function calls in ascending order for all different PrintChargeSpectrum functions
+	/// @brief Stores the fit results of PrintChargeSpectrum() for all channels and all function calls in ascending order 
+	vector<TFitResultPtr> fit_results; 
 
-	vector<bool> skip_event; // stores the events which should be skipped in the analysis
-	double skip_event_threshold; // threshold (usually 4 mV) for PMT signal (hardcoded channel >8) to skip events where PMTs pick up radio frequency noise (NO BASELINE CORRECTION!)
-	int skip_event_threshold_nch; // define how many PMT channels need to be above threshold to discard event (RF pick up should be seen by alls PMTs)
+	/// @brief Stores the event numbers which should be skipped in the analysis
+	/// 
+	/// To identify events to be filtered use functions IntegralFilter(), SkipEventsPerChannel(), and SkipEventsTimeDiffCut().
+	vector<bool> skip_event;
+
+	/// @brief Special parameter for HU cosmics setup
+	/// 
+	/// Threshold (usually 4 mV) for PMT signal (hardcoded channel >8) to skip events where PMTs pick up radio frequency noise (NO BASELINE CORRECTION!).
+	double skip_event_threshold;
+	/// @brief Special parameter for HU cosmics setup
+	///
+	/// define how many PMT channels need to be above threshold to discard event (RF pick up should be seen by alls PMTs).
+	int skip_event_threshold_nch; 
+
 	void SkipEventsPerChannel(vector<double>, double = 0, double = 0, bool = false);  // in case you want to have indiviual thresholds in individual channels
 	void IntegralFilter(vector<double>, vector<bool>, float = 100., float = 200., bool = false, bool = false); // Same as SkipEventsPerChannel() but filtering all events with integrals <(>) threshold
 	void PrintSkippedEvents();
 
-	vector<vector<float>> baseline_correction_result; // store baseline values
+	/// @brief Stores baseline correction results for CorrectBaseline() and related functions
+	vector<vector<float>> baseline_correction_result;
 
+	/// @brief Store timing of peaks from GetTimingCFD()
+	vector<vector<float>> timing_results;
+	/// @brief Stores the fit results of Print_GetTimingCFD() for all channels
+	vector<TFitResultPtr> timing_fit_results;
+
+	/// @brief Stores results of analysis
 	TFile* root_out;
-	TFile* root_out_wf;
 
 	//other controls 
-	// baseline correction during data reading
+
+	/// @brief Set true for baseline correction during data reading
+	/// Needs to be called before ReadFile()
 	bool Using_BaselineCorrection_in_file_loop = false;
+	/// @brief Start of time window for baseline correction when using ReadRun::Using_BaselineCorrection_in_file_loop
 	float tCutg;
+	/// @brief End of time window for baseline correction when using ReadRun::Using_BaselineCorrection_in_file_loop
 	float tCutEndg;
-	// shift waveforms with CFD so that all events
-	bool Shift_WFs_in_file_loop = false;	// call after initializing class and before reading data
-	float tWF_CF = 0.3;						// constant fraction of maximum (between ~0.1 and 1)
-	int tWF_CF_bin = 375;					// bin to which all tWF_CF*maximum will be shifted to; needs to be 300<tWF_CF_bin<500; 375*.3125 ns=117.1875 ns
-	int tWF_CF_lo = 320;					// range of bins where ... 
-	int tWF_CF_hi = 500;					// ... the signal is expected
+
+	/// @brief Shift waveforms with CFD so that all events start at the same time
+	/// Call after initializing class and before calling ReadFile().
+	bool Shift_WFs_in_file_loop = false;
+	/// @brief Constant fraction of maximum (between ~0.1 and 1) for ReadRun::Shift_WFs_in_file_loop
+	float tWF_CF = 0.3;
+	/// @brief Time bin all events will be shifted to for ReadRun::Shift_WFs_in_file_loop
+	/// Needs to be 300<"tWF_CF_bin"<500 ("tWF_CF_bin"=375 means all peaks will be shifted to 375*.3125 ns=117.1875 ns)
+	int tWF_CF_bin = 375;
+	/// @brief Start of range of bins where the signal is expected for ReadRun::Shift_WFs_in_file_loop
+	int tWF_CF_lo = 320;
+	/// @brief End of range of bins where the signal is expected for ReadRun::Shift_WFs_in_file_loop
+	int tWF_CF_hi = 500;
 
 	ClassDef(ReadRun, 1)
 };
@@ -227,16 +299,21 @@ public:
 
 class Fitf {
 public:
-	// as used by jan (missing after-pulses and dark counts)
-
+	/// @brief Default fit function for SiPMs missing after-pulses and dark counts
+	/// 
+	/// See https://arxiv.org/abs/1609.01181 for explanation of fit function. \n 
+	/// See https://root.cern/manual/fitting/ for ROOT fitting.
+	/// 
+	/// @param x 
+	/// @param p 
+	/// 0 - N0: Normalization (~Number of events) \n 
+	/// 1 - mu: for generalized poisson distribution \n 
+	/// 2 - lambda: Borel-branching parameter for prompt crosstalk probability 1-exp(-lambda) \n 
+	/// 3,4 -sigma0, sigma1 \n 
+	/// 5 - G: gain \n 
+	/// 6 - B: Pedestal \n 
+	/// @return Function value
 	double operator() (double* x, double* p) {
-		//0 - N0: Normalization (~Number of events)
-		//1 - mu: for generalized poisson distribution
-		//2 - lambda: Borel-branching parameter for prompt crosstalk probability 1-exp(-lambda)
-
-		//3,4 -sigma0, sigma1
-		//5 - G: gain
-		//6 - B: Pedestal
 		double sum = 0;
 		for (int kint = 0; kint <= 50; kint++) {
 			double mu = p[1];
@@ -261,21 +338,26 @@ public:
 
 class Fitf_full {
 public:
-	// still missing dark counts in integration window (3.3 in paper)
-	// please check for possible bugs
-
+	/// @brief Default fit function for SiPMs with after-pulses missing dark counts
+	/// 
+	/// Still missing dark counts in integration window (3.3 in paper). \n 
+	/// Please check for possible bugs. \n \n 
+	/// 
+	/// See https://arxiv.org/abs/1609.01181 for explanation of fit function. \n 
+	/// See https://root.cern/manual/fitting/ for ROOT fitting.
+	/// 
+	/// @param x 
+	/// @param p 
+	/// 0 - N0: Normalization (~Number of events) \n 
+	/// 1 - mu: for generalized poisson distribution \n 
+	/// 2 - lambda: Borel-branching parameter for prompt crosstalk probability 1-exp(-lambda) \n 
+	/// 3,4 -sigma0, sigma1 \n 
+	/// 5 - G: gain \n 
+	/// 6 - B: Pedestal \n 
+	/// 7 - alpha: after-pulsing probability \n 
+	/// 8 - beta: the inverse of the exponential slope of the after-pulse PH distribution
+	/// @return Function value
 	double operator() (double* x, double* p) {
-		//0 - N0: Normalization (~Number of events)
-		//1 - mu:  mean number of photons initiating a Geiger discharg
-		//2 - lambda: Borel-branching parameter for prompt crosstalk probability 1-exp(-lambda)
-
-		//3,4 -sigma0, sigma1
-		//5 - G: gain
-		//6 - B: Pedestal
-
-		//7 - alpha: after-pulsing probability
-		//8 - beta: the inverse of the exponential slope of the after-pulse	PH distribution
-
 		double sum = 0;
 		for (int kint = 0; kint <= 10; kint++) {
 			double mu = p[1];
@@ -330,18 +412,24 @@ public:
 
 class Fitf_biased {
 public:
-	// For fitting charge spectrum with biased pedestal
-
+	/// @brief Fit function for SiPMs missing after-pulses and dark counts but with biased pedestal
+	/// 
+	/// See https://arxiv.org/abs/1609.01181 for explanation of fit function. \n 
+	/// See https://root.cern/manual/fitting/ for ROOT fitting.
+	/// 
+	/// @param x 
+	/// @param p 
+	/// 0 - N0: Normalization (~Number of events) \n 
+	/// 1 - mu: for generalized poisson distribution \n 
+	/// 2 - lambda: Borel-branching parameter for prompt crosstalk probability 1-exp(-lambda) \n 
+	/// 3,4 -sigma0, sigma1 \n 
+	/// 5 - G: gain \n 
+	/// 6 - B: Virtual pedestal shift of pe peaks \n 
+	/// 7 - Pedestal scaling for biased pedestal \n 
+	/// 8 - Position of biased pedestal
+	/// @return Function value 
+	/// @return Func value
 	double operator() (double* x, double* p) {
-		//0 - N0: Normalization (~Number of events)
-		//1 - mu: for generalized poisson distribution
-		//2 - lambda: Borel-branching parameter for prompt crosstalk probability 1-exp(-lambda)
-
-		//3,4 -sigma0, sigma1
-		//5 - G: gain
-		//6 - B: Virtual pedestal shift of pe peaks
-		//7 - Pedestal scaling for biased pedestal
-		//8 - Position of biased pedestal
 		double sum = 0;
 		for (int kint = 0; kint <= 50; kint++) {
 			double mu = p[1];
@@ -374,19 +462,22 @@ public:
 
 class Fitf_PMT {
 public:
-	// Gauss-Poisson
-	// https://doi.org/10.1016/0168-9002(94)90183-X 
-
+	/// @brief Gauss-Poisson distribution for fit of PMT charge spectra
+	/// 
+	/// See https://doi.org/10.1016/0168-9002(94)90183-X 
+	/// 
+	/// @param x 
+	/// @param p 
+	/// 0 - A:		normalization to number of events in fit region \n 
+	/// 1 - w:		probability for type II BG \n 
+	/// 2 - alpha:	coefficient of exponential decrease of typ II BG \n 
+	/// 3 - sigma0:	sigma of pedestal \n 
+	/// 4 - Q0:		position of pedestal \n 
+	/// 5 - mu:		mean number of PE \n 
+	/// 6 - sigma1:	width of 1 PE peak \n 
+	/// 7 - Q1:		position of 1 PE peak
+	/// @return Func value
 	double operator() (double* x, double* p) {
-		//0 - A:		normalization to number of events in fit region
-		//1 - w:		probability for type II BG
-		//2 - alpha:	coefficient of exponential decrease of typ II BG
-		//3 - sigma0:	sigma of pedestal
-		//4 - Q0:		position of pedestal
-		//5 - mu:		mean number of PE
-		//6 - sigma1:	width of 1 PE peak
-		//7 - Q1:		position of 1 PE peak
-
 		double pmt_charge_spectrum = 0.;
 
 		for (int kint = 0; kint <= 25; kint++) {
@@ -418,20 +509,24 @@ public:
 
 class Fitf_PMT_pedestal {
 public:
-	// Gauss-Poisson
-	// https://doi.org/10.1016/0168-9002(94)90183-X 
-
+	/// @brief Gauss-Poisson distribution for fit of PMT charge spectra
+	/// 
+	/// With biased pedestal peak. \n
+	/// See https://doi.org/10.1016/0168-9002(94)90183-X 
+	/// 
+	/// @param x 
+	/// @param p
+	/// 0 - A:		normalization to number of events in fit region \n 
+	/// 1 - w:		probability for type II BG \n 
+	/// 2 - alpha:	coefficient of exponential decrease of typ II BG \n 
+	/// 3 - sigma0:	sigma of pedestal \n 
+	/// 4 - Q0:		position of pedestal \n 
+	/// 5 - mu:		mean number of PE \n 
+	/// 6 - sigma1:	width of 1 PE peak \n 
+	/// 7 - Q1:		position of 1 PE peak \n 
+	/// 8 - norm0:	norm of 0 PE peak 
+	/// @return Func value
 	double operator() (double* x, double* p) {
-		//0 - A:		normalization to number of events in fit region
-		//1 - w:		probability for type II BG
-		//2 - alpha:	coefficient of exponential decrease of typ II BG
-		//3 - sigma0:	sigma of pedestal
-		//4 - Q0:		position of pedestal
-		//5 - mu:		mean number of PE
-		//6 - sigma1:	width of 1 PE peak
-		//7 - Q1:		position of 1 PE peak
-		//8 - norm0:	norm of 0 PE peak
-
 		double pmt_charge_spectrum = 0.;
 
 		for (int kint = 0; kint <= 25; kint++) {
@@ -467,11 +562,19 @@ public:
 	// Gauss-Poisson
 	// https://doi.org/10.1016/0168-9002(94)90183-X 
 
+	/// @brief Ideal PMT charge spectrum
+	/// 
+	/// Gives very good fit but will not describe pedestal well. \n 
+	/// See https://doi.org/10.1016/0168-9002(94)90183-X 
+	/// 
+	/// @param x 
+	/// @param p 
+	/// 0 - A_s:		norm. of PE spectrum \n 
+	/// 1 - mu:		mean number of PE \n 
+	/// 2 - sigma1:	width of 1st PE peak \n 
+	/// 3 - Q1:		position (gain*e) of 1st peak
+	/// @return Func value
 	double operator() (double* x, double* p) {
-		//0 - A_s:		norm. of PE spectrum
-		//1 - mu:		mean number of PE
-		//2 - sigma1:	width of 1st PE peak
-		//3 - Q1:		position (gain*e) of 1st peak
 		double pmt_charge_spectrum = 0.;
 
 		for (int kint = 1; kint <= 25; kint++) {
@@ -491,21 +594,23 @@ public:
 
 class Fitf_langaus {
 public:
-	// Landau-Gauss-convolution
-	// copied from https://root.cern.ch/doc/master/langaus_8C.html 
-
+	/// @brief Landau-Gauss-convolution
+	/// 
+	/// Used for large photon yields. \n 
+	/// From https://root.cern.ch/doc/master/langaus_8C.html => \n
+	/// In the Landau distribution (represented by the CERNLIB approximation), \n 
+	/// the maximum is located at x=-0.22278298 with the location parameter=0. \n 
+	/// This shift is corrected within this function, so that the actual \n 
+	/// maximum is identical to the MP parameter. 
+	/// 
+	/// @param x 
+	/// @param par
+	/// par[0]=Width (scale) parameter of Landau density \n 
+	/// par[1]=Most Probable (MP, location) parameter of Landau density \n 
+	/// par[2]=Total area (integral -inf to inf, normalization constant) \n 
+	/// par[3]=Width (sigma) of convoluted Gaussian function
+	/// @return Func value
 	double operator() (double* x, double* par) {
-		//Fit parameters:
-		//par[0]=Width (scale) parameter of Landau density
-		//par[1]=Most Probable (MP, location) parameter of Landau density
-		//par[2]=Total area (integral -inf to inf, normalization constant)
-		//par[3]=Width (sigma) of convoluted Gaussian function
-		//
-		//In the Landau distribution (represented by the CERNLIB approximation),
-		//the maximum is located at x=-0.22278298 with the location parameter=0.
-		//This shift is corrected within this function, so that the actual
-		//maximum is identical to the MP parameter.
-
 		// Numeric constants
 		Double_t invsq2pi = 0.3989422804014;   // (2 pi)^(-1/2)
 		Double_t mpshift = -0.22278298;       // Landau maximum location
@@ -545,5 +650,48 @@ public:
 		}
 
 		return (par[2] * step * sum * invsq2pi / par[3]);
+	};
+};
+
+class Fitf_plus_DC {
+public:
+	/// @brief Fit function for SiPMs missing after-pulses and dark counts including additional dark count spectrum
+	/// 
+	///  Sum of two spectra for event spectrum + dark count (background trigger) spectrum.
+	/// 
+	/// @param x 
+	/// @param p
+	/// 0 - N0: Normalization (~Number of events) \n 
+	/// 1 - mu: for generalized poisson distribution \n 
+	/// 2 - lambda: Borel-branching parameter for prompt crosstalk probability 1-exp(-lambda) \n 
+	/// 3,4 -sigma0, sigma1 \n 
+	/// 5 - G: gain \n 
+	/// 6 - B: Pedestal \n 
+	/// 7 - mu_dk: mu for dark count rate in dark events (dark events = noise/background triggers without photons in SiPMs) \n 
+	/// 8 - N0_dk: fraction (dark events)/(total number of events) 
+	/// @return 
+	double operator() (double* x, double* p) {
+		double sum = 0;
+		for (int kint = 0; kint <= 50; kint++) {
+			double mu = p[1];
+			double lambda = p[2];
+
+			double sigma0 = p[3];
+			double sigma1 = p[4];
+
+			double G = p[5];
+			double B = p[6];
+
+			double mu_dk = p[7];
+			double N0_dk = p[8];
+
+			double k = static_cast<double>(kint);
+			double sigmaK = sqrt(sigma0 * sigma0 + k * sigma1 * sigma1);
+			//generalized poisson envelope
+			double gp = ((1. - N0_dk) * (mu * TMath::Power((mu + k * lambda), k - 1) * TMath::Exp(-(mu + k * lambda))) + N0_dk * (mu_dk * TMath::Power((mu_dk + k * lambda), k - 1) * TMath::Exp(-(mu_dk + k * lambda)))) / TMath::Factorial(kint);
+
+			sum += p[0] * gp * (1. / sqrt(2. * TMath::Pi()) / sigmaK) * TMath::Exp(-TMath::Power(((x[0] - (k * G + B)) / sqrt(2) / sigmaK), 2));
+		}
+		return sum;
 	};
 };
