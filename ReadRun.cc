@@ -12,7 +12,7 @@
 /// Alessia Brignoli \n
 /// Ben Skodda \n 
 /// Christophe Mullesch \n
-/// Constantin Eckart \n
+/// Constantin Eckardt \n
 /// Alexander Vagts \n
 
 
@@ -1803,7 +1803,9 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit) {
 	// call GetTimingCFD() in case it was not initialized
 	if (timing_results.size() == 0) GetTimingCFD();
 	
-	gStyle->SetOptStat(1111); // 11 is title + entries
+	gStyle->SetOptStat(1111);
+	gStyle->SetOptFit(111);
+
 	TCanvas* timing_cfd_c = new TCanvas("timing of cfd", "timing of cfd", 600, 400);
 	SplitCanvas(timing_cfd_c);
 	int current_canvas = 0;
@@ -1822,11 +1824,6 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit) {
 			if (do_fit == 1) {
 				TFitResultPtr fresults = his->Fit("gaus", "LS", "same");
 				timing_fit_results.push_back(fresults);
-				TLegend* leg = new TLegend();
-				leg->AddEntry((TObject*)0, Form("Constant=%g", fresults->Value(0)), " ");
-				leg->AddEntry((TObject*)0, Form("Mean=%g", fresults->Value(1)), " ");
-				leg->AddEntry((TObject*)0, Form("Sigma=%g", fresults->Value(2)), " ");
-				leg->Draw();
 			}
 			
 			TString name_save(Form("Timing_cfd_channel_%02d", active_channels[i]));
