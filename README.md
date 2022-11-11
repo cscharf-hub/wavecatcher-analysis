@@ -1,6 +1,6 @@
 # wavecatcher-analysis
 
-\section Getting started
+# Getting started
 
 To get started download repository and compile the library. To compile the library on linux or mac do: 
 ```
@@ -8,7 +8,7 @@ make -f makefile
 ```
 
 
-Add 
+Add
 ```
 gSystem->Load("ReadRunLib.sl");
 ```
@@ -21,16 +21,22 @@ root .x "examples/read_exampledata.cc"
 
 Note that you can add ```-b``` for batch mode or ```-q``` to quit root after running the analysis.
 
-You should close root (".q") and restart it if you want to re-run the code because not everything is deleted.
+You should close root with ```.q``` and restart it if you want to re-run the code because not everything is deleted.
 
-A more detailed documentation can be found here:
-<https://wavecatcher-analysis.web.cern.ch/>
+A more detailed documentation can be found here:  
+<https://wavecatcher-analysis.web.cern.ch/>  
 <https://wavecatcher-analysis.web.cern.ch/classReadRun.html>
 
-Feel free to contact <christian.scharf@physik.hu-berlin.de> for questions and feature requests.
+Support and feature requests:  
+christian.scharf at physik.hu-berlin.de
 
-\section Requirements
-Needs CERN ROOT Release 6.24/02 or higher compiled with c++17 (otherwise need to change line 15 in makefile --std=c++17 -> --std=c++14).
+# Requirements
+Needs CERN ROOT Release 6.24/02 or higher compiled with c++17[^1]. 
 
-It is recommended to install ROOT with conda:
+It is recommended to install ROOT with conda:  
 <https://root.cern/install/#conda>
+
+[^1]: If your ROOT has c++14 you need to change line 15 in makefile --std=c++17 to --std=c++14.  
+Older versions of ROOT are not supported since they miss Scale() for TGraph.
+
+
