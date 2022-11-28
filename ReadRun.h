@@ -144,8 +144,9 @@ public:
 
 	// functions for charge spectrum
 	int* GetIntWindow(TH1F*, float, float, float, float, int);
+	float GetPeakIntegral(TH1F*, float, float, float, float, int = 0);
 	void PrintChargeSpectrumWF(float, float, float = 0, float = 300, int = 1, float = 0., float = 0.);
-	TH1F* ChargeSpectrum(int, float, float, float = 0, float = 300, float = -50, float = 600, int = 750, string = "width");
+	TH1F* ChargeSpectrum(int, float, float, float = 0, float = 300, float = -50, float = 600, int = 750);
 	void PrintChargeSpectrum(float, float, float = 0, float = 300, float = -50, float = 600, int = 750, float = 0., float = 0., int = 8, int = 0);
 	/// @brief Starting values of the fit parameters for PrintChargeSpectrum()
 	vector<float> PrintChargeSpectrum_pars;
@@ -256,7 +257,8 @@ public:
 	int skip_event_threshold_nch; 
 
 	void SkipEventsPerChannel(vector<double>, double = 0, double = 0, bool = false);  // in case you want to have indiviual thresholds in individual channels
-	void IntegralFilter(vector<double>, vector<bool>, float = 100., float = 200., bool = false, bool = false); // Same as SkipEventsPerChannel() but filtering all events with integrals <(>) threshold
+	void IntegralFilter(vector<double>, vector<bool>, float = 5., float = 15., float = 95, float = 140, bool = false, bool = false); // Same as SkipEventsPerChannel() but filtering all events with integrals <(>) threshold
+	void IntegralFilter(vector<double>, vector<bool>, float = 100., float = 200., bool = false, bool = false); // old version for older skripts
 	void PrintSkippedEvents();
 
 	/// @brief Stores baseline correction results for CorrectBaseline() and related functions

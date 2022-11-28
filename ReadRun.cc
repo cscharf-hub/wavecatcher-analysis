@@ -971,26 +971,64 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, double rangestart,
 /// 
 /// @param thresholds Vector should contain a threshold for each active channel saved in the data, in ascending order (ch0, ch1 ...). Negative thresholds mean events below threshold will be cut.
 /// @param highlow  Vector should contain a bool for each active channel. True means events with integrals above threshold will be cut, false means below threshold.
-/// @param windowlow Range start in ns
-/// @param windowhi Range end in ns
+/// @param windowlow Integration time left to the maximum of the peak.
+/// @param windowhi Integration time right to the maximum of the peak.
+/// @param start Range for finding maximum.
+/// @param end Range for finding maximum.
 /// @param use_AND_condition If set true it will overrule previously applied cuts and unskip events that pass integral criterium.
 /// @param verbose Set true for extra verbosity.
-void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, float windowlow, float windowhi, bool use_AND_condition, bool verbose) {
+void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, float windowlow, float windowhi, float start, float end, bool use_AND_condition, bool verbose) {
 
 	cout << "\n\n Removing events with individual integral threshold per channel!!!\n\n";
 	int counter = 0;
-	float integ = 0;
+	float integral = 0;
 	
 	for (int j = 0; j < nwf; j++) {
 		int currevent_counter = floor(j / nchannels);
 
 		if (use_AND_condition || !skip_event[currevent_counter]) {
 			auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
-			integ = his->Integral(his->GetXaxis()->FindBin(windowlow), his->GetXaxis()->FindBin(windowhi), "width");
+			
+			int currchannel = j - nchannels * currevent_counter;
+			integral = GetPeakIntegral(his, windowlow, windowhi, start, end, currchannel);
+
+			if (currchannel <= thresholds.size() && thresholds[currchannel] != 0 && !skip_event[currevent_counter] && ((highlow[currchannel] && integral > thresholds[currchannel]) || (!highlow[currchannel] && integral < thresholds[currchannel]))) {
+				int currevent = eventnr_storage[currevent_counter];
+				if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
+				skip_event[currevent_counter] = true;
+				while (floor((j + 1) / nchannels) == currevent_counter) j++;
+				counter++;
+			}
+			else if (use_AND_condition && thresholds[currchannel] != 0 && skip_event[currevent_counter] && !highlow[currchannel]) {
+				int currevent = eventnr_storage[currevent_counter];
+				skip_event[currevent_counter] = false;
+				if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\thas been flagged good by integral";
+			}
+		}
+	}
+	cout << "\n\n\t" << counter << " events will be cut out of " << nevents << endl;
+}
+
+/// @brief Skip events with threshold on integral
+/// 
+/// Old version for compatibility with older analysis
+/// 
+void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, float windowlow, float windowhi, bool use_AND_condition, bool verbose) {
+
+	cout << "\n\n Removing events with individual integral threshold per channel!!!\n\n";
+	int counter = 0;
+	float integral = 0;
+
+	for (int j = 0; j < nwf; j++) {
+		int currevent_counter = floor(j / nchannels);
+
+		if (use_AND_condition || !skip_event[currevent_counter]) {
+			auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
 
 			int currchannel = j - nchannels * currevent_counter;
+			integral = his->Integral(his->GetXaxis()->FindBin(windowlow), his->GetXaxis()->FindBin(windowhi), "width");
 
-			if (currchannel <= thresholds.size() && thresholds[currchannel] != 0 && !skip_event[currevent_counter] && ((highlow[currchannel] && integ > thresholds[currchannel]) || (!highlow[currchannel] && integ < thresholds[currchannel]))) {
+			if (currchannel <= thresholds.size() && thresholds[currchannel] != 0 && !skip_event[currevent_counter] && ((highlow[currchannel] && integral > thresholds[currchannel]) || (!highlow[currchannel] && integral < thresholds[currchannel]))) {
 				int currevent = eventnr_storage[currevent_counter];
 				if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
 				skip_event[currevent_counter] = true;
@@ -1028,6 +1066,12 @@ void ReadRun::PrintSkippedEvents() {
 /// If ("start" < 0 || "end" < 0) doesn't return max and integration window is fixed t(max(sum_spectrum[channel])) +/- "windowhi"/"windowlow" \n 
 /// If ("windowlow" == "start" && "windowwhi" == "end") doesn't return max and sets fixed integration window from "start" until "end" for all channels.
 /// 
+/// @param his Histgrom to integrate.
+/// @param windowlow Integration time left to the maximum of the peak.
+/// @param windowhi Integration time right to the maximum of the peak.
+/// @param start Range for finding maximum.
+/// @param end Range for finding maximum.
+/// @param channel Channel index in case the integration should be around the maximum of the sum of all waveforms
 /// @return Array { max, \f$n_{t,start}\f$, \f$n_{t,end}\f$ }
 int* ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float start, float end, int channel) {
 
@@ -1067,6 +1111,23 @@ int* ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float sta
 		foundindices[2] = his->GetXaxis()->FindBin(his->GetXaxis()->GetBinCenter(foundindices[0]) + windowhi);
 	}
 	return foundindices;
+}
+
+/// @brief Calculate the integral around a peak with several options explained in GetIntWindow().
+/// @param his Histogram with peak.
+/// @param windowlow Integration time left to the maximum of the peak.
+/// @param windowhi Integration time right to the maximum of the peak.
+/// @param start Range for finding maximum.
+/// @param end Range for finding maximum.
+/// @param channel_index Channel index in case the integration should be around the maximum of the sum of all waveforms.
+/// @return Integral/amplitude.
+float ReadRun::GetPeakIntegral(TH1F* his, float windowlow, float windowhi, float start, float end, int channel_index) {
+	int* windowind = GetIntWindow(his, windowlow, windowhi, start, end, channel_index);	// find integration window
+	string integral_option(""); // For amplitude -> unit[mV].
+	if (windowind[1] != windowind[2]) integral_option = "width"; // 'width' (bin width) for integral -> unit[mV x ns].
+	float integral = his->Integral(windowind[1], windowind[2], integral_option.c_str());
+	delete[] windowind;
+	return integral;
 }
 
 /// @brief Plot waveforms of all channels for a given event number and add the determined integration windows to the plot
@@ -1150,9 +1211,8 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 /// 
 /// See PrintChargeSpectrum() for parameters.
 /// 
-/// @param integral_option integral_option = "width" multiplies the integral value with the bin width for integral.
 /// @return Histogram for one channel.
-TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, string integral_option) {
+TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins) {
 
 	TString name(Form("channel__%02d", active_channels[channel_index]));
 	TH1F* h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
@@ -1160,9 +1220,7 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 	for (int j = 0; j < nevents; j++) {
 		if (!skip_event[j]) {
 			TH1F* his = ((TH1F*)rundata->At(j * nchannels + channel_index));
-			int* windowind = GetIntWindow(his, windowlow, windowhi, start, end, channel_index);	// find integration window
-			h1->Fill(his->Integral(windowind[1], windowind[2], integral_option.c_str()));		// fill charge spectrum
-			delete[] windowind;
+			h1->Fill(GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index)); // fill charge spectrum
 		}
 	}
 	return h1;
@@ -1204,9 +1262,6 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 	if (fitrangestart == 0.) fitrangestart = rangestart;
 	if (fitrangeend == 0.) fitrangeend = rangeend;
 
-	string integral_option = ""; // use amplitude spectrum (not good for fitting, will be biased)
-	if (windowlow + windowhi > 0.) integral_option = "width"; // use charge (integral)
-
 	string ctitle("\"charge\" spectra" + to_string(PrintChargeSpectrum_cnt));
 	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 1600, 1000);
 	SplitCanvas(chargec);
@@ -1219,7 +1274,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			current_canvas++;
 
 			TH1F* his;
-			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins, integral_option);
+			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins);
 			his->GetYaxis()->SetTitle("#Entries");
 			if (windowlow + windowhi > 0.) his->GetXaxis()->SetTitle("integral in mV#timesns");
 			else his->GetXaxis()->SetTitle("amplitude in mV");
@@ -1432,9 +1487,6 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 1600, 1000);
 	SplitCanvas(chargec);
 
-	string integral_option = ""; // use amplitude spectrum (not good for fitting, will be biased)
-	if (windowlow + windowhi > 0.) integral_option = "width"; // use charge (integral)
-
 	int current_canvas = 0;
 
 	for (int i = 0; i < nchannels; i++) {
@@ -1442,7 +1494,7 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 			current_canvas++;
 
 			TH1F* his;
-			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins, integral_option);
+			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins);
 			if (windowlow + windowhi > 0.) his->GetXaxis()->SetTitle("integral in mV#timesns");
 			else his->GetXaxis()->SetTitle("amplitude in mV");
 			chargec->cd(current_canvas);
@@ -1520,11 +1572,9 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 		use_fit_result_for_threshold = true;
 	}
 
-	string integral_option = ""; // use amplitude spectrum (not good for fitting, will be biased)
 	string unit(" mV");
-	string title("amplitude in mV");
+	string title("amplitude in mV"); // amplitude spectrum not good for fitting, will be biased
 	if (windowlow + windowhi > 0.) {
-		integral_option = "width"; // use charge (integral)
 		unit = " mV#timesns";
 		title = "integral in mV#timesns";
 	}
@@ -1543,7 +1593,7 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 			chargec->cd(++current_canvas);
 
 			TH1F* his;
-			his = ChargeSpectrum(i, windowlow, windowhi, rangestart, rangeend, rangestart, rangeend, nbins, integral_option);
+			his = ChargeSpectrum(i, windowlow, windowhi, rangestart, rangeend, rangestart, rangeend, nbins);
 			his->GetXaxis()->SetTitle(title.c_str());
 			his->GetYaxis()->SetTitle("#Entries");
 			his->Draw();
@@ -1598,18 +1648,14 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 /// @param threshold Threshold
 void ReadRun::PrintDCR(float windowlow, float windowhi, float rangestart, float rangeend, double threshold) {
 	
-	string integral_option = ""; // use amplitude spectrum (not good for fitting, will be biased)
-	string unit(" mV");
-	if (windowlow + windowhi > 0.) {
-		integral_option = "width"; // use charge (integral)
-		unit = " mV*ns";
-	}
+	string unit(" mV"); 
+	if (windowlow + windowhi > 0.) unit = " mV*ns";
 
 	for (int i = 0; i < nchannels; i++) {
 		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
 
 			TH1F* his;
-			his = ChargeSpectrum(i, windowlow, windowhi, rangestart, rangeend, rangestart, rangeend, 500, integral_option);
+			his = ChargeSpectrum(i, windowlow, windowhi, rangestart, rangeend, rangestart, rangeend, 500);
 
 			stringstream lonamerate;
 			lonamerate << "<0.5 pe=" << threshold << unit << " -> " << his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() / (1.e-3 * (rangeend - rangestart)) << " MHz";
