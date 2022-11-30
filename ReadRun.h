@@ -166,7 +166,8 @@ public:
 
 	TH1F* His_GetTimingCFD(int, float, float);
 	void Print_GetTimingCFD(float = 100, float = 140, int = 0);
-
+	TH1F* His_GetTimingCFD_diff(int, int, float, float);
+	void Print_GetTimingCFD_diff(int, int, float = 100, float = 140, int = 0);
 
 	// print FFT
 	void PrintFFTWF(int = 1, float = 0., float = 0., int = 1);
@@ -257,8 +258,7 @@ public:
 	int skip_event_threshold_nch; 
 
 	void SkipEventsPerChannel(vector<double>, double = 0, double = 0, bool = false);  // in case you want to have indiviual thresholds in individual channels
-	void IntegralFilter(vector<double>, vector<bool>, float = 5., float = 15., float = 95, float = 140, bool = false, bool = false); // Same as SkipEventsPerChannel() but filtering all events with integrals <(>) threshold
-	void IntegralFilter(vector<double>, vector<bool>, float = 100., float = 200., bool = false, bool = false); // old version for older skripts
+	void IntegralFilter(vector<double>, vector<bool>, float, float, float = 50, float = 250, bool = false, bool = false); // Same as SkipEventsPerChannel() but filtering all events with integrals <(>) threshold
 	void PrintSkippedEvents();
 
 	/// @brief Stores baseline correction results for CorrectBaseline() and related functions
