@@ -317,7 +317,9 @@ public:
 	/// @return Function value
 	double operator() (double* x, double* p) {
 		double sum = 0;
-		for (int kint = 0; kint <= 50; kint++) {
+		int kmax = static_cast<int>(ceil(p[1])) * 10;
+
+		for (int kint = 0; kint <= kmax; kint++) {
 			double mu = p[1];
 			double lambda = p[2];
 
@@ -343,7 +345,7 @@ public:
 	/// @brief Default fit function for SiPMs with after-pulses missing dark counts
 	/// 
 	/// Still missing dark counts in integration window (3.3 in paper). \n 
-	/// Please check for possible bugs. \n \n 
+	/// Seems to be working now, but please check for possible bugs. \n \n 
 	/// 
 	/// See https://arxiv.org/abs/1609.01181 for explanation of fit function. \n 
 	/// See https://root.cern/manual/fitting/ for ROOT fitting.
@@ -361,7 +363,9 @@ public:
 	/// @return Function value
 	double operator() (double* x, double* p) {
 		double sum = 0;
-		for (int kint = 0; kint <= 10; kint++) {
+		int kmax = static_cast<int>(ceil(p[1])) * 10;
+
+		for (int kint = 0; kint <= kmax; kint++) {
 			double mu = p[1];
 			double lambda = p[2];
 
@@ -378,15 +382,15 @@ public:
 			double k = static_cast<double>(kint);
 			//pulse width
 			double sigmaK = sqrt(sigma0 * sigma0 + k * sigma1 * sigma1);
-			double gausnormsigmak = 1 / (sqrt(2. * TMath::Pi()) * sigmaK);
-			//generalized poisson envelope
-			double gp = mu * TMath::Power((mu + k * lambda), k - 1) * TMath::Exp(-(mu + k * lambda)) / TMath::Factorial(kint);
+			double gausnormsigmak = 1. / (sqrt(2. * TMath::Pi()) * sigmaK);
 			//gauss peak
 			double gauss = gausnormsigmak * TMath::Exp(-1. * TMath::Power(x[0] - (k * G + B), 2.) / (sigmaK * sigmaK * 2.));
 
+			//generalized poisson envelope
+			double gp = p[0] * mu * TMath::Power((mu + k * lambda), k - 1) * TMath::Exp(-(mu + k * lambda)) / TMath::Factorial(kint);
 
 			if (kint == 0) {
-				sum += p[0] * gp * gauss;
+				sum += (gp * gauss);
 			}
 			else {
 				//after-pulse + delayed cross talk
@@ -395,16 +399,17 @@ public:
 				double pk1 = TMath::Exp(-1. * (x[0] - (k * G + B)) / beta) * gausnormsigmak / beta * sigmaK * sqrt(TMath::Pi() / 2) * (TMath::Erf((x[0] - (k * G + B)) / (sqrt(2) * sigmaK)) + 1.);
 
 
-				if (kint == 1) sum += p[0] * gp * (bk0 * gauss + bk1 * pk1);
+				if (kint == 1) sum += gp * (bk0 * gauss + bk1 * pk1);
 				else {
 					double api2k = 0.;
 					for (int ii = 2; ii < kint; ii++) {
 						double iid = static_cast<double>(ii);
 						double bkialpha = TMath::Factorial(kint) / (TMath::Factorial(ii) * TMath::Factorial(kint - ii)) * TMath::Power(alpha, iid) * TMath::Power((1. - alpha), (k - iid));
-						double dpkidph = TMath::Power((x[0] - (k * G + B)), (iid - 1.)) / (TMath::Factorial(ii - 1) * TMath::Power(beta, iid)) * TMath::Exp(-1. * (x[0] - (k * G + B)) / beta);
+						double dpkidph = 0;
+						if (x[0] > (k * G + B)) dpkidph = TMath::Power((x[0] - (k * G + B)), (iid - 1.)) / (TMath::Factorial(ii - 1) * TMath::Power(beta, iid)) * TMath::Exp(-1. * (x[0] - (k * G + B)) / beta);
 						api2k += bkialpha * dpkidph;
 					}
-					sum += p[0] * gp * (bk0 * gauss + bk1 * pk1 + api2k);
+					sum += gp * (bk0 * gauss + bk1 * pk1 + api2k);
 				}
 			}
 		}
@@ -433,7 +438,9 @@ public:
 	/// @return Func value
 	double operator() (double* x, double* p) {
 		double sum = 0;
-		for (int kint = 0; kint <= 50; kint++) {
+		int kmax = static_cast<int>(ceil(p[1])) * 10;
+
+		for (int kint = 0; kint <= kmax; kint++) {
 			double mu = p[1];
 			double lambda = p[2];
 
@@ -481,8 +488,9 @@ public:
 	/// @return Func value
 	double operator() (double* x, double* p) {
 		double pmt_charge_spectrum = 0.;
+		int kmax = static_cast<int>(ceil(p[5])) * 10;
 
-		for (int kint = 0; kint <= 25; kint++) {
+		for (int kint = 0; kint <= kmax; kint++) {
 			double k = static_cast<double>(kint);
 
 			double poiss = TMath::Power(p[5], k) * TMath::Exp(-p[5]) / TMath::Factorial(kint);
@@ -530,8 +538,9 @@ public:
 	/// @return Func value
 	double operator() (double* x, double* p) {
 		double pmt_charge_spectrum = 0.;
+		int kmax = static_cast<int>(ceil(p[5])) * 10;
 
-		for (int kint = 0; kint <= 25; kint++) {
+		for (int kint = 0; kint <= kmax; kint++) {
 			double k = static_cast<double>(kint);
 
 			double poiss = TMath::Power(p[5], k) * TMath::Exp(-p[5]) / TMath::Factorial(kint);
@@ -579,7 +588,9 @@ public:
 	double operator() (double* x, double* p) {
 		double pmt_charge_spectrum = 0.;
 
-		for (int kint = 1; kint <= 25; kint++) {
+		int kmax = static_cast<int>(ceil(p[1])) * 10;
+
+		for (int kint = 1; kint <= kmax; kint++) {
 			double k = static_cast<double>(kint);
 
 			double poiss = TMath::Power(p[1], k) * TMath::Exp(-1. * p[1]) / TMath::Factorial(kint);
@@ -657,9 +668,10 @@ public:
 
 class Fitf_plus_DC {
 public:
-	/// @brief Fit function for SiPMs missing after-pulses and dark counts including additional dark count spectrum
+	/// @brief Fit function for SiPMs missing after-pulses and dark counts but including additional dark count spectrum
 	/// 
-	///  Sum of two spectra for event spectrum + dark count (background trigger) spectrum.
+	/// Sum of two spectra for event spectrum + dark count (background trigger) spectrum. 
+	/// To be used if the trigger and filter selections are not perfect and there are still empty events.
 	/// 
 	/// @param x 
 	/// @param p
@@ -674,7 +686,9 @@ public:
 	/// @return 
 	double operator() (double* x, double* p) {
 		double sum = 0;
-		for (int kint = 0; kint <= 50; kint++) {
+		int kmax = static_cast<int>(ceil(p[1])) * 10;
+
+		for (int kint = 0; kint <= kmax; kint++) {
 			double mu = p[1];
 			double lambda = p[2];
 
