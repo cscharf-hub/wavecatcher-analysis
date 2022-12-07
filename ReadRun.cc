@@ -490,6 +490,7 @@ void ReadRun::CorrectBaseline(float tCut, float tCutEnd) {
 
 			if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
 		}
+		cout << endl;
 	}
 }
 
@@ -805,13 +806,14 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 			while (yvals[i] < cf && i <= n_max) i++;
 			i--;
 		}
-		// Currently only returning the bin (0.3125 ns bin size). Could be improved by adding interpolation
+		float interpol_bin = .0;
+		interpol_bin = LinearInterpolation(cf, static_cast<float>(i), static_cast<float>(i+1), yvals[i], yvals[i+1]);
 
 		timing_results.push_back(vector<float>());
-		timing_results[j].push_back(i);
-		timing_results[j].push_back(static_cast<float>(i + start_at) * SP);
-		timing_results[j].push_back(static_cast<float>(start_at) * SP);
-		timing_results[j].push_back(static_cast<float>(end_at) * SP);
+		timing_results[j].push_back(interpol_bin); // return the bin we looked for
+		timing_results[j].push_back(static_cast<float>(interpol_bin + static_cast<float>(start_at)) * SP); // return the cfd-time we looked for
+		timing_results[j].push_back(static_cast<float>(start_at) * SP); // return starting time
+		timing_results[j].push_back(static_cast<float>(end_at) * SP); // return the end time
 		delete[] yvals;
 		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
 	}
