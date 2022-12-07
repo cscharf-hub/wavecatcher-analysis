@@ -1797,9 +1797,9 @@ void ReadRun::PrintMaxDist(float from, float to) {
 /// See Print_GetTimingCFD() for parameters.
 /// 
 /// @return Timing histogram for one channel
-TH1F* ReadRun::His_GetTimingCFD(int channel_index, float rangestart, float rangeend) {
+TH1F* ReadRun::His_GetTimingCFD(int channel_index, float rangestart, float rangeend, int nbins) {
 
-	int nbins = static_cast<int>((rangeend - rangestart) / SP);
+	if (nbins == -999) nbins = static_cast<int>((rangeend - rangestart) / SP);
 
 	TString name(Form("GetTimingCFD_ch%02d", active_channels[channel_index]));
 	auto h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
@@ -1812,8 +1812,9 @@ TH1F* ReadRun::His_GetTimingCFD(int channel_index, float rangestart, float range
 /// @param rangeend End of x range for plot in ns.
 /// @param do_fit If 1 fits a gaussian. \n
 /// Else do not fit. \n 
-/// Fit results per channel are stored in ReadRun::timing_fit_results
-void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit) {
+/// Fit results per channel are stored in ReadRun::timing_fit_results.
+/// @param nbins Number of bins for histogram.
+void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, int nbins) {
 
 	// call GetTimingCFD() in case it was not initialized
 	if (timing_results.size() == 0) GetTimingCFD();
@@ -1831,7 +1832,7 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit) {
 			timing_cfd_c->cd(current_canvas);
 
 			TH1F* his;
-			his = His_GetTimingCFD(i, rangestart, rangeend);
+			his = His_GetTimingCFD(i, rangestart, rangeend, nbins);
 			his->GetYaxis()->SetTitle("#Entries");
 			his->GetXaxis()->SetTitle("time [ns]");
 			his->Draw();
@@ -1855,9 +1856,9 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit) {
 /// See Print_GetTimingCFD_diff() for parameters.
 /// 
 /// @return Histogram with event-wise timing differences between two channels
-TH1F* ReadRun::His_GetTimingCFD_diff(int channel1, int channel2, float rangestart, float rangeend) {
+TH1F* ReadRun::His_GetTimingCFD_diff(int channel1, int channel2, float rangestart, float rangeend, int nbins) {
 
-	int nbins = static_cast<int>((rangeend - rangestart) / SP);
+	if (nbins == -999) nbins = static_cast<int>((rangeend - rangestart) / SP);
 
 	auto chin1 = find(active_channels.begin(), active_channels.end(), channel1);
 	int channel_index1;
@@ -1885,7 +1886,8 @@ TH1F* ReadRun::His_GetTimingCFD_diff(int channel1, int channel2, float rangestar
 /// @param rangeend End of x range for plot in ns.
 /// @param do_fit If 1 fits a gaussian. \n
 /// Else do not fit. \n 
-void ReadRun::Print_GetTimingCFD_diff(int channel1, int channel2, float rangestart, float rangeend, int do_fit) {
+/// @param nbins Number of bins for histogram.
+void ReadRun::Print_GetTimingCFD_diff(int channel1, int channel2, float rangestart, float rangeend, int do_fit, int nbins) {
 
 	// call GetTimingCFD() in case it was not initialized
 	if (timing_results.size() == 0) GetTimingCFD();
@@ -1896,7 +1898,7 @@ void ReadRun::Print_GetTimingCFD_diff(int channel1, int channel2, float rangesta
 	TCanvas* timing_cfd_d_c = new TCanvas("timing of cfd diff", "timing of cfd diff", 600, 400);
 
 	TH1F* his;
-	his = His_GetTimingCFD_diff(channel1, channel2, rangestart, rangeend);
+	his = His_GetTimingCFD_diff(channel1, channel2, rangestart, rangeend, nbins);
 	his->GetYaxis()->SetTitle("#Entries");
 	his->GetXaxis()->SetTitle("time [ns]");
 	his->Draw();
