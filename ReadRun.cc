@@ -811,7 +811,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 
 		timing_results.push_back(vector<float>());
 		timing_results[j].push_back(interpol_bin); // return the bin we looked for
-		timing_results[j].push_back(static_cast<float>(interpol_bin + static_cast<float>(start_at)) * SP); // return the cfd-time we looked for
+		timing_results[j].push_back((interpol_bin + static_cast<float>(start_at)) * SP); // return the cfd-time we looked for
 		timing_results[j].push_back(static_cast<float>(start_at) * SP); // return starting time
 		timing_results[j].push_back(static_cast<float>(end_at) * SP); // return the end time
 		delete[] yvals;
@@ -2016,7 +2016,7 @@ double* ReadRun::gety(TH1F* his, int start_at, int end_at) {
 /// @brief Translate a random number into a useful root color https://root.cern.ch/doc/master/classTColor.html
 /// @param i Index of your plotting loop that is to be translated into a useful ROOT color index
 /// @return ROOT color index
-int ReadRun::rcolor(int i) {
+int ReadRun::rcolor(unsigned int i) {
 	int nclrs = 16;
 	int rclrs[nclrs] = { 1, 2, 3, 4, 5, 6, 7, 13, 28, 30, 34, 38, 40, 31, 46, 49 };
 	return rclrs[i - static_cast<int>(floor(i / nclrs)) * nclrs];

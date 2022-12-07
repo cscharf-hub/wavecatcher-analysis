@@ -179,7 +179,7 @@ public:
 	double* gety(int, int);								// y values for waveform(ch, event)
 	double* gety(TH1F*);								// y values for histogram
 	double* gety(TH1F*, int, int);						// y values for dedicated y range of a histogram 
-	int rcolor(int);									// useful root colors
+	int rcolor(unsigned int);							// useful root colors
 	
 	float LinearInterpolation(float, float, float, float, float); // linear interpolation
 
