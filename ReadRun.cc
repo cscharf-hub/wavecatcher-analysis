@@ -411,8 +411,8 @@ void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, doub
 			TString title(Form("Channel %d", active_channels[i]));
 			gr->SetName(name.Data());
 			gr->SetTitle(title.Data());
-			gr->SetLineColor(i + 1);
-			gr->SetMarkerColor(i + 1);
+			gr->SetLineColor(rcolor(i));
+			gr->SetMarkerColor(rcolor(i));
 			mgsums->Add(gr);
 		}
 	}
@@ -2009,6 +2009,15 @@ double* ReadRun::gety(TH1F* his, int start_at, int end_at) {
 		yvals[i - start_at] = his->GetBinContent(i);
 	}
 	return yvals;
+}
+
+/// @brief Translate a random number into a useful root color https://root.cern.ch/doc/master/classTColor.html
+/// @param i Index of your plotting loop that is to be translated into a useful ROOT color index
+/// @return ROOT color index
+int ReadRun::rcolor(int i) {
+	int nclrs = 16;
+	int rclrs[nclrs] = { 1, 2, 3, 4, 5, 6, 7, 13, 28, 30, 34, 38, 40, 31, 46, 49 };
+	return rclrs[i - static_cast<int>(floor(i / nclrs)) * nclrs];
 }
 
 /// @brief Returns index of a certain event number (if data files are read in parallel threads)
