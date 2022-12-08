@@ -418,8 +418,8 @@ void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, doub
 	}
 	delete[] xv;
 
-	TCanvas* sumc = new TCanvas("Sums", "", 1600, 1000);
-	mgsums->Draw("APL");
+	TCanvas* sumc = new TCanvas("Sums", "", 600, 400);
+	mgsums->Draw("AL");
 	mgsums->GetYaxis()->SetRangeUser(-1e4, 1e6);
 	if (normalize) mgsums->GetYaxis()->SetRangeUser(-0.2, 1);
 	sumc->BuildLegend(0.85, 0.70, .99, .95);
@@ -658,7 +658,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool doaverage,
 	}
 	delete[] slope;
 
-	//TCanvas* sumc = new TCanvas("sumc", "sumc", 1600, 1000);
+	//TCanvas* sumc = new TCanvas("sumc", "sumc", 600, 400);
 	//TH1F* hiss = new TH1F("sum", "sum", 1e4, -2, 2);
 	//TH1F* hiss0 = new TH1F("sum0", "sum0", 1e4, -2, 2);
 	//TH1F* hisssq = new TH1F("sqsum", "sqsum", 1e4, -2, 2);
@@ -974,7 +974,7 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, double rangestart,
 /// 
 /// Please note that the old version was missing start and end, so please add these parameters to older scripts if they throw errors.
 /// 
-/// @param thresholds Vector should contain a threshold for each active channel saved in the data, in ascending order (ch0, ch1 ...). Negative thresholds mean events below threshold will be cut.
+/// @param thresholds Vector should contain a threshold for each active channel saved in the data, in ascending order (ch0, ch1 ...). Negative thresholds mean events below threshold will be cut. A threshold of 0 means the channel will not be evaluated.
 /// @param highlow  Vector should contain a bool for each active channel. True means events with integrals above threshold will be cut, false means below threshold.
 /// @param windowlow Integration time left to the maximum of the peak.
 /// @param windowhi Integration time right to the maximum of the peak.
@@ -1116,7 +1116,7 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 	gStyle->SetOptStat(0);
 
 	TString name(Form("waveforms_event__%05d", eventnr));
-	TCanvas* intwinc = new TCanvas(name.Data(), name.Data(), 1600, 1000);
+	TCanvas* intwinc = new TCanvas(name.Data(), name.Data(), 600, 400);
 	SplitCanvas(intwinc);
 	int event_index = GetEventIndex(eventnr);
 
@@ -1232,7 +1232,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 	if (fitrangeend == 0.) fitrangeend = rangeend;
 
 	string ctitle("\"charge\" spectra" + to_string(PrintChargeSpectrum_cnt));
-	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 1600, 1000);
+	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 600, 400);
 	SplitCanvas(chargec);
 
 	cout << "\n\nThere is data recorded in " << active_channels.size() << " channels \n\n\n";
@@ -1453,7 +1453,7 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 	PrintChargeSpectrumPMT_cnt++;
 
 	string ctitle("charge spectra PMT" + to_string(PrintChargeSpectrumPMT_cnt));
-	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 1600, 1000);
+	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 600, 400);
 	SplitCanvas(chargec);
 
 	int current_canvas = 0;
@@ -1548,7 +1548,7 @@ void ReadRun::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, f
 		title = "integral in mV#timesns";
 	}
 	string ctitle("charge spectra PMT threshold" + to_string(PrintChargeSpectrumPMTthreshold_cnt));
-	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 1600, 1000);
+	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 600, 400);
 	SplitCanvas(chargec);
 
 	int current_canvas = 0;
@@ -1775,7 +1775,7 @@ TGraph2D* ReadRun::MaxDist(int channel_index, float from, float to) {
 /// @param to To 
 void ReadRun::PrintMaxDist(float from, float to) {
 
-	TCanvas* max_dist_c = new TCanvas("wf grouped by maximum", "wf grouped by maximum", 1600, 1000);
+	TCanvas* max_dist_c = new TCanvas("wf grouped by maximum", "wf grouped by maximum", 600, 400);
 	SplitCanvas(max_dist_c);
 
 	int current_canvas = 0;
@@ -2172,11 +2172,11 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, bool doconv) {
 void ReadRun::PrintFFTWF(int eventnr, float xmin, float xmax, int multiplier) {
 	// plot waveforms of all channels for a given event number eventnr and add the determined integration windwos to the plot
 	TString name(Form("fft_waveforms_event__%04d", eventnr));
-	TCanvas* fftc = new TCanvas(name.Data(), name.Data(), 1600, 1000);
+	TCanvas* fftc = new TCanvas(name.Data(), name.Data(), 600, 400);
 	SplitCanvas(fftc);
 
 	TString imname(Form("fft_im_waveforms_event__%04d", eventnr));
-	TCanvas* imfftc = new TCanvas(imname.Data(), imname.Data(), 1600, 1000);
+	TCanvas* imfftc = new TCanvas(imname.Data(), imname.Data(), 600, 400);
 	SplitCanvas(imfftc);
 
 	int size = 1024 * multiplier;
