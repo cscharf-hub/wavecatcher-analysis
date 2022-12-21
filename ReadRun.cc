@@ -1838,11 +1838,12 @@ TH1F* ReadRun::His_GetTimingCFD(int channel_index, float rangestart, float range
 /// @brief Plot results of GetTimingCFD()
 /// @param rangestart Start of x range for plot in ns.
 /// @param rangeend End of x range for plot in ns.
-/// @param do_fit If 1 fits a gaussian. \n
+/// @param do_fit If 1: fits a gaussian. \n
 /// Else do not fit. \n 
 /// Fit results per channel are stored in ReadRun::timing_fit_results.
 /// @param nbins Number of bins for histogram.
-void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, int nbins) {
+/// @param fitoption ROOT fit option, default is "S".
+void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, int nbins, string fitoption) {
 
 	// call GetTimingCFD() in case it was not initialized
 	if (timing_results.size() == 0) GetTimingCFD();
@@ -1866,7 +1867,7 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, i
 			his->Draw();
 
 			if (do_fit == 1) {
-				TFitResultPtr fresults = his->Fit("gaus", "LS", "same");
+				TFitResultPtr fresults = his->Fit("gaus", fitoption.c_str(), "same");
 				timing_fit_results.push_back(fresults);
 			}
 
@@ -1944,8 +1945,8 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 /// @param channels2 Vector of second channel numbers to compare. 
 /// @param rangestart Start of x range for plot in ns.
 /// @param rangeend End of x range for plot in ns.
-/// @param do_fit If 1 fits a gaussian. \n
-/// If 2 fits a gaussian and exponential convolution for absorption and reemission 
+/// @param do_fit If 1: fits a gaussian. \n
+/// If 2: fits a gaussian and exponential convolution for absorption and reemission 
 /// (long light path in scintillator, see https://doi.org/10.1016/0029-554X(77)90676-0 ). \n
 /// Else do not fit. \n 
 /// @param nbins Number of bins for histogram.
