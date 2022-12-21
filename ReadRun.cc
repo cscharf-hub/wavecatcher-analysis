@@ -58,8 +58,8 @@ ReadRun::ReadRun(double PMT_threshold, int channels_above_threshold) {
 /// 
 /// @param path Path to the data. The name of the folder needs to match the file names (data\data.bin_001 etc.).
 /// @param change_polarity Set true to change polarity (sign) of certain channels (see "change_sign_from_to_ch_num" below).
-/// @param change_sign_from_to_ch_num All channels \f$\geq\f$"change_sign_from_to_ch_num" will be inverted if "change_polarity" is true. \n 
-/// If negative number all channels \f$\leq\f$abs("change_sign_from_to_ch_num") will be inverted if "change_polarity" is true.
+/// @param change_sign_from_to_ch_num All channels \f$ \geq \f$ "change_sign_from_to_ch_num" will be inverted if "change_polarity" is true. \n 
+/// If negative number all channels \f$ \leq \f$ abs("change_sign_from_to_ch_num") will be inverted if "change_polarity" is true.
 /// @param out_file_name Name of the .root file which stores the results.
 /// @param debug Set true to increase the verbosity.
 /// @todo Remove "change_polarity" and make back-compatible. 
@@ -676,7 +676,8 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool doaverage,
 /// Corrects the baseline (DC offset) of all waveforms. \n 
 /// Uses min(mean("nIntegrationWindow")) in range {"start_at", "max_bin_for_baseline"} \n \n 
 /// 
-/// Helpful for (groups of/irradiated) SiPMs with very high dark count rate where the signal never relaxes to the baseline: \f$\Rightarrow DCR \sim 1/\tau_{quenching}\f$. \n 
+/// Helpful for (groups of/irradiated) SiPMs with very high dark count rate where the signal never relaxes to the baseline: \n
+/// \f$ \Rightarrow DCR \sim 1/\tau_{quenching} \f$ \n 
 /// Estimates a baseline as the minimum level before the main peak. \n 
 /// Stores results for all channels and all events in ReadRun::baseline_correction_result. \n 
 /// Results will be visualized for each event in PrintChargeSpectrumWF(). \n 
@@ -766,11 +767,17 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool doaverage, double 
 /// @param cf_r Fraction of maximum for CFD.
 /// @param start_at_t Time in ns to start searching.
 /// @param end_at_t Time in ns to end searching.
-/// @param sigma Should be set to 0. \n 
-/// If >0 will use running average for CFD. This will bias the results! Do not use (or use very carefully, only for noisy data)!
+/// @param sigma Smoothing width. Should be set to 0. \n 
+/// Number of bins for running average/gauss sigma in ns for convolution\n
+/// This will bias the results! Do not use (or use very carefully, only for noisy data)!
 /// @param find_CF_from_start If true will start search from "start_at_t" \n 
 /// If false searches backwards from time of maximum (default setting).
-void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double sigma, bool find_CF_from_start) {
+/// @param doconv If false use running average (default). \n 
+/// If true use gaussian smoothing (slower).
+/// @param use_spline If false will use linear interpolation between the two bins closest to cf_r. \n
+/// If true will use a 5th order spline for interpolation. This method is a bit slower but performs a bit better in terms of chi^2. 
+/// However, the fit parameters do not seem to depend much on the interpolation method.
+void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double sigma, bool find_CF_from_start, bool doconv, bool use_spline) {
 
 	int start_at = static_cast<int>(start_at_t / SP);
 	int end_at = static_cast<int>(end_at_t / SP);
@@ -783,7 +790,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 		TH1F* his = ((TH1F*)rundata->At(j));
 		double* yvals = gety(his, start_at, end_at); // get range where to search for CFD for timing
 
-		if (sigma > 0.) SmoothArray(yvals, n_range, sigma); // smoothing to suppress noise, will also change timing so use with care!
+		if (sigma > 0.) SmoothArray(yvals, n_range, sigma, doconv); // smoothing to suppress noise, will also change timing so use with care!
 
 		float max = 0.;
 		int n_max = 0;
@@ -806,12 +813,33 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 			while (yvals[i] < cf && i <= n_max) i++;
 			i--;
 		}
+
+		// do interpolation for cf
 		float interpol_bin = .0;
-		interpol_bin = LinearInterpolation(cf, static_cast<float>(i), static_cast<float>(i+1), yvals[i], yvals[i+1]);
+		interpol_bin = LinearInterpolation(cf, static_cast<float>(i), static_cast<float>(i + 1), yvals[i], yvals[i + 1]);
+
+		if (use_spline) { // steps of 3.125 ps
+			double* xvals = new double[n_range];
+			for (int k = 0; k < n_range; k++) xvals[k] = static_cast<double>(k);
+
+			TSpline5* wfspl = 0;
+			wfspl = new TSpline5("wf_spline", xvals, yvals, n_range, "b1e1b2e2", 0., 0., 0., 0.);
+
+			double fbin = 0.;
+			for (fbin = xvals[i - 1]; fbin < xvals[i + 1]; fbin += .01) {
+				if (wfspl->Eval(fbin) > cf) {
+					fbin -= .01;
+					break;
+				}
+			}
+			if (fbin != 0.) interpol_bin = fbin;
+			delete[] xvals;
+		}
 
 		timing_results.push_back(vector<float>());
 		timing_results[j].push_back(interpol_bin); // return the bin we looked for
 		timing_results[j].push_back((interpol_bin + static_cast<float>(start_at)) * SP); // return the cfd-time we looked for
+		timing_results[j].push_back(max); // return maximum
 		timing_results[j].push_back(static_cast<float>(start_at) * SP); // return starting time
 		timing_results[j].push_back(static_cast<float>(end_at) * SP); // return the end time
 		delete[] yvals;
@@ -829,8 +857,8 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 /// 
 /// @param first_channel_abs First channel.
 /// @param second_channel_abs Second channel.
-/// @param time_diff_min Skip events for \f$\Delta t<t_{diff,min}\f$
-/// @param time_diff_max Skip events for \f$\Delta t>t_{diff,max}\f$
+/// @param time_diff_min Skip events for \f$ \Delta t<t_{diff,min} \f$
+/// @param time_diff_max Skip events for \f$ \Delta t>t_{diff,max} \f$
 /// @param verbose Set true for extra verbosity.
 void ReadRun::SkipEventsTimeDiffCut(int first_channel_abs, int second_channel_abs, double time_diff_min, double time_diff_max, bool verbose) {
 
@@ -851,7 +879,7 @@ void ReadRun::SkipEventsTimeDiffCut(int first_channel_abs, int second_channel_ab
 	// loop through events, calculate timing difference between channels and compare with cuts
 	for (int j = 0; j < nwf; j += nchannels) {
 		if (!skip_event[floor(j / nchannels)]) {
-			float time_diff = fabs(timing_results[j + first_channel][1] - timing_results[j + second_channel][1]);
+			float time_diff = timing_results[j + second_channel][1] - timing_results[j + first_channel][1];
 
 			if (j <= timing_results.size() && (time_diff < time_diff_min || time_diff > time_diff_max)) {
 				int currevent = eventnr_storage[floor(j / nchannels)];
@@ -1033,7 +1061,7 @@ void ReadRun::PrintSkippedEvents() {
 /// 
 /// Default usage: Find maximum in range ("start", "end") and return bin numbers for [0] the max, [1] t_max - "windowlow", and [2] t_max + "windowhi" \n 
 /// If ("start" < 0 || "end" < 0) doesn't return max and integration window is fixed t(max(sum_spectrum[channel])) +/- "windowhi"/"windowlow" \n 
-/// If ("windowlow" == "start" && "windowwhi" == "end") doesn't return max and sets fixed integration window from "start" until "end" for all channels.
+/// If ("windowlow" == "start" && "windowhi" == "end") doesn't return max and sets fixed integration window from "start" until "end" for all channels.
 /// 
 /// @param his Histgrom to integrate.
 /// @param windowlow Integration time left to the maximum of the peak.
@@ -1041,7 +1069,7 @@ void ReadRun::PrintSkippedEvents() {
 /// @param start Range for finding maximum.
 /// @param end Range for finding maximum.
 /// @param channel Channel index in case the integration should be around the maximum of the sum of all waveforms
-/// @return Array { max, \f$n_{t,start}\f$, \f$n_{t,end}\f$ }
+/// @return Array { max, \f$ n_{t,start} \f$ , \f$ n_{t,end} \f$ }
 int* ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float start, float end, int channel) {
 
 	int istart, iend;
@@ -1211,7 +1239,7 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 /// @param nbins Number of bins of histogram
 /// @param fitrangestart Fit range start
 /// @param fitrangeend Fit range end
-/// @param max_channel_nr_to_fit Fit only channels with index > "max_channel_nr_to_fit". Set to -1 to skip fitting.
+/// @param max_channel_nr_to_fit Fit only channels with index < "max_channel_nr_to_fit". Set to -1 to skip fitting.
 /// @param which_fitf Choose fit function: \n 
 /// 1 - landau gauss convolution for large number of photons \n 
 /// 2 - if pedestal is biased because of peak finder algorithm \n 
@@ -1856,61 +1884,129 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, i
 /// See Print_GetTimingCFD_diff() for parameters.
 /// 
 /// @return Histogram with event-wise timing differences between two channels
-TH1F* ReadRun::His_GetTimingCFD_diff(int channel1, int channel2, float rangestart, float rangeend, int nbins) {
+TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels2, float rangestart, float rangeend, int nbins) {
 
 	if (nbins == -999) nbins = static_cast<int>((rangeend - rangestart) / SP);
 
-	auto chin1 = find(active_channels.begin(), active_channels.end(), channel1);
-	int channel_index1;
-	if (chin1 != active_channels.end())	channel_index1 = chin1 - active_channels.begin();
-	else cout << "\n\n ERROR: channel1 does not exist in data. Check parameters for Print_GetTimingCFD_diff()\n\n";
+	stringstream name;
+	name << "GetTimingCFD_diff <";
+	
+	// find channel indices and assemble title
+	for (int & entry : channels2) {
+		auto chin2 = find(active_channels.begin(), active_channels.end(), entry);
+		if (chin2 != active_channels.end()) {
+			name << "ch" << entry << " ";
+			entry = chin2 - active_channels.begin();
+		}
+		else cout << "\n\n ERROR: channels2 = " << entry << " does not exist in data. Check parameters for Print_GetTimingCFD_diff()\n\n";
+	}
+	name << ">-<";
+	
+	for (int & entry : channels1) {
+		auto chin1 = find(active_channels.begin(), active_channels.end(), entry);
+		if (chin1 != active_channels.end()) {
+			name << "ch" << entry << " ";
+			entry = chin1 - active_channels.begin();
+		}
+		else cout << "\n\n ERROR: channels1 = " << entry << " does not exist in data. Check parameters for Print_GetTimingCFD_diff()\n\n";
+	}
+	name << ">";
 
-	auto chin2 = find(active_channels.begin(), active_channels.end(), channel2);
-	int channel_index2;
-	if (chin2 != active_channels.end())	channel_index2 = chin2 - active_channels.begin();
-	else cout << "\n\n ERROR: channel2 does not exist in data. Check parameters for Print_GetTimingCFD_diff()\n\n";
+	// fill histogram
+	auto h1 = new TH1F(name.str().c_str(), name.str().c_str(), nbins, rangestart, rangeend);
+	for (int j = 0; j < nevents; j++) {
+		if (!skip_event[j]) {
+			float mean1 = 0., mean2 = 0., cnt1 = 0., cnt2 = 0.;
+			for (int i : channels1) {
+				mean1 += timing_results[j * nchannels + i][1];
+				cnt1 += 1.;
+			}
+			for (int i : channels2) {
+				mean2 += timing_results[j * nchannels + i][1];
+				cnt2 += 1.;
+			}
+			h1->Fill(mean2 / cnt2 - mean1 / cnt1);
+		}
+	}
 
-	TString name(Form("GetTimingCFD_diff_ch%02d_ch%02d", channel1, channel2));
-	auto h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
-	for (int j = 0; j < nevents; j++) if (!skip_event[j]) h1->Fill(timing_results[j * nchannels + channel_index2][1] - timing_results[j * nchannels + channel_index1][1]);
 	return h1;
 }
 
-/// @brief Plot timining difference between two channels
+/// @brief Plot timing difference between two channels
 /// 
-/// Plots the difference between the peak times between two channels for each event. It does \f$\Delta t = t_{second} - t_{first}\f$. 
+/// Plots the difference between the peak times between the mean times of two ranges of channels for each event. \n
+/// It calculates \f$ \Delta t = <t_{second,i}> - <t_{first,i}> \f$ . \n
+/// Example: \n
+/// > mymeas.Print_GetTimingCFD_diff({ 26, 14 }, { 19 }, 0, 20, 2, 200); \n
+/// Plots \f$ \Delta t = t_{ch19} - (t_{ch26} + t_{ch14})/2 \f$ from 0 ns to 20 ns with 200 bins (100 ps bin width).
 /// 
-/// @param channel1 First channel number (wavecatcher channel number). 
-/// @param channel2 Second channel number to compare. 
+/// @param channels1 Vector of first channel numbers (wavecatcher channel numbers). 
+/// @param channels2 Vector of second channel numbers to compare. 
 /// @param rangestart Start of x range for plot in ns.
 /// @param rangeend End of x range for plot in ns.
 /// @param do_fit If 1 fits a gaussian. \n
+/// If 2 fits a gaussian and exponential convolution for absorption and reemission 
+/// (long light path in scintillator, see https://doi.org/10.1016/0029-554X(77)90676-0 ). \n
 /// Else do not fit. \n 
 /// @param nbins Number of bins for histogram.
-void ReadRun::Print_GetTimingCFD_diff(int channel1, int channel2, float rangestart, float rangeend, int do_fit, int nbins) {
+/// @param fitrangestart Start of fitting range.
+/// @param fitrangeend End of fitting range.
+/// @param fitoption ROOT fitting option. Default is "RS" (chi^2). You can try to use the likelihood method with "LRS" if the data is very clean. 
+/// Outliers will influence the results for the likelihood method so it is advisable to limit the fit range to exclude outliers for "LRS".
+void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channels2, float rangestart, float rangeend, int do_fit, int nbins, float fitrangestart, float fitrangeend, string fitoption) {
 
 	// call GetTimingCFD() in case it was not initialized
 	if (timing_results.size() == 0) GetTimingCFD();
 
-	gStyle->SetOptStat(1111); 
+	if (fitrangestart == -999) {
+		fitrangestart = rangestart;
+		fitrangeend = rangeend;
+	}
+
+	gStyle->SetOptStat(1111);
 	gStyle->SetOptFit(111);
 
 	TCanvas* timing_cfd_d_c = new TCanvas("timing of cfd diff", "timing of cfd diff", 600, 400);
 
 	TH1F* his;
-	his = His_GetTimingCFD_diff(channel1, channel2, rangestart, rangeend, nbins);
+	his = His_GetTimingCFD_diff(channels1, channels2, rangestart, rangeend, nbins);
 	his->GetYaxis()->SetTitle("#Entries");
 	his->GetXaxis()->SetTitle("time [ns]");
 	his->Draw();
 
-	if (do_fit == 1) {
-		TFitResultPtr fresults = his->Fit("gaus", "LS", "same");
+	if (do_fit == 1) { 
+		// gauss (default)
+		TFitResultPtr fresults = his->Fit("gaus", fitoption.c_str(), "same", fitrangestart, fitrangeend);
 		timing_fit_results.push_back(fresults);
 	}
+	else if (do_fit == 2) { 
+		// gauss x exp convolution (reemission)
+		string gxe = "[3]*[1]/[0]*1.2533*TMath::Exp(([1]*[1]+2*[2]*[0]-2*[0]*x)/(2*[0]*[0]))*TMath::Erfc(([1]*[1]+[0]*([2]-x))/(1.4142*[0]*[1]))";
+		auto expgconv = new TF1("exp x gauss convolution", gxe.c_str(), fitrangestart, fitrangeend); 
+		expgconv->SetNpx(5000);
+		
+		expgconv->SetParName(0, "#tau");		expgconv->SetParameter(0, .5);		
+		expgconv->SetParLimits(0, 1e-1, 2.5);	//expgconv->FixParameter(0, 1.55);
+		
+		expgconv->SetParName(1, "#sigma");		expgconv->SetParameter(1, .5);	
+		expgconv->SetParLimits(1, 1e-1, 2.5);	//expgconv->FixParameter(1, .7);
+		
+		float posmax = his->GetXaxis()->GetBinCenter(his->GetMaximumBin());
+		expgconv->SetParName(2, "t_{0}");		expgconv->SetParameter(2, posmax);		
+		expgconv->SetParLimits(2, fitrangestart, fitrangeend);	//expgconv->FixParameter(2, 6.6);
+		
+		expgconv->SetParName(3, "norm");		expgconv->SetParameter(3, his->GetMaximum());	
+		expgconv->SetParLimits(3, 1, 1e4);		//expgconv->FixParameter(3, 105.5);
 
-	TString name_save(Form("Timing_cfd_diff_channel_%02d_channel_%02d", channel1, channel2));
-	root_out->WriteObject(his, name_save.Data());
+		TFitResultPtr fresults = his->Fit(expgconv, "SR", "same");
+		timing_fit_results.push_back(fresults); 
 
+		TLine* mean = new TLine(expgconv->GetParameter(2), 1e-2, expgconv->GetParameter(2), his->GetMaximum());
+		mean->SetLineColor(1); mean->SetLineWidth(2);
+		mean->Draw("same");
+	}
+
+	root_out->WriteObject(his, his->GetTitle());
 	timing_cfd_d_c->Update();
 	root_out->WriteObject(timing_cfd_d_c, "TimingCFD_diff");
 }

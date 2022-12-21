@@ -35,6 +35,7 @@
 #include <TText.h>
 #include <TFitResultPtr.h>
 #include <TFitResult.h>
+#include <TSpline.h> 
 #include <TSpectrum.h>   // peakfinder
 #include <TPolyMarker.h> // peakfinder
 #include <TError.h>      // root verbosity level
@@ -133,7 +134,7 @@ public:
 	void CorrectBaselineMin(int = 100, bool = false, double = 10, int = 0, int = 0, bool = false, int = 8);
 
 	// get timing of peaks
-	void GetTimingCFD(float = .3, float = 100, float = 140, double = 0, bool = false);
+	void GetTimingCFD(float = .3, float = 100, float = 140, double = 0, bool = false, bool = false, bool = false);
 	void SkipEventsTimeDiffCut(int, int, double, double, bool = false);
 
 	void FractionEventsAboveThreshold(float = 4, bool = true, bool = true, double = 0., double = 0., bool = false);
@@ -166,8 +167,8 @@ public:
 
 	TH1F* His_GetTimingCFD(int, float, float, int = -999);
 	void Print_GetTimingCFD(float = 100, float = 140, int = 0, int = -999);
-	TH1F* His_GetTimingCFD_diff(int, int, float, float, int = -999);
-	void Print_GetTimingCFD_diff(int, int, float = 100, float = 140, int = 0, int = -999);
+	TH1F* His_GetTimingCFD_diff(vector<int>, vector<int>, float, float, int = -999);
+	void Print_GetTimingCFD_diff(vector<int>, vector<int>, float = 100, float = 140, int = 0, int = -999, float = -999, float = -999, string = "RS");
 
 	// print FFT
 	void PrintFFTWF(int = 1, float = 0., float = 0., int = 1);
