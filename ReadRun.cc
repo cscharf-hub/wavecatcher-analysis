@@ -1843,7 +1843,9 @@ TH1F* ReadRun::His_GetTimingCFD(int channel_index, float rangestart, float range
 /// Fit results per channel are stored in ReadRun::timing_fit_results.
 /// @param nbins Number of bins for histogram.
 /// @param fitoption ROOT fit option, default is "S".
-void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, int nbins, string fitoption) {
+/// @param set_errors Assign errors to the bins. Will assign errors of 1 to empty bins and \f$ \sqrt(N) \f$ if they are not empty. 
+/// Can improve the chi^2 fit.
+void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, int nbins, string fitoption, bool set_errors) {
 
 	// call GetTimingCFD() in case it was not initialized
 	if (timing_results.size() == 0) GetTimingCFD();
@@ -1864,6 +1866,14 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, i
 			his = His_GetTimingCFD(i, rangestart, rangeend, nbins);
 			his->GetYaxis()->SetTitle("#Entries");
 			his->GetXaxis()->SetTitle("time [ns]");
+
+			if (set_errors) {
+				for (int i = 0; i < his->GetNbinsX(); i++) {
+					if (his->GetBinContent(i) < 2) his->SetBinError(i, 1);
+					else his->SetBinError(i, sqrt(his->GetBinContent(i)));
+				}
+			}
+
 			his->Draw();
 
 			if (do_fit == 1) {
@@ -1880,11 +1890,11 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, i
 	root_out->WriteObject(timing_cfd_c, "TimingCFD");
 }
 
-/// @brief Plot timining difference between two channels
+/// @brief Plot timining difference between the mean timings of two channel ranges
 /// 
 /// See Print_GetTimingCFD_diff() for parameters.
 /// 
-/// @return Histogram with event-wise timing differences between two channels
+/// @return Histogram with event-wise timing differences between two channel ranges
 TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels2, float rangestart, float rangeend, int nbins) {
 
 	if (nbins == -999) nbins = static_cast<int>((rangeend - rangestart) / SP);
@@ -1933,7 +1943,7 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 	return h1;
 }
 
-/// @brief Plot timing difference between two channels
+/// @brief Plot timing difference between the mean timings of two channel ranges
 /// 
 /// Plots the difference between the peak times between the mean times of two ranges of channels for each event. \n
 /// It calculates \f$ \Delta t = <t_{second,i}> - <t_{first,i}> \f$ . \n
@@ -1954,7 +1964,9 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 /// @param fitrangeend End of fitting range.
 /// @param fitoption ROOT fitting option. Default is "RS" (chi^2). You can try to use the likelihood method with "LRS" if the data is very clean. 
 /// Outliers will influence the results for the likelihood method so it is advisable to limit the fit range to exclude outliers for "LRS".
-void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channels2, float rangestart, float rangeend, int do_fit, int nbins, float fitrangestart, float fitrangeend, string fitoption) {
+/// @param set_errors Assign errors to the bins. Will assign errors of 1 to empty bins and \f$ \sqrt(N) \f$ if they are not empty. 
+/// Can improve the chi^2 fit.
+void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channels2, float rangestart, float rangeend, int do_fit, int nbins, float fitrangestart, float fitrangeend, string fitoption, bool set_errors) {
 
 	// call GetTimingCFD() in case it was not initialized
 	if (timing_results.size() == 0) GetTimingCFD();
@@ -1973,6 +1985,14 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 	his = His_GetTimingCFD_diff(channels1, channels2, rangestart, rangeend, nbins);
 	his->GetYaxis()->SetTitle("#Entries");
 	his->GetXaxis()->SetTitle("time [ns]");
+
+	if (set_errors) {
+		for (int i = 0; i < his->GetNbinsX(); i++) {
+			if (his->GetBinContent(i) < 2) his->SetBinError(i, 1);
+			else his->SetBinError(i, sqrt(his->GetBinContent(i)));
+		}
+	}
+
 	his->Draw();
 
 	if (do_fit == 1) { 

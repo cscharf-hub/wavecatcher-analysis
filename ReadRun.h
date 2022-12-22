@@ -166,9 +166,9 @@ public:
 	void PrintMaxDist(float = 0, float = 300);
 
 	TH1F* His_GetTimingCFD(int, float, float, int = -999);
-	void Print_GetTimingCFD(float = 100, float = 140, int = 0, int = -999, string = "S");
+	void Print_GetTimingCFD(float = 100, float = 140, int = 0, int = -999, string = "S", bool = true);
 	TH1F* His_GetTimingCFD_diff(vector<int>, vector<int>, float, float, int = -999);
-	void Print_GetTimingCFD_diff(vector<int>, vector<int>, float = 100, float = 140, int = 0, int = -999, float = -999, float = -999, string = "RS");
+	void Print_GetTimingCFD_diff(vector<int>, vector<int>, float = 100, float = 140, int = 0, int = -999, float = -999, float = -999, string = "RS", bool= true);
 
 	// print FFT
 	void PrintFFTWF(int = 1, float = 0., float = 0., int = 1);
