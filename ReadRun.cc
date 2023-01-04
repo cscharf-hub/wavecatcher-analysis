@@ -1956,9 +1956,10 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 /// @param rangestart Start of x range for plot in ns.
 /// @param rangeend End of x range for plot in ns.
 /// @param do_fit If 1: fits a gaussian. \n
-/// If 2: fits a gaussian and exponential convolution for absorption and reemission 
-/// (long light path in scintillator, see https://doi.org/10.1016/0029-554X(77)90676-0 ). \n
-/// Else do not fit. \n 
+/// If 2: Fits a gaussian and exponential convolution to account for different arrival times of photons due to different possible light paths in the scintillator/light guide 
+/// and/or delay due to self-absorption and reemission of photons in the scintillator. \n
+/// To be used for long light paths in the scintillator. See https://doi.org/10.1016/S0029-554X(79)90170-8 . \n
+/// Else: Do not fit. \n 
 /// @param nbins Number of bins for histogram.
 /// @param fitrangestart Start of fitting range.
 /// @param fitrangeend End of fitting range.
@@ -2001,23 +2002,24 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 		timing_fit_results.push_back(fresults);
 	}
 	else if (do_fit == 2) { 
-		// gauss x exp convolution (reemission)
-		string gxe = "[3]*[1]/[0]*1.2533*TMath::Exp(([1]*[1]+2*[2]*[0]-2*[0]*x)/(2*[0]*[0]))*TMath::Erfc(([1]*[1]+[0]*([2]-x))/(1.4142*[0]*[1]))";
+		// gauss x exp convolution (effective delay from random light path and/or self-absorption and reemission)
+		string gxe = "[3]/(2*[0])*TMath::Exp(([1]*[1]+2*[2]*[0]-2*[0]*x)/(2*[0]*[0]))*TMath::Erfc(([1]*[1]+[0]*([2]-x))/(1.4142*[0]*[1]))";
 		auto expgconv = new TF1("exp x gauss convolution", gxe.c_str(), fitrangestart, fitrangeend); 
 		expgconv->SetNpx(5000);
 		
-		expgconv->SetParName(0, "#tau");		expgconv->SetParameter(0, .5);		
+		// this parameter describes the sigma from different light paths and/or the effective decay time constant for self-absorption and reemission
+		expgconv->SetParName(0, "#tau_{eff}");		expgconv->SetParameter(0, .5);		
 		expgconv->SetParLimits(0, 1e-1, 2.5);	//expgconv->FixParameter(0, 1.55);
 		
-		expgconv->SetParName(1, "#sigma");		expgconv->SetParameter(1, .5);	
+		expgconv->SetParName(1, "#sigma_{gaus}");		expgconv->SetParameter(1, .5);	
 		expgconv->SetParLimits(1, 1e-1, 2.5);	//expgconv->FixParameter(1, .7);
 		
 		float posmax = his->GetXaxis()->GetBinCenter(his->GetMaximumBin());
 		expgconv->SetParName(2, "t_{0}");		expgconv->SetParameter(2, posmax);		
 		expgconv->SetParLimits(2, fitrangestart, fitrangeend);	//expgconv->FixParameter(2, 6.6);
 		
-		expgconv->SetParName(3, "norm");		expgconv->SetParameter(3, his->GetMaximum());	
-		expgconv->SetParLimits(3, 1, 1e4);		//expgconv->FixParameter(3, 105.5);
+		expgconv->SetParName(3, "norm");		expgconv->SetParameter(3, his->Integral("width"));
+		expgconv->SetParLimits(3, 0.1, 1e6);		//expgconv->FixParameter(3, 105.5);
 
 		TFitResultPtr fresults = his->Fit(expgconv, "SR", "same");
 		timing_fit_results.push_back(fresults); 
