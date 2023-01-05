@@ -1903,23 +1903,29 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 	name << "GetTimingCFD_diff <";
 	
 	// find channel indices and assemble title
+	int counter = 0;
 	for (int & entry : channels2) {
+		if (counter>0) name << "&";
 		auto chin2 = find(active_channels.begin(), active_channels.end(), entry);
 		if (chin2 != active_channels.end()) {
-			name << "ch" << entry << " ";
+			name << "ch" << entry;
 			entry = chin2 - active_channels.begin();
 		}
 		else cout << "\n\n ERROR: channels2 = " << entry << " does not exist in data. Check parameters for Print_GetTimingCFD_diff()\n\n";
+		counter++;
 	}
 	name << ">-<";
+	counter = 0;
 	
 	for (int & entry : channels1) {
+		if (counter > 0) name << "&";
 		auto chin1 = find(active_channels.begin(), active_channels.end(), entry);
 		if (chin1 != active_channels.end()) {
-			name << "ch" << entry << " ";
+			name << "ch" << entry;
 			entry = chin1 - active_channels.begin();
 		}
 		else cout << "\n\n ERROR: channels1 = " << entry << " does not exist in data. Check parameters for Print_GetTimingCFD_diff()\n\n";
+		counter++;
 	}
 	name << ">";
 
@@ -1977,7 +1983,7 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 		fitrangeend = rangeend;
 	}
 
-	gStyle->SetOptStat(1111);
+	//gStyle->SetOptStat(1111);
 	gStyle->SetOptFit(111);
 
 	TCanvas* timing_cfd_d_c = new TCanvas("timing of cfd diff", "timing of cfd diff", 600, 400);
