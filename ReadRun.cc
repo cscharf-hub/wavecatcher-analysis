@@ -427,20 +427,22 @@ void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, doub
 	root_out->WriteObject(sumc, "channelsums_c");
 }
 
-/// @brief Averaging all waveforms (for testing, do not use for analysis!)
-/// @param sigma Number of bins for running average/gauss sigma in ns for convolution.
+/// @brief Smoothing all waveforms which are not skipped (for testing, do not use for analysis!)
+/// @param sigma Number of bins for running average (box) or gauss sigma in ns for convolution.
 /// @param doconv If false use running average (default). \n 
 /// If true use gaussian smoothing (slower).
 void ReadRun::SmoothAll(double sigma, bool doconv) { //deprecated since it can be done with baseline correction??
 	// just for testing, not very efficient
 	cout << "\nsmoothing wfs";
 	for (int j = 0; j < nwf; j++) {
-		TH1F* his = ((TH1F*)rundata->At(j));
-		double* yvals = gety(his);
-		SmoothArray(yvals, binNumber, sigma, doconv);
-		for (int i = 1; i < his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i]);
-		delete[] yvals;
-		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
+		if (!skip_event[j]) {
+			TH1F* his = ((TH1F*)rundata->At(j));
+			double* yvals = gety(his);
+			SmoothArray(yvals, binNumber, sigma, doconv);
+			for (int i = 1; i < his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i]);
+			delete[] yvals;
+			if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
+		}
 	}
 }
 
@@ -779,8 +781,8 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool doaverage, double 
 /// However, the fit parameters do not seem to depend much on the interpolation method.
 void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double sigma, bool find_CF_from_start, bool doconv, bool use_spline) {
 
-	int start_at = static_cast<int>(start_at_t / SP);
-	int end_at = static_cast<int>(end_at_t / SP);
+	int start_at = static_cast<int>(floor(start_at_t / SP));
+	int end_at = static_cast<int>(ceil(end_at_t / SP));
 	int n_range = end_at - start_at;
 
 	printf("\nGet timing at CF=%.2f between %.2f ns and %.2f ns (%d waveforms) :: ", cf_r, start_at_t, end_at_t, nwf);
@@ -1038,6 +1040,7 @@ void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, fl
 				if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\thas been flagged good by integral";
 			}
 		}
+		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
 	}
 	cout << "\n\n\t" << counter << " events will be cut out of " << nevents << endl;
 }
@@ -1202,6 +1205,57 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 	intwinc->Update();
 
 	root_out->WriteObject(intwinc, name.Data());
+}
+
+/// @brief Returns array with the individual "charge"/amplitude for all events of one channel
+/// 
+/// See SaveChargeLists() and GetIntWindow().
+/// 
+/// @param channel_index Index of the channel.
+/// @param windowlow Integrate from "windowlow" ns from max...
+/// @param windowhi ...to "windowhi" ns from max.
+/// @param start Find max from "start" in ns...
+/// @param end ...to "end" in ns.
+float* ReadRun::ChargeList(int channel_index, float windowlow, float windowhi, float start, float end) {
+	float* charge_list = new float[nevents];
+	for (int j = 0; j < nevents; j++) {
+		TH1F* his = ((TH1F*)rundata->At(j * nchannels + channel_index));
+		charge_list[j] = GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index);
+	}
+	return charge_list;
+}
+
+/// @brief Saves TGraphs to root file with the individual "charge"/amplitude for all events and all channels
+/// 
+/// Event with a skip_event flag will be removed. Call before filtering to get all events. \n
+/// See GetIntWindow().
+/// 
+/// @param windowlow Integrate from "windowlow" ns from max...
+/// @param windowhi ...to "windowhi" ns from max.
+/// @param start Find max from "start" in ns...
+/// @param end ...to "end" in ns.
+/// @todo make correlation function for amplitudes of two channels
+void ReadRun::SaveChargeLists(float windowlow, float windowhi, float start, float end) {
+	float* event_list = new float[nevents];
+	for (int i = 0; i < nevents; i++) event_list[i] = static_cast<float>(i);
+
+	for (int i = 0; i < nchannels; i++) {
+		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+			TString name(Form("charge_list_ch_%02d", active_channels[i]));
+			float* charge_list = ChargeList(i, windowlow, windowhi, start, end);
+			TGraph* charge_list_graph = new TGraph(nevents, event_list, charge_list);
+			charge_list_graph->SetTitle(name.Data());
+
+			//remove skipped events
+			for (int j = 0; j < nevents; j++) {
+				if (skip_event[j]) charge_list_graph->RemovePoint(j);
+			}
+			
+			root_out->WriteObject(charge_list_graph, name.Data());
+			delete[] charge_list;
+		}
+	}
+	delete[] event_list;
 }
 
 /// @brief Histogram of the "charge" spectrum for one channel
@@ -1965,6 +2019,7 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 /// If 2: Fits a gaussian and exponential convolution to account for different arrival times of photons due to different possible light paths in the scintillator/light guide 
 /// and/or delay due to self-absorption and reemission of photons in the scintillator. \n
 /// To be used for long light paths in the scintillator. See https://doi.org/10.1016/S0029-554X(79)90170-8 . \n
+/// If 3: Fits the sum of two gaussians where the second gauss serves as a rough background estimate. Background means events that should have been filtered out. \n
 /// Else: Do not fit. \n 
 /// @param nbins Number of bins for histogram.
 /// @param fitrangestart Start of fitting range.
@@ -2033,6 +2088,17 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 		TLine* mean = new TLine(expgconv->GetParameter(2), 1e-2, expgconv->GetParameter(2), his->GetMaximum());
 		mean->SetLineColor(1); mean->SetLineWidth(2);
 		mean->Draw("same");
+	}
+	else if (do_fit == 3) {
+		// sum of two gaussians (one as background estimate)
+		auto two_gauss = new TF1("two gaussians", "gaus(0)+gaus(3)", rangestart, rangeend);
+		two_gauss->SetTitle("Sum of two gauss");
+		float posmax = his->GetXaxis()->GetBinCenter(his->GetMaximumBin());
+		two_gauss->SetParameters(his->Integral("width"), posmax, 0.35, his->Integral("width")/30, posmax, 2);
+		two_gauss->SetParName(0, "norm_{peak}");		two_gauss->SetParName(1, "#mu_{peak}");			two_gauss->SetParName(2, "#sigma_{peak}");
+		two_gauss->SetParName(3, "norm_{background}");	two_gauss->SetParName(4, "#mu_{background}");	two_gauss->SetParName(5, "#sigma_{background}");
+		TFitResultPtr fresults = his->Fit(two_gauss, fitoption.c_str(), "same", fitrangestart, fitrangeend);
+		timing_fit_results.push_back(fresults);
 	}
 
 	root_out->WriteObject(his, his->GetTitle());

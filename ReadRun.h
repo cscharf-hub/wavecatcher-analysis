@@ -156,6 +156,9 @@ public:
 	vector<float> PrintChargeSpectrumPMT_pars;
 	void PrintChargeSpectrumPMTthreshold(float = 0, float = 0, float = 0, float = 300, int = 750, double = 4, bool = false);
 
+	float* ChargeList(int, float = 20, float = 80, float = 0, float = 300);
+	void SaveChargeLists(float = 20, float = 80, float = 0, float = 300);
+
 	// SiPM specific
 	void PrintDCR(float = 15, float = 85, float = 0, float = 300, double = 3); // based on PrintChargeSpectrumPMTthreshold()
 
