@@ -1132,8 +1132,8 @@ float ReadRun::GetPeakIntegral(TH1F* his, float windowlow, float windowhi, float
 
 /// @brief Plot waveforms of all channels for a given event number and add the determined integration windows to the plot
 /// 
-/// See GetIntWindow() for explanation of parameters.
-/// Will also add CFD timing if GetTimingCFD() was called before.
+/// See GetIntWindow() for explanation of parameters. \n
+/// Will also add CFD timing if GetTimingCFD() was called before. 
 /// 
 /// @param windowlow Integrate from "windowlow" ns from max...
 /// @param windowhi ...to "windowhi" ns from max.
@@ -1238,23 +1238,32 @@ float* ReadRun::ChargeList(int channel_index, float windowlow, float windowhi, f
 void ReadRun::SaveChargeLists(float windowlow, float windowhi, float start, float end) {
 	float* event_list = new float[nevents];
 	for (int i = 0; i < nevents; i++) event_list[i] = static_cast<float>(i);
+	
+	TMultiGraph* charge_list_mg = new TMultiGraph();
+	if (windowlow + windowhi > 0.) charge_list_mg->SetTitle("event-wise integrals; Event number; integral [mV#timesns]");
+	else charge_list_mg->SetTitle("event-wise amplitudes; Event number; amplitude [mV]");
 
 	for (int i = 0; i < nchannels; i++) {
 		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
 			TString name(Form("charge_list_ch_%02d", active_channels[i]));
 			float* charge_list = ChargeList(i, windowlow, windowhi, start, end);
 			TGraph* charge_list_graph = new TGraph(nevents, event_list, charge_list);
+			charge_list_graph->SetLineWidth(0);
+			charge_list_graph->SetMarkerStyle(2);
+			charge_list_graph->SetMarkerColor(rcolor(i));
 			charge_list_graph->SetTitle(name.Data());
 
 			//remove skipped events
 			for (int j = 0; j < nevents; j++) {
 				if (skip_event[j]) charge_list_graph->RemovePoint(j);
 			}
-			
+
+			charge_list_mg->Add(charge_list_graph);
 			root_out->WriteObject(charge_list_graph, name.Data());
 			delete[] charge_list;
 		}
 	}
+	root_out->WriteObject(charge_list_mg, "all_charge_lists");
 	delete[] event_list;
 }
 
