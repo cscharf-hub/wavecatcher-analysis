@@ -976,19 +976,21 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, double rangestart,
 
 	cout << "\n\n Removing events with individual amplitude threshold per channel!!!\n\n";
 	int counter = 0;
-
+	
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[floor(j / nchannels)]) {
-			auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
-			if (rangestart != 0 && rangeend != 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(rangeend));
-
 			int currchannel = j - nchannels * floor(j / nchannels);
-			if (currchannel <= thresholds.size() && thresholds[currchannel] != 0 && !skip_event[floor(j / nchannels)] && ((thresholds[currchannel] > 0 && his->GetMaximum() > thresholds[currchannel]) || (thresholds[currchannel] < 0 && his->GetMinimum() < thresholds[currchannel]))) {
+			if (currchannel < static_cast<int>(thresholds.size())) {
+				auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
+				if (rangestart != 0 && rangeend != 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(rangeend));
 
-				int currevent = eventnr_storage[floor(j / nchannels)];
-				if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
-				skip_event[floor(j / nchannels)] = true;
-				counter++;
+				if (thresholds[currchannel] != 0. && !skip_event[floor(j / nchannels)] && ((thresholds[currchannel] > 0 && his->GetMaximum() > thresholds[currchannel]) || (thresholds[currchannel] < 0 && his->GetMinimum() < thresholds[currchannel]))) {
+
+					int currevent = eventnr_storage[floor(j / nchannels)];
+					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
+					skip_event[floor(j / nchannels)] = true;
+					counter++;
+				}
 			}
 		}
 	}
@@ -1022,27 +1024,29 @@ void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, fl
 		int currevent_counter = floor(j / nchannels);
 
 		if (use_AND_condition || !skip_event[currevent_counter]) {
-			auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
-
 			int currchannel = j - nchannels * currevent_counter;
-			integral = GetPeakIntegral(his, windowlow, windowhi, start, end, currchannel);
 
-			if (currchannel <= thresholds.size() && thresholds[currchannel] != 0 && !skip_event[currevent_counter] && ((highlow[currchannel] && integral > thresholds[currchannel]) || (!highlow[currchannel] && integral < thresholds[currchannel]))) {
-				int currevent = eventnr_storage[currevent_counter];
-				if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
-				skip_event[currevent_counter] = true;
-				while (floor((j + 1) / nchannels) == currevent_counter) j++;
-				counter++;
+			if (currchannel < static_cast<int>(thresholds.size())) {
+				auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
+				integral = GetPeakIntegral(his, windowlow, windowhi, start, end, currchannel);
+
+				if (thresholds[currchannel] != 0 && !skip_event[currevent_counter] && ((highlow[currchannel] && integral > thresholds[currchannel]) || (!highlow[currchannel] && integral < thresholds[currchannel]))) {
+					int currevent = eventnr_storage[currevent_counter];
+					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
+					skip_event[currevent_counter] = true;
+					while (floor((j + 1) / nchannels) == currevent_counter) j++;
+					counter++;
+				}
+				else if (use_AND_condition && thresholds[currchannel] != 0 && skip_event[currevent_counter] && !highlow[currchannel]) {
+					int currevent = eventnr_storage[currevent_counter];
+					skip_event[currevent_counter] = false;
+					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\thas been flagged good by integral";
+				}
 			}
-			else if (use_AND_condition && thresholds[currchannel] != 0 && skip_event[currevent_counter] && !highlow[currchannel]) {
-				int currevent = eventnr_storage[currevent_counter];
-				skip_event[currevent_counter] = false;
-				if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\thas been flagged good by integral";
-			}
+			if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
 		}
-		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
+		cout << "\n\n\t" << counter << " events will be cut out of " << nevents << endl;
 	}
-	cout << "\n\n\t" << counter << " events will be cut out of " << nevents << endl;
 }
 
 /// @brief Prints a list of all skipped events into the terminal for diagnostics
