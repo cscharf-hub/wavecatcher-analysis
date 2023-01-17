@@ -248,6 +248,7 @@ public:
 	/// 
 	/// To identify events to be filtered use functions IntegralFilter(), SkipEventsPerChannel(), and SkipEventsTimeDiffCut().
 	vector<bool> skip_event;
+	int Nevents_good();
 
 	/// @brief Special parameter for HU cosmics setup
 	/// 

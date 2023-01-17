@@ -870,20 +870,20 @@ void ReadRun::SkipEventsTimeDiffCut(int first_channel_abs, int second_channel_ab
 	// match channel number to channel index
 	int first_channel = 0;
 	int second_channel = 0;
-	for (int i = 0; i < active_channels.size(); i++) {
+	for (int i = 0; i < static_cast<int>(active_channels.size()); i++) {
 		if (active_channels[i] == first_channel_abs) first_channel = i;
 		if (active_channels[i] == second_channel_abs) second_channel = i;
 	}
 
 	// call GetTimingCFD() in case it was not initialized
-	if (timing_results.size() == 0) GetTimingCFD();
+	if (static_cast<int>(timing_results.size()) == 0) GetTimingCFD();
 
 	// loop through events, calculate timing difference between channels and compare with cuts
 	for (int j = 0; j < nwf; j += nchannels) {
 		if (!skip_event[floor(j / nchannels)]) {
 			float time_diff = timing_results[j + second_channel][1] - timing_results[j + first_channel][1];
 
-			if (j <= timing_results.size() && (time_diff < time_diff_min || time_diff > time_diff_max)) {
+			if (j <= static_cast<int>(timing_results.size()) && (time_diff < time_diff_min || time_diff > time_diff_max)) {
 				int currevent = eventnr_storage[floor(j / nchannels)];
 				if (verbose) cout << "\nevent:\t" << currevent << "\tchannels:\t" << first_channel_abs << " & " << second_channel_abs << "\ttime diff:\t" << time_diff;
 				skip_event[floor(j / nchannels)] = true;
@@ -914,7 +914,7 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 	int currevent = 0;
 	int lastevent = 0;
 	if (plot_active_channels.empty()) plot_active_channels = active_channels;
-	vector<int> counter_abovethr(plot_active_channels.size());	// DORAMAS: It stores a counter of events above threshold for each channel that will be plotted
+	vector<int> counter_abovethr(static_cast<int>(plot_active_channels.size()));	// DORAMAS: It stores a counter of events above threshold for each channel that will be plotted
 
 	cout << "\n\n ------> ";
 	if (max) cout << "max";
@@ -955,7 +955,7 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 	if (verbose) cout << endl;
 
 	//  Loop to show the fraction of events above threshold for each channel that will be plotted
-	for (int i = 0; i < plot_active_channels.size(); i++) {
+	for (int i = 0; i < static_cast<int>(plot_active_channels.size()); i++) {
 		cout << "\nfraction of events in channel " << plot_active_channels[i] << " above threshold: " << 100. * static_cast<float>(counter_abovethr[i]) / static_cast<float>(nevents) << "%\n";
 	}
 	//
@@ -1045,14 +1045,15 @@ void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, fl
 			}
 			if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
 		}
-		cout << "\n\n\t" << counter << " events will be cut out of " << nevents << endl;
 	}
+
+	cout << "\n\n\t" << counter << " events will be cut out of " << nevents << endl;
 }
 
 /// @brief Prints a list of all skipped events into the terminal for diagnostics
 void ReadRun::PrintSkippedEvents() {
 	int counter = 0;
-	for (int j = 0; j < skip_event.size(); j++) {
+	for (int j = 0; j < static_cast<int>(skip_event.size()); j++) {
 		if (skip_event[j]) {
 			int currevent = eventnr_storage[j];
 			cout << "\nevent:\t" << currevent;
@@ -1060,6 +1061,13 @@ void ReadRun::PrintSkippedEvents() {
 		}
 	}
 	cout << "\n\ntotal number of skipped events:\t" << counter << "\tout of:\t" << nevents << endl;
+}
+
+/// @brief Number of good events that are not skipped
+int ReadRun::Nevents_good() {
+	int nevents_good = 0;
+	for (int i = 0; i < nevents; i++) if (!skip_event[i]) nevents_good++;
+	return nevents_good;
 }
 
 // functions for charge spectrum
@@ -1180,7 +1188,7 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 			zero->Draw("same");
 
 			// draw baseline parameters
-			if (baseline_correction_result.size() > event_index * nchannels + i) {
+			if (static_cast<int>(baseline_correction_result.size()) > event_index * nchannels + i) {
 				TLine* baselinel = new TLine(baseline_correction_result[event_index * nchannels + i][2], -1, baseline_correction_result[event_index * nchannels + i][2], 1);
 				baselinel->SetLineColor(6);
 				baselinel->SetLineWidth(2);
@@ -1198,7 +1206,7 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 				correction_value->Draw("same");
 			}
 
-			if (timing_results.size() > event_index * nchannels + i) {
+			if (static_cast<int>(timing_results.size()) > event_index * nchannels + i) {
 				TLine* timing = new TLine(timing_results[event_index * nchannels + i][1], -10, timing_results[event_index * nchannels + i][1], 100);
 				timing->SetLineColor(9);
 				timing->SetLineWidth(2);
@@ -1358,7 +1366,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetParName(2, "Area");			    f->SetParameter(2, 10000);
 				f->SetParName(3, "#sigma_{Gauss}");		f->SetParameter(3, 100);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -1380,7 +1388,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetParName(7, "norm_{0}");			f->SetParameter(7, 0.7);
 				f->SetParName(8, "x_{0}");				f->SetParameter(8, 5.);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -1408,7 +1416,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetParName(7, "#alpha");				f->SetParameter(7, .1); //f->FixParameter(7, .2);
 				f->SetParName(8, "#beta");				f->SetParameter(8, 80.); //f->FixParameter(8, 80);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -1428,7 +1436,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetLineColor(2);
 				f->SetNpx(1000);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -1452,7 +1460,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetLineColor(2);
 				f->SetNpx(1000);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -1477,7 +1485,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetLineColor(2);
 				f->SetNpx(1000);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -1502,7 +1510,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetLineColor(2);
 				f->SetNpx(1000);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -1522,7 +1530,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetParName(5, "Gain");				f->SetParameter(5, 30.); //f->FixParameter(5, 40.);
 				f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < PrintChargeSpectrum_pars.size(); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -1587,7 +1595,7 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 			two_gauss->SetParName(5, "#sigma_{SPE}");
 
 			if (!PrintChargeSpectrumPMT_pars.empty()) {
-				for (int j = 0; j < PrintChargeSpectrumPMT_pars.size(); j++) two_gauss->SetParameter(j, PrintChargeSpectrumPMT_pars[j]);
+				for (int j = 0; j < static_cast<int>(PrintChargeSpectrumPMT_pars.size()); j++) two_gauss->SetParameter(j, PrintChargeSpectrumPMT_pars[j]);
 			}
 
 			//two_gauss->SetLineColor(4);
@@ -1915,7 +1923,7 @@ TH1F* ReadRun::His_GetTimingCFD(int channel_index, float rangestart, float range
 void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, int nbins, string fitoption, bool set_errors) {
 
 	// call GetTimingCFD() in case it was not initialized
-	if (timing_results.size() == 0) GetTimingCFD();
+	if (static_cast<int>(timing_results.size()) == 0) GetTimingCFD();
 
 	gStyle->SetOptStat(1111);
 	gStyle->SetOptFit(111);
@@ -2044,7 +2052,7 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channels2, float rangestart, float rangeend, int do_fit, int nbins, float fitrangestart, float fitrangeend, string fitoption, bool set_errors) {
 
 	// call GetTimingCFD() in case it was not initialized
-	if (timing_results.size() == 0) GetTimingCFD();
+	if (static_cast<int>(timing_results.size()) == 0) GetTimingCFD();
 
 	if (fitrangestart == -999) {
 		fitrangestart = rangestart;
@@ -2241,7 +2249,7 @@ int ReadRun::GetEventIndex(int eventnr) {
 /// @param c Canvas to be splitted
 void ReadRun::SplitCanvas(TCanvas*& c) {
 	if (plot_active_channels.empty()) c->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
-	else if (plot_active_channels.size() > 1) c->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
+	else if (static_cast<int>(plot_active_channels.size()) > 1) c->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
 }
 
 /// @brief Simple linear interpolation for x
