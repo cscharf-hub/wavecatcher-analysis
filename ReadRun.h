@@ -154,6 +154,7 @@ public:
 
 	float* ChargeList(int, float = 20, float = 80, float = 0, float = 300);
 	void SaveChargeLists(float = 20, float = 80, float = 0, float = 300);
+	void ChargeCorrelation(float, float, float, float, float, float, int, int, int, bool = false);
 
 	// SiPM specific
 	void PrintDCR(float = 15, float = 85, float = 0, float = 300, double = 3); // based on PrintChargeSpectrumPMTthreshold()
@@ -184,6 +185,7 @@ public:
 	float LinearInterpolation(float, float, float, float, float); // linear interpolation
 
 	int GetEventIndex(int);										// get index of a triggered event (finds the correct event if files are not read sequentially)
+	int GetChannelIndex(int);									// get index of a certain channel
 	void SplitCanvas(TCanvas*&);								// split canvas into pads to display all active channels on one canvas
 	void Convolute(double*&, double*, double*, int, int);		// convolution for filtering waveforms
 	void SmoothArray(double*&, int, double = 1., bool = false);	// filtering

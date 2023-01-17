@@ -866,14 +866,8 @@ void ReadRun::SkipEventsTimeDiffCut(int first_channel_abs, int second_channel_ab
 
 	printf("\n\n Removing events if the event-wise time difference between the main peaks in ch%d and ch%d is <%.2f ns or >%.2f ns\n\n", first_channel_abs, second_channel_abs, time_diff_min, time_diff_max);
 	int counter = 0;
-
-	// match channel number to channel index
-	int first_channel = 0;
-	int second_channel = 0;
-	for (int i = 0; i < static_cast<int>(active_channels.size()); i++) {
-		if (active_channels[i] == first_channel_abs) first_channel = i;
-		if (active_channels[i] == second_channel_abs) second_channel = i;
-	}
+	int first_channel = GetChannelIndex(first_channel_abs);
+	int second_channel = GetChannelIndex(second_channel_abs);
 
 	// call GetTimingCFD() in case it was not initialized
 	if (static_cast<int>(timing_results.size()) == 0) GetTimingCFD();
@@ -1246,7 +1240,6 @@ float* ReadRun::ChargeList(int channel_index, float windowlow, float windowhi, f
 /// @param windowhi ...to "windowhi" ns from max.
 /// @param start Find max from "start" in ns...
 /// @param end ...to "end" in ns.
-/// @todo make correlation function for amplitudes of two channels
 void ReadRun::SaveChargeLists(float windowlow, float windowhi, float start, float end) {
 	float* event_list = new float[nevents];
 	for (int i = 0; i < nevents; i++) event_list[i] = static_cast<float>(i);
@@ -1277,6 +1270,40 @@ void ReadRun::SaveChargeLists(float windowlow, float windowhi, float start, floa
 	}
 	root_out->WriteObject(charge_list_mg, "all_charge_lists");
 	delete[] event_list;
+}
+
+/// @brief Plot correlation of integrals/amplitudes between two channels
+/// 
+/// See GetIntWindow() and PrintChargeSpectrum().
+/// 
+/// @param windowlow Integrate from "windowlow" ns from max...
+/// @param windowhi ...to "windowhi" ns from max.
+/// @param start Find max from "start" in ns...
+/// @param end ...to "end" in ns. 
+/// @param rangestart Plot x & y range start
+/// @param rangeend Plot x & y range end
+/// @param nbins Number of x & y bins of the histogram
+/// @param channel1 First channel number to compare
+/// @param channel2 second channel number to compare
+/// @param ingnore_skipped_events Set true to plot only events which passed filtering, else all events will be plotted
+void ReadRun::ChargeCorrelation(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, int channel1, int channel2, bool ingnore_skipped_events) {
+	
+	stringstream title;
+	if (windowlow + windowhi > 0.) title << ";integral ch" << channel1 << " in mV#timesns;integral ch" << channel2 << " in mV#timesns;Entries";
+	else title << ";amplitude ch" << channel1 << " in mV;amplitude ch" << channel2 << " in mV;Entries";
+
+	float* charge1 = ChargeList(GetChannelIndex(channel1), windowlow, windowhi, start, end);
+	float* charge2 = ChargeList(GetChannelIndex(channel2), windowlow, windowhi, start, end);
+	
+	auto charge_corr = new TH2F("charge_correlation", title.str().c_str(), nbins, rangestart, rangeend, nbins, rangestart, rangeend);
+	for (int i = 0; i < nevents; i++) {
+		charge_corr->Fill(charge1[i], charge2[i]);
+	}
+	auto charge_corr_canvas = new TCanvas("charge_correlation", "", 600, 400);
+	charge_corr->Draw("col");
+	root_out->WriteObject(charge_corr, "charge_correlation");
+	charge_corr_canvas->Update();
+	root_out->WriteObject(charge_corr_canvas, "charge_correlation_canvas");
 }
 
 /// @brief Histogram of the "charge" spectrum for one channel
@@ -2243,6 +2270,21 @@ int ReadRun::GetEventIndex(int eventnr) {
 	if (eventnr <= 0) eventnr = 1; // first event is 1
 	if (eventnr > nevents) eventnr = nevents;
 	return distance(eventnr_storage.begin(), find(eventnr_storage.begin(), eventnr_storage.end(), eventnr));
+}
+
+/// @brief  Match channel number (wavecatcher input channel) to channel index
+/// @param channel_number Number of the channel as defined in the wavecatcher software
+/// @return Corresponding index for this channel
+int ReadRun::GetChannelIndex(int channel_number) {
+	int channel_index = -1;
+	for (int i = 0; i < static_cast<int>(active_channels.size()); i++) {
+		if (active_channels[i] == channel_number) channel_index = i;
+	}
+	if (channel_index == -1) {
+		cout << "\n\n\tERROR: channel " << channel_number << " does not exist in data. Will continue with first channel\n\n";
+		channel_index = 0;
+	}
+	return channel_index;
 }
 
 /// @brief Helper to split canvas accordind to the number of channels to be plotted
