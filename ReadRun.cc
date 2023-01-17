@@ -1287,23 +1287,30 @@ void ReadRun::SaveChargeLists(float windowlow, float windowhi, float start, floa
 /// @param channel2 second channel number to compare
 /// @param ingnore_skipped_events Set true to plot only events which passed filtering, else all events will be plotted
 void ReadRun::ChargeCorrelation(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, int channel1, int channel2, bool ingnore_skipped_events) {
-	
+	gStyle->SetOptStat(1111);
+	stringstream name; 
+	name << "charge_correlation_ch" << channel1 << "_ch" << channel2;
 	stringstream title;
 	if (windowlow + windowhi > 0.) title << ";integral ch" << channel1 << " in mV#timesns;integral ch" << channel2 << " in mV#timesns;Entries";
 	else title << ";amplitude ch" << channel1 << " in mV;amplitude ch" << channel2 << " in mV;Entries";
-
+	
+	auto charge_corr_canvas = new TCanvas(name.str().c_str(), "canvas", 600, 400);
+	charge_corr_canvas->SetRightMargin(0.15);
+	
 	float* charge1 = ChargeList(GetChannelIndex(channel1), windowlow, windowhi, start, end);
 	float* charge2 = ChargeList(GetChannelIndex(channel2), windowlow, windowhi, start, end);
 	
-	auto charge_corr = new TH2F("charge_correlation", title.str().c_str(), nbins, rangestart, rangeend, nbins, rangestart, rangeend);
+	auto charge_corr = new TH2F(name.str().c_str(), title.str().c_str(), nbins, rangestart, rangeend, nbins, rangestart, rangeend);
 	for (int i = 0; i < nevents; i++) {
-		charge_corr->Fill(charge1[i], charge2[i]);
+		if (!ingnore_skipped_events || !skip_event[i]) charge_corr->Fill(charge1[i], charge2[i]);
 	}
-	auto charge_corr_canvas = new TCanvas("charge_correlation", "", 600, 400);
-	charge_corr->Draw("col");
-	root_out->WriteObject(charge_corr, "charge_correlation");
-	charge_corr_canvas->Update();
-	root_out->WriteObject(charge_corr_canvas, "charge_correlation_canvas");
+	charge_corr->Draw("colz");
+	root_out->WriteObject(charge_corr, name.str().c_str());
+	
+	// move stat box out of the way
+	gPad->Update(); TPaveStats* stat_box = (TPaveStats*)charge_corr->FindObject("stats"); stat_box->SetX1NDC(0.6); stat_box->SetX2NDC(.85);
+	name << "_canvas";
+	root_out->WriteObject(charge_corr_canvas, name.str().c_str());
 }
 
 /// @brief Histogram of the "charge" spectrum for one channel

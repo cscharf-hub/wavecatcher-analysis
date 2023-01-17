@@ -36,6 +36,7 @@
 #include <TFitResultPtr.h>
 #include <TFitResult.h>
 #include <TSpline.h> 
+#include <TPaveStats.h> 
 //#include <TSpectrum.h>   // peakfinder
 //#include <TPolyMarker.h> // peakfinder
 #include <TError.h>      // root verbosity level
