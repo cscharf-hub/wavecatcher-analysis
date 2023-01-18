@@ -1623,10 +1623,10 @@ void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float star
 			two_gauss->SetParameters(fres_est->Parameter(0) * .95, fres_est->Parameter(1) * .95, fres_est->Parameter(2) * .95, fres_est->Parameter(0) * .3, fres_est->Parameter(1) * 1.05, fres_est->Parameter(2) * .85); // factors are pretty much random
 			two_gauss->SetParName(0, "A_{pedestal}");
 			two_gauss->SetParName(1, "#mu_{pedestal}");
-			two_gauss->SetParName(2, "#sigma_{pedestal}");
+			two_gauss->SetParName(2, "#sigma_{pedestal}");	two_gauss->SetParLimits(2, 1e-9, 1e3);
 			two_gauss->SetParName(3, "A_{SPE}");
 			two_gauss->SetParName(4, "#mu_{SPE}");
-			two_gauss->SetParName(5, "#sigma_{SPE}");
+			two_gauss->SetParName(5, "#sigma_{SPE}");		two_gauss->SetParLimits(5, 1e-9, 1e3);
 
 			if (!PrintChargeSpectrumPMT_pars.empty()) {
 				for (int j = 0; j < static_cast<int>(PrintChargeSpectrumPMT_pars.size()); j++) two_gauss->SetParameter(j, PrintChargeSpectrumPMT_pars[j]);
@@ -2150,8 +2150,8 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 		two_gauss->SetTitle("Sum of two gauss");
 		float posmax = his->GetXaxis()->GetBinCenter(his->GetMaximumBin());
 		two_gauss->SetParameters(his->Integral("width"), posmax, 0.35, his->Integral("width")/30, posmax, 2);
-		two_gauss->SetParName(0, "norm_{peak}");		two_gauss->SetParName(1, "#mu_{peak}");			two_gauss->SetParName(2, "#sigma_{peak}");
-		two_gauss->SetParName(3, "norm_{background}");	two_gauss->SetParName(4, "#mu_{background}");	two_gauss->SetParName(5, "#sigma_{background}");
+		two_gauss->SetParName(0, "norm_{peak}");		two_gauss->SetParName(1, "#mu_{peak}");			two_gauss->SetParName(2, "#sigma_{peak}");			two_gauss->SetParLimits(2, 1e-9, 1e2);
+		two_gauss->SetParName(3, "norm_{background}");	two_gauss->SetParName(4, "#mu_{background}");	two_gauss->SetParName(5, "#sigma_{background}");	two_gauss->SetParLimits(5, 1e-9, 1e2);
 		TFitResultPtr fresults = his->Fit(two_gauss, fitoption.c_str(), "same", fitrangestart, fitrangeend);
 		timing_fit_results.push_back(fresults);
 	}
