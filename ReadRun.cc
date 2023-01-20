@@ -1350,6 +1350,7 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 /// @param fitrangeend Fit range end
 /// @param max_channel_nr_to_fit Fit only channels with index < "max_channel_nr_to_fit". Set to -1 to skip fitting.
 /// @param which_fitf Choose fit function: \n 
+/// 0 - do not fit \n
 /// 1 - landau gauss convolution for large number of photons \n 
 /// 2 - if pedestal is biased because of peak finder algorithm \n 
 /// 3 - SiPM fit function with exponential delayed afterpulsing \n 
@@ -1390,17 +1391,19 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 
 			chargec->cd(current_canvas);
 
-			//do the fit
-			if (which_fitf == 1) { // landau gauss convolution for large number of photons
+			//fitting
+			if (which_fitf == 0) {}
+			else if (which_fitf == 1) { // landau gauss convolution for large number of photons
 				Fitf_langaus fitf;
-				TF1* f = new TF1("fitf_langaus", fitf, fitrangestart, fitrangeend, 4); f->SetLineColor(3);
+				int n_par = 4;
+				TF1* f = new TF1("fitf_langaus", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
 
 				f->SetParName(0, "Width");				f->SetParameter(0, 35);
 				f->SetParName(1, "MPV");				f->SetParameter(1, 1000);
 				f->SetParName(2, "Area");			    f->SetParameter(2, 10000);
 				f->SetParName(3, "#sigma_{Gauss}");		f->SetParameter(3, 100);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(4, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -1410,7 +1413,8 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			}
 			else if (which_fitf == 2) { // if pedestal is biased because of peak finder algorithm
 				Fitf_biased fitf;
-				TF1* f = new TF1("fitf_biased", fitf, fitrangestart, fitrangeend, 9); f->SetLineColor(3);
+				int n_par = 9;
+				TF1* f = new TF1("fitf_biased", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
 
 				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
 				f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
@@ -1422,7 +1426,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetParName(7, "norm_{0}");			f->SetParameter(7, 0.7);
 				f->SetParName(8, "x_{0}");				f->SetParameter(8, 5.);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -1438,7 +1442,8 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			}
 			else if (which_fitf == 3) { // SiPM fit function with exponential delayed afterpulsing
 				Fitf_full fitf;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 9); f->SetLineColor(3);
+				int n_par = 9;
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
 
 				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
 				f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
@@ -1450,7 +1455,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetParName(7, "#alpha");				f->SetParameter(7, .1); //f->FixParameter(7, .2);
 				f->SetParName(8, "#beta");				f->SetParameter(8, 80.); //f->FixParameter(8, 80);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -1460,7 +1465,8 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			}
 			else if (which_fitf == 4) { // ideal PMT fit function
 				Fitf_PMT_ideal fitf;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 4); f->SetLineColor(3);
+				int n_par = 4;
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
 
 				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
 				f->SetParName(1, "#mu");				f->SetParameter(1, 1.);
@@ -1470,7 +1476,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetLineColor(2);
 				f->SetNpx(1000);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -1480,7 +1486,8 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			}
 			else if (which_fitf == 5) { // PMT fit function
 				Fitf_PMT fitf;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 8); f->SetLineColor(3);
+				int n_par = 8;
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
 
 				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
 				f->SetParName(1, "w");					f->SetParameter(1, .05);	f->SetParLimits(1, 1.e-99, 4.e-1); //probability for type II BG
@@ -1494,7 +1501,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetLineColor(2);
 				f->SetNpx(1000);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -1504,7 +1511,8 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			}
 			else if (which_fitf == 6) { // PMT fit function with biased pedestal
 				Fitf_PMT_pedestal fitf;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 9); f->SetLineColor(3);
+				int n_par = 9;
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
 
 				f->SetParName(0, "A");					f->SetParameter(0, his->Integral());
 				f->SetParName(1, "w");					f->SetParameter(1, .05);	f->SetParLimits(1, 1.e-9, 4.e-1);	//probability for type II BG
@@ -1519,7 +1527,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetLineColor(2);
 				f->SetNpx(1000);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -1529,7 +1537,8 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			}
 			else if (which_fitf == 7) { // default SiPM fit function + dark count spectrum (for lots of false triggers)
 				Fitf_plus_DC fitf;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 9); f->SetLineColor(3);
+				int n_par = 9;
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
 
 				f->SetParName(0, "A");					f->SetParameter(0, his->Integral());
 				f->SetParName(1, "w");					f->SetParameter(1, .05);	f->SetParLimits(1, 1.e-9, 4.e-1);	//probability for type II BG
@@ -1544,7 +1553,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetLineColor(2);
 				f->SetNpx(1000);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
@@ -1554,7 +1563,8 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			}
 			else { // default SiPM fit function
 				Fitf fitf;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, 7); f->SetLineColor(3);
+				int n_par = 7;
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
 
 				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
 				f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
@@ -1564,7 +1574,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetParName(5, "Gain");				f->SetParameter(5, 30.); //f->FixParameter(5, 40.);
 				f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < static_cast<int>(PrintChargeSpectrum_pars.size()); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
 				if (i < max_channel_nr_to_fit) {
 					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
