@@ -398,6 +398,8 @@ void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, doub
 	TMultiGraph* mgsums = new TMultiGraph();
 	mgsums->SetTitle("channel sums; t [ns]; amplitude [arb.]");
 
+	double max = 0., min = 0.;
+
 	for (int i = 0; i < nchannels; i++) {
 		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
 			double* yv = amplValuessum[i];
@@ -405,7 +407,12 @@ void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, doub
 
 			TGraph* gr = new TGraph(binNumber, xv, yv);
 			delete[] yv;
-			if (normalize) gr->Scale(1. / TMath::MaxElement(gr->GetN(), gr->GetY()));
+
+			double tmp_min = TMath::MinElement(gr->GetN(), gr->GetY());
+			if (tmp_min < min) min = tmp_min;
+			double tmp_max = TMath::MaxElement(gr->GetN(), gr->GetY());
+			if (tmp_max > max) max = tmp_max;
+			if (normalize) gr->Scale(1. / tmp_max);
 
 			TString name(Form("channel_%02d", active_channels[i]));
 			TString title(Form("Channel %d", active_channels[i]));
@@ -420,8 +427,8 @@ void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, doub
 
 	TCanvas* sumc = new TCanvas("Sums", "", 600, 400);
 	mgsums->Draw("AL");
-	mgsums->GetYaxis()->SetRangeUser(-1e4, 1e6);
 	if (normalize) mgsums->GetYaxis()->SetRangeUser(-0.2, 1);
+	else mgsums->GetYaxis()->SetRangeUser(min, max);
 	sumc->BuildLegend(0.85, 0.70, .99, .95);
 	root_out->WriteObject(mgsums, "channelsums");
 	root_out->WriteObject(sumc, "channelsums_c");
