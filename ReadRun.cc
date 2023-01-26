@@ -389,10 +389,11 @@ ReadRun::~ReadRun() {
 /// Do not use without very good reason as it biases the results.
 /// @param normalize If true will normalize the maximum to 1.
 /// @param shift Shift histogram by "shift" ns
-/// @param sigma Number of bins for running average/gauss sigma in ns for convolution.
-/// @param doconv If false use running average (default). \n 
-/// If true use gaussian smoothing (slower).
-void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, double sigma, bool doconv) {
+/// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution.
+/// @param smooth_method If 0 use running average (box kernel smoothing). Default, fast. \n 
+/// If 1 use 5 sigma gaussian smoothing. Very slow. \n
+/// Else use 3 sigma gaussian kernel smoothing. Better than default box kernel, fast.
+void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, double sigma, int smooth_method) {
 
 	double* xv = getx(shift);
 	TMultiGraph* mgsums = new TMultiGraph();
@@ -403,7 +404,7 @@ void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, doub
 	for (int i = 0; i < nchannels; i++) {
 		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
 			double* yv = amplValuessum[i];
-			if (doaverage) SmoothArray(yv, binNumber, sigma, doconv);
+			if (doaverage) SmoothArray(yv, binNumber, sigma, smooth_method);
 
 			TGraph* gr = new TGraph(binNumber, xv, yv);
 			delete[] yv;
@@ -435,21 +436,22 @@ void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, doub
 }
 
 /// @brief Smoothing all waveforms which are not skipped (for testing, do not use for analysis!)
-/// @param sigma Number of bins for running average (box) or gauss sigma in ns for convolution.
-/// @param doconv If false use running average (default). \n 
-/// If true use gaussian smoothing (slower).
-void ReadRun::SmoothAll(double sigma, bool doconv) { //deprecated since it can be done with baseline correction??
+/// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution.
+/// @param method If 0 use running average (box kernel smoothing). Default, fast. \n 
+/// If 1 use 5 sigma gaussian smoothing. Very slow. \n
+/// Else use 3 sigma gaussian kernel smoothing. Better than default box kernel, fast.
+void ReadRun::SmoothAll(double sigma, int method) {
 	// just for testing, not very efficient
 	cout << "\nsmoothing wfs";
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[j]) {
 			TH1F* his = ((TH1F*)rundata->At(j));
 			double* yvals = gety(his);
-			SmoothArray(yvals, binNumber, sigma, doconv);
+			SmoothArray(yvals, binNumber, sigma, method);
 			for (int i = 1; i < his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i]);
 			delete[] yvals;
-			if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
 		}
+		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
 	}
 }
 
@@ -548,15 +550,16 @@ void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int
 /// 
 /// @param nIntegrationWindow Number of bins of integration window
 /// @param doaverage If true will use averaging for more reliable slope. Use with care!
-/// @param sigma Number of bins for running average/gauss sigma in ns for convolution. Use with care!
+/// @param sigma NNumber of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution. Use with care!
 /// @param max_bin_for_baseline Maximum bin for search window.
 /// @param start_at Minimum bin for search window.
 /// @param search_min Experimental, use with care.
-/// @param convolution If false use running average (default). \n 
-/// If true use gaussian smoothing (slower).
+/// @param smooth_method If 0 use running average (box kernel smoothing). Default, fast. \n 
+/// If 1 use 5 sigma gaussian smoothing. Very slow. \n
+/// Else use 3 sigma gaussian kernel smoothing. Better than default box kernel, fast.
 /// @param skip_channel Skip a channel
 /// @todo Work on "skip_channel" and remove "search_min"
-void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool doaverage, double sigma, int max_bin_for_baseline, int start_at, bool search_min, bool convolution, int skip_channel) {
+void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool doaverage, double sigma, int max_bin_for_baseline, int start_at, bool search_min, int smooth_method, int skip_channel) {
 
 	const int binNumberSlope = binNumber - 1;
 	double* slope = new double[binNumberSlope];
@@ -600,7 +603,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool doaverage,
 		if (j == 0 || j != skip_channel - 1 || j % skip_channel != 0) { //eventnr * nchannels + i
 			TH1F* his = ((TH1F*)rundata->At(j));
 			double* yvals = gety(his); //find faster way
-			SmoothArray(yvals, binNumber, sigma, convolution); // smoothing important to suppress variations in slope due to noise so the method is more sensitve to excluding peaks
+			SmoothArray(yvals, binNumber, sigma, smooth_method); // smoothing important to suppress variations in slope due to noise so the method is more sensitve to excluding peaks
 
 			//calculate slope
 			for (int i = 0; i < binNumberSlope; i++) slope[i] = yvals[i + 1] - yvals[i];
@@ -692,7 +695,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool doaverage,
 /// Results will be visualized for each event in PrintChargeSpectrumWF(). \n 
 /// For parameters see CorrectBaselineMinSlopeRMS() 
 /// 
-void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool doaverage, double sigma, int max_bin_for_baseline, int start_at, bool convolution, int skip_channel) {
+void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool doaverage, double sigma, int max_bin_for_baseline, int start_at, int smooth_method, int skip_channel) {
 
 	int binNumberSlope = binNumber - 1;
 	skip_channel += 1;
@@ -717,7 +720,7 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool doaverage, double 
 		if (j == 0 || j != skip_channel - 1 || j % skip_channel != 0) { //eventnr * nchannels + i
 			TH1F* his = ((TH1F*)rundata->At(j));
 			double* yvals = gety(his); //find faster way
-			SmoothArray(yvals, binNumber, sigma, convolution); // smoothing
+			SmoothArray(yvals, binNumber, sigma, smooth_method); // smoothing
 
 			if (max_bin_for_baseline != 0 && max_bin_for_baseline > nIntegrationWindow) {
 				search_before = max_bin_for_baseline - nIntegrationWindow - 1;
@@ -776,17 +779,17 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool doaverage, double 
 /// @param cf_r Fraction of maximum for CFD.
 /// @param start_at_t Time in ns to start searching.
 /// @param end_at_t Time in ns to end searching.
-/// @param sigma Smoothing width. Should be set to 0. \n 
-/// Number of bins for running average/gauss sigma in ns for convolution\n
+/// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution.
 /// This will bias the results! Do not use (or use very carefully, only for noisy data)!
 /// @param find_CF_from_start If true will start search from "start_at_t" \n 
 /// If false searches backwards from time of maximum (default setting).
-/// @param doconv If false use running average (default). \n 
-/// If true use gaussian smoothing (slower).
+/// @param smooth_method If 0 use running average (box kernel smoothing). Default, fast. \n 
+/// If 1 use 5 sigma gaussian smoothing. Very slow. \n
+/// Else use 3 sigma gaussian kernel smoothing. Better than default box kernel, fast.
 /// @param use_spline If false will use linear interpolation between the two bins closest to cf_r. \n
 /// If true will use a 5th order spline for interpolation. This method is a bit slower but performs a bit better in terms of chi^2. 
 /// However, the fit parameters do not seem to depend much on the interpolation method.
-void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double sigma, bool find_CF_from_start, bool doconv, bool use_spline) {
+void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double sigma, bool find_CF_from_start, int smooth_method, bool use_spline) {
 
 	int start_at = static_cast<int>(floor(start_at_t / SP));
 	int end_at = static_cast<int>(ceil(end_at_t / SP));
@@ -799,7 +802,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 		TH1F* his = ((TH1F*)rundata->At(j));
 		double* yvals = gety(his, start_at, end_at); // get range where to search for CFD for timing
 
-		if (sigma > 0.) SmoothArray(yvals, n_range, sigma, doconv); // smoothing to suppress noise, will also change timing so use with care!
+		if (sigma > 0.) SmoothArray(yvals, n_range, sigma, smooth_method); // smoothing to suppress noise, will also change timing so use with care!
 
 		float max = 0.;
 		int n_max = 0;
@@ -977,7 +980,7 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, double rangestart,
 
 	cout << "\n\n Removing events with individual amplitude threshold per channel!!!\n\n";
 	int counter = 0;
-	
+
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[floor(j / nchannels)]) {
 			int currchannel = j - nchannels * floor(j / nchannels);
@@ -1250,7 +1253,7 @@ float* ReadRun::ChargeList(int channel_index, float windowlow, float windowhi, f
 void ReadRun::SaveChargeLists(float windowlow, float windowhi, float start, float end) {
 	float* event_list = new float[nevents];
 	for (int i = 0; i < nevents; i++) event_list[i] = static_cast<float>(i);
-	
+
 	TMultiGraph* charge_list_mg = new TMultiGraph();
 	if (windowlow + windowhi > 0.) charge_list_mg->SetTitle("event-wise integrals; Event number; integral [mV#timesns]");
 	else charge_list_mg->SetTitle("event-wise amplitudes; Event number; amplitude [mV]");
@@ -1295,25 +1298,25 @@ void ReadRun::SaveChargeLists(float windowlow, float windowhi, float start, floa
 /// @param ingnore_skipped_events Set true to plot only events which passed filtering, else all events will be plotted
 void ReadRun::ChargeCorrelation(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, int channel1, int channel2, bool ingnore_skipped_events) {
 	gStyle->SetOptStat(1111);
-	stringstream name; 
+	stringstream name;
 	name << "charge_correlation_ch" << channel1 << "_ch" << channel2;
 	stringstream title;
 	if (windowlow + windowhi > 0.) title << ";integral ch" << channel1 << " in mV#timesns;integral ch" << channel2 << " in mV#timesns;Entries";
 	else title << ";amplitude ch" << channel1 << " in mV;amplitude ch" << channel2 << " in mV;Entries";
-	
+
 	auto charge_corr_canvas = new TCanvas(name.str().c_str(), "canvas", 600, 400);
 	charge_corr_canvas->SetRightMargin(0.15);
-	
+
 	float* charge1 = ChargeList(GetChannelIndex(channel1), windowlow, windowhi, start, end);
 	float* charge2 = ChargeList(GetChannelIndex(channel2), windowlow, windowhi, start, end);
-	
+
 	auto charge_corr = new TH2F(name.str().c_str(), title.str().c_str(), nbins, rangestart, rangeend, nbins, rangestart, rangeend);
 	for (int i = 0; i < nevents; i++) {
 		if (!ingnore_skipped_events || !skip_event[i]) charge_corr->Fill(charge1[i], charge2[i]);
 	}
 	charge_corr->Draw("colz");
 	root_out->WriteObject(charge_corr, name.str().c_str());
-	
+
 	// move stat box out of the way
 	gPad->Update(); TPaveStats* stat_box = (TPaveStats*)charge_corr->FindObject("stats"); stat_box->SetX1NDC(0.6); stat_box->SetX2NDC(.85);
 	name << "_canvas";
@@ -2027,11 +2030,11 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 
 	stringstream name;
 	name << "GetTimingCFD_diff <";
-	
+
 	// find channel indices and assemble title
 	int counter = 0;
-	for (int & entry : channels2) {
-		if (counter>0) name << "&";
+	for (int& entry : channels2) {
+		if (counter > 0) name << "&";
 		auto chin2 = find(active_channels.begin(), active_channels.end(), entry);
 		if (chin2 != active_channels.end()) {
 			name << "ch" << entry;
@@ -2042,8 +2045,8 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 	}
 	name << ">-<";
 	counter = 0;
-	
-	for (int & entry : channels1) {
+
+	for (int& entry : channels1) {
 		if (counter > 0) name << "&";
 		auto chin1 = find(active_channels.begin(), active_channels.end(), entry);
 		if (chin1 != active_channels.end()) {
@@ -2129,33 +2132,33 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 
 	his->Draw();
 
-	if (do_fit == 1) { 
+	if (do_fit == 1) {
 		// gauss (default)
 		TFitResultPtr fresults = his->Fit("gaus", fitoption.c_str(), "same", fitrangestart, fitrangeend);
 		timing_fit_results.push_back(fresults);
 	}
-	else if (do_fit == 2) { 
+	else if (do_fit == 2) {
 		// gauss x exp convolution (effective delay from random light path and/or self-absorption and reemission)
 		string gxe = "[3]/(2*[0])*TMath::Exp(([1]*[1]+2*[2]*[0]-2*[0]*x)/(2*[0]*[0]))*TMath::Erfc(([1]*[1]+[0]*([2]-x))/(1.4142*[0]*[1]))";
-		auto expgconv = new TF1("exp x gauss convolution", gxe.c_str(), fitrangestart, fitrangeend); 
+		auto expgconv = new TF1("exp x gauss convolution", gxe.c_str(), fitrangestart, fitrangeend);
 		expgconv->SetNpx(5000);
-		
+
 		// this parameter describes the sigma from different light paths and/or the effective decay time constant for self-absorption and reemission
-		expgconv->SetParName(0, "#tau_{eff}");		expgconv->SetParameter(0, .5);		
+		expgconv->SetParName(0, "#tau_{eff}");		expgconv->SetParameter(0, .5);
 		expgconv->SetParLimits(0, 1e-1, 2.5);	//expgconv->FixParameter(0, 1.55);
-		
-		expgconv->SetParName(1, "#sigma_{gaus}");		expgconv->SetParameter(1, .5);	
+
+		expgconv->SetParName(1, "#sigma_{gaus}");		expgconv->SetParameter(1, .5);
 		expgconv->SetParLimits(1, 1e-1, 2.5);	//expgconv->FixParameter(1, .7);
-		
+
 		float posmax = his->GetXaxis()->GetBinCenter(his->GetMaximumBin());
-		expgconv->SetParName(2, "t_{0}");		expgconv->SetParameter(2, posmax);		
+		expgconv->SetParName(2, "t_{0}");		expgconv->SetParameter(2, posmax);
 		expgconv->SetParLimits(2, fitrangestart, fitrangeend);	//expgconv->FixParameter(2, 6.6);
-		
+
 		expgconv->SetParName(3, "norm");		expgconv->SetParameter(3, his->Integral("width"));
 		expgconv->SetParLimits(3, 0.1, 1e6);		//expgconv->FixParameter(3, 105.5);
 
 		TFitResultPtr fresults = his->Fit(expgconv, "SR", "same");
-		timing_fit_results.push_back(fresults); 
+		timing_fit_results.push_back(fresults);
 
 		TLine* mean = new TLine(expgconv->GetParameter(2), 1e-2, expgconv->GetParameter(2), his->GetMaximum());
 		mean->SetLineColor(1); mean->SetLineWidth(2);
@@ -2166,7 +2169,7 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 		auto two_gauss = new TF1("two gaussians", "gaus(0)+gaus(3)", rangestart, rangeend);
 		two_gauss->SetTitle("Sum of two gauss");
 		float posmax = his->GetXaxis()->GetBinCenter(his->GetMaximumBin());
-		two_gauss->SetParameters(his->Integral("width"), posmax, 0.35, his->Integral("width")/30, posmax, 2);
+		two_gauss->SetParameters(his->Integral("width"), posmax, 0.35, his->Integral("width") / 30, posmax, 2);
 		two_gauss->SetParName(0, "norm_{peak}");		two_gauss->SetParName(1, "#mu_{peak}");			two_gauss->SetParName(2, "#sigma_{peak}");			two_gauss->SetParLimits(2, 1e-9, 1e2);
 		two_gauss->SetParName(3, "norm_{background}");	two_gauss->SetParName(4, "#mu_{background}");	two_gauss->SetParName(5, "#sigma_{background}");	two_gauss->SetParLimits(5, 1e-9, 1e2);
 		TFitResultPtr fresults = his->Fit(two_gauss, fitoption.c_str(), "same", fitrangestart, fitrangeend);
@@ -2397,34 +2400,17 @@ void ReadRun::Convolute(double*& result, double* first, double* second, int size
 /// 
 /// @param[in,out] ar Array to be smoothed.
 /// @param nbins Number of bins of input.
-/// @param sigma Number of bins for running average/gauss sigma in ns for convolution.
-/// @param doconv If false use running average (default). \n 
-/// If true use gaussian smoothing (slower).
-void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, bool doconv) {
+/// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution.
+/// @param method If 0 use running average (box kernel smoothing). Default, fast. \n 
+/// If 1 use 5 sigma gaussian smoothing. Very slow. \n
+/// Else use 3 sigma gaussian kernel smoothing. Better than default box kernel, fast.
+void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method) {
 
 	double* artmp = new double[nbins];
 	for (int i = 0; i < nbins; i++) artmp[i] = ar[i];
 
-	if (doconv) {
-		// convolution with gauss with sigma (experimental, not yet tested)
-		double* gauss = new double[nbins];
-
-		double sum = 0.;
-
-		for (int i = 0; i < nbins; i++) {
-			gauss[i] = TMath::Exp(-1. * TMath::Power((static_cast<double>(i) * SP - 5 * sigma/*-> offset?*/), 2.) / (2. * sigma * sigma)) / (sigma * 2.506628);
-			sum += gauss[i];
-		}
-
-		for (int i = 0; i < nbins; i++) {
-			gauss[i] /= sum;
-		}
-
-		Convolute(ar, artmp, gauss, nbins, nbins);
-		delete[] gauss;
-	}
-	else {
-		// calculate running average from -sigma until +sigma
+	if (method == 0) {
+		// calculate running average from -sigma until +sigma (sigma = number of bins)
 		for (int i = 0; i < nbins; i++) {
 			double mean1 = 0.;
 			int nmn = 0;
@@ -2436,6 +2422,49 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, bool doconv) {
 			}
 			if (nmn != 0.) {
 				ar[i] = mean1 / static_cast<double>(nmn);
+			}
+		}
+	}
+	else if (method == 1) {
+		// convolution with gauss clipped at +-5 sigma (very inefficient and slow)
+		double* gauss = new double[nbins];
+
+		double sum = 0.;
+		double position = 0.;
+
+		for (int i = 0; i < nbins; i++) {
+			if (static_cast<double>(i) * SP < 5 * sigma) gauss[i] = TMath::Exp(-1. * TMath::Power((static_cast<double>(i) * SP - 5 * sigma), 2.) / (2. * sigma * sigma)) / (sigma * 2.506628);
+			else gauss[i] = 0.;
+			sum += gauss[i];
+		}
+
+		for (int i = 0; i < nbins; i++) {
+			gauss[i] /= sum;
+		}
+
+		Convolute(ar, artmp, gauss, nbins, nbins);
+		delete[] gauss;
+	}
+	else {
+		// gauss kernel 3*sigma
+		int nbins_3sigma = static_cast<int>(ceil(6. * sigma / SP));
+		double* gauss = new double[nbins_3sigma];
+
+		double denom = 3. * sigma * sigma;
+		double norm = 0;
+		for (int i = 0; i < nbins_3sigma; i++) {
+			gauss[i] = TMath::Exp(-1. * TMath::Power(static_cast<double>(i) * SP - 3. * sigma, 2.) / denom);
+			norm += gauss[i];
+		}
+		for (int i = 0; i < nbins_3sigma; i++) { // biased results at beginning and end of array but faster than norm in j<min(nbins_3sigma, i) loop
+			gauss[i] /= norm;
+		}
+
+		for (int i = 0; i < nbins; i++) {
+			double res = 0;
+			for (int j = 0; j < min(nbins_3sigma, i); j++) {
+				res += gauss[j] * artmp[i - j];
+				ar[i] = res;
 			}
 		}
 	}

@@ -120,24 +120,24 @@ private:
 public:
 
 	// plots amplValuessum
-	void PlotChannelSums(bool = true, bool = false, double = 0., double = 4., bool = false);
+	void PlotChannelSums(bool = true, bool = false, double = 0., double = 4., int = 0);
 
 	// baseline correction (shifts all waveforms individually)
 	void CorrectBaseline(float, float = -999);
 	void CorrectBaseline_function(TH1F*, float, float, int);
 
-	void CorrectBaselineMinSlopeRMS(int = 100, bool = false, double = 10, int = 0, int = 0, bool = false, bool = false, int = 8);
+	void CorrectBaselineMinSlopeRMS(int = 100, bool = false, double = 10, int = 0, int = 0, bool = false, int = 0, int = 8);
 
-	void CorrectBaselineMin(int = 100, bool = false, double = 10, int = 0, int = 0, bool = false, int = 8);
+	void CorrectBaselineMin(int = 100, bool = false, double = 10, int = 0, int = 0, int = 0, int = 8);
 
 	// get timing of peaks
-	void GetTimingCFD(float = .3, float = 100, float = 140, double = 0, bool = false, bool = false, bool = false);
+	void GetTimingCFD(float = .3, float = 100, float = 140, double = 0, bool = false, int = 0, bool = false);
 	void SkipEventsTimeDiffCut(int, int, double, double, bool = false);
 
 	void FractionEventsAboveThreshold(float = 4, bool = true, bool = true, double = 0., double = 0., bool = false);
 
 	// average all waveforms to simplify peak ID
-	void SmoothAll(double = 5, bool = false);
+	void SmoothAll(double = 5, int = 0);
 	void DerivativeAll();
 
 	// functions for charge spectrum
@@ -189,7 +189,7 @@ public:
 	int GetChannelIndex(int);									// get index of a certain channel
 	void SplitCanvas(TCanvas*&);								// split canvas into pads to display all active channels on one canvas
 	void Convolute(double*&, double*, double*, int, int);		// convolution for filtering waveforms
-	void SmoothArray(double*&, int, double = 1., bool = false);	// filtering
+	void SmoothArray(double*&, int, double = 1., int = 0);		// filtering
 
 	/// @brief Constructor of the class with arguments to filter noise events in the cosmics setup. Default values do nothing 
 	ReadRun(double = 0, int = 1);
