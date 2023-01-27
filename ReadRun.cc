@@ -390,9 +390,9 @@ ReadRun::~ReadRun() {
 /// @param normalize If true will normalize the maximum to 1.
 /// @param shift Shift histogram by "shift" ns
 /// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution.
-/// @param smooth_method If 0 use running average (box kernel smoothing). Default, fast. \n 
-/// If 1 use 5 sigma gaussian smoothing. Very slow. \n
-/// Else use 3 sigma gaussian kernel smoothing. Better than default box kernel, fast.
+/// @param smooth_method If 0 use running average (box kernel smoothing). Simple, very fast. \n 
+/// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks! Very slow. \n
+/// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, double sigma, int smooth_method) {
 
 	double* xv = getx(shift);
@@ -437,9 +437,9 @@ void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, doub
 
 /// @brief Smoothing all waveforms which are not skipped (for testing, do not use for analysis!)
 /// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution.
-/// @param method If 0 use running average (box kernel smoothing). Default, fast. \n 
-/// If 1 use 5 sigma gaussian smoothing. Very slow. \n
-/// Else use 3 sigma gaussian kernel smoothing. Better than default box kernel, fast.
+/// @param method If 0 use running average (box kernel smoothing). Simple, very fast. \n 
+/// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
+/// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::SmoothAll(double sigma, int method) {
 	// just for testing, not very efficient
 	cout << "\nsmoothing wfs";
@@ -554,9 +554,9 @@ void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int
 /// @param max_bin_for_baseline Maximum bin for search window.
 /// @param start_at Minimum bin for search window.
 /// @param search_min Experimental, use with care.
-/// @param smooth_method If 0 use running average (box kernel smoothing). Default, fast. \n 
-/// If 1 use 5 sigma gaussian smoothing. Very slow. \n
-/// Else use 3 sigma gaussian kernel smoothing. Better than default box kernel, fast.
+/// @param smooth_method If 0 use running average (box kernel smoothing). Simple, very fast. \n 
+/// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
+/// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 /// @param skip_channel Skip a channel
 /// @todo Work on "skip_channel" and remove "search_min"
 void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool doaverage, double sigma, int max_bin_for_baseline, int start_at, bool search_min, int smooth_method, int skip_channel) {
@@ -603,7 +603,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool doaverage,
 		if (j == 0 || j != skip_channel - 1 || j % skip_channel != 0) { //eventnr * nchannels + i
 			TH1F* his = ((TH1F*)rundata->At(j));
 			double* yvals = gety(his); //find faster way
-			SmoothArray(yvals, binNumber, sigma, smooth_method); // smoothing important to suppress variations in slope due to noise so the method is more sensitve to excluding peaks
+			if (sigma > 0) SmoothArray(yvals, binNumber, sigma, smooth_method); // smoothing important to suppress variations in slope due to noise so the method is more sensitve to excluding peaks
 
 			//calculate slope
 			for (int i = 0; i < binNumberSlope; i++) slope[i] = yvals[i + 1] - yvals[i];
@@ -669,18 +669,6 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool doaverage,
 		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
 	}
 	delete[] slope;
-
-	//TCanvas* sumc = new TCanvas("sumc", "sumc", 600, 400);
-	//TH1F* hiss = new TH1F("sum", "sum", 1e4, -2, 2);
-	//TH1F* hiss0 = new TH1F("sum0", "sum0", 1e4, -2, 2);
-	//TH1F* hisssq = new TH1F("sqsum", "sqsum", 1e4, -2, 2);
-	//for (int i = 0; i < nwf; i++) {
-	//	hiss->Fill(baseline_correction_result[i][4]);
-	//	hiss0->Fill(baseline_correction_result[i][5]);
-	//	hisssq->Fill(baseline_correction_result[i][6]);
-	//}
-	//hiss0->SetLineColor(2); hisssq->SetLineColor(1);
-	//hiss->Draw(); hiss0->Draw("same"); hisssq->Draw("same");
 }
 
 /// @brief Baseline correction using minimum mean in range for correction 
@@ -720,7 +708,7 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool doaverage, double 
 		if (j == 0 || j != skip_channel - 1 || j % skip_channel != 0) { //eventnr * nchannels + i
 			TH1F* his = ((TH1F*)rundata->At(j));
 			double* yvals = gety(his); //find faster way
-			SmoothArray(yvals, binNumber, sigma, smooth_method); // smoothing
+			if (sigma > 0) SmoothArray(yvals, binNumber, sigma, smooth_method); // smoothing
 
 			if (max_bin_for_baseline != 0 && max_bin_for_baseline > nIntegrationWindow) {
 				search_before = max_bin_for_baseline - nIntegrationWindow - 1;
@@ -783,9 +771,9 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool doaverage, double 
 /// This will bias the results! Do not use (or use very carefully, only for noisy data)!
 /// @param find_CF_from_start If true will start search from "start_at_t" \n 
 /// If false searches backwards from time of maximum (default setting).
-/// @param smooth_method If 0 use running average (box kernel smoothing). Default, fast. \n 
-/// If 1 use 5 sigma gaussian smoothing. Very slow. \n
-/// Else use 3 sigma gaussian kernel smoothing. Better than default box kernel, fast.
+/// @param smooth_method If 0 use running average (box kernel smoothing). Simple, very fast. \n 
+/// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
+/// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 /// @param use_spline If false will use linear interpolation between the two bins closest to cf_r. \n
 /// If true will use a 5th order spline for interpolation. This method is a bit slower but performs a bit better in terms of chi^2. 
 /// However, the fit parameters do not seem to depend much on the interpolation method.
@@ -829,7 +817,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 		// do interpolation for cf
 		float interpol_bin = .0;
 		interpol_bin = LinearInterpolation(cf, static_cast<float>(i), static_cast<float>(i + 1), yvals[i], yvals[i + 1]);
-
+		
 		if (use_spline) { // steps of 3.125 ps
 			double* xvals = new double[n_range];
 			for (int k = 0; k < n_range; k++) xvals[k] = static_cast<double>(k);
@@ -837,14 +825,13 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 			TSpline5* wfspl = 0;
 			wfspl = new TSpline5("wf_spline", xvals, yvals, n_range, "b1e1b2e2", 0., 0., 0., 0.);
 
-			double fbin = 0.;
-			for (fbin = xvals[i - 1]; fbin < xvals[i + 1]; fbin += .01) {
+			float fbin = 0.;
+			for (fbin = xvals[i - 1] - .01; fbin <= xvals[i + 1]; fbin += .01) {
 				if (wfspl->Eval(fbin) > cf) {
-					fbin -= .01;
+					interpol_bin = fbin - .01;
 					break;
 				}
 			}
-			if (fbin != 0.) interpol_bin = fbin;
 			delete[] xvals;
 		}
 
@@ -1020,7 +1007,7 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, double rangestart,
 /// @param verbose Set true for extra verbosity.
 void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, float windowlow, float windowhi, float start, float end, bool use_AND_condition, bool verbose) {
 
-	cout << "\n\n Removing events with individual integral threshold per channel!!!\n\n";
+	cout << "\n\nRemoving events with individual integral threshold per channel :: ";
 	int counter = 0;
 	float integral = 0;
 
@@ -2401,9 +2388,9 @@ void ReadRun::Convolute(double*& result, double* first, double* second, int size
 /// @param[in,out] ar Array to be smoothed.
 /// @param nbins Number of bins of input.
 /// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution.
-/// @param method If 0 use running average (box kernel smoothing). Default, fast. \n 
-/// If 1 use 5 sigma gaussian smoothing. Very slow. \n
-/// Else use 3 sigma gaussian kernel smoothing. Better than default box kernel, fast.
+/// @param method If 0 use running average (box kernel smoothing). Simple, very fast. \n 
+/// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
+/// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method) {
 
 	double* artmp = new double[nbins];
@@ -2451,22 +2438,22 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method) {
 		double* gauss = new double[nbins_3sigma];
 
 		double denom = 3. * sigma * sigma;
-		double norm = 0;
 		for (int i = 0; i < nbins_3sigma; i++) {
 			gauss[i] = TMath::Exp(-1. * TMath::Power(static_cast<double>(i) * SP - 3. * sigma, 2.) / denom);
-			norm += gauss[i];
-		}
-		for (int i = 0; i < nbins_3sigma; i++) { // biased results at beginning and end of array but faster than norm in j<min(nbins_3sigma, i) loop
-			gauss[i] /= norm;
 		}
 
+		double res = 0;
+		double norm = 0;
 		for (int i = 0; i < nbins; i++) {
-			double res = 0;
-			for (int j = 0; j < min(nbins_3sigma, i); j++) {
-				res += gauss[j] * artmp[i - j];
-				ar[i] = res;
+			res = 0.;
+			norm = 0.;
+			for (int j = max(0, nbins_3sigma / 2 - i); j < min(nbins - i + nbins_3sigma / 2, min(nbins_3sigma, i + nbins_3sigma/2)); j++) {
+				res += gauss[j] * artmp[i + j - nbins_3sigma / 2];
+				norm += gauss[j];
 			}
+			if (norm != 0.) ar[i] = res / norm;
 		}
+		delete[] gauss;
 	}
 	delete[] artmp;
 }
