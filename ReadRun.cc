@@ -121,7 +121,8 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 			printf("*** failed to open '%s'\n", fileName.c_str());
 			continue;
 		}
-		printf("+++ reading '%s' ...\n", fileName.c_str());
+
+		if (file_counter < 10 || file_counter % 10 == 0 || debug) printf("+++ reading '%s' ...\n", fileName.c_str());
 
 		// Header
 		string header_line;
@@ -775,7 +776,7 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool doaverage, double 
 /// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
 /// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 /// @param use_spline If false will use linear interpolation between the two bins closest to cf_r. \n
-/// If true will use a 5th order spline for interpolation. This method is a bit slower but performs a bit better in terms of chi^2. 
+/// If true will use a 5th order spline for interpolation. Performs a bit better in terms of chi^2. 
 /// However, the fit parameters do not seem to depend much on the interpolation method.
 void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double sigma, bool find_CF_from_start, int smooth_method, bool use_spline) {
 
@@ -817,7 +818,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 		// do interpolation for cf
 		float interpol_bin = .0;
 		interpol_bin = LinearInterpolation(cf, static_cast<float>(i), static_cast<float>(i + 1), yvals[i], yvals[i + 1]);
-		
+
 		if (use_spline) { // steps of 3.125 ps
 			double* xvals = new double[n_range];
 			for (int k = 0; k < n_range; k++) xvals[k] = static_cast<double>(k);
@@ -826,12 +827,13 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 			wfspl = new TSpline5("wf_spline", xvals, yvals, n_range, "b1e1b2e2", 0., 0., 0., 0.);
 
 			float fbin = 0.;
-			for (fbin = xvals[i - 1] - .01; fbin <= xvals[i + 1]; fbin += .01) {
+			for (fbin = xvals[i - 1]; fbin <= xvals[i + 1]; fbin += .01) {
 				if (wfspl->Eval(fbin) > cf) {
 					interpol_bin = fbin - .01;
 					break;
 				}
 			}
+			delete wfspl;
 			delete[] xvals;
 		}
 
@@ -2447,7 +2449,7 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method) {
 		for (int i = 0; i < nbins; i++) {
 			res = 0.;
 			norm = 0.;
-			for (int j = max(0, nbins_3sigma / 2 - i); j < min(nbins - i + nbins_3sigma / 2, min(nbins_3sigma, i + nbins_3sigma/2)); j++) {
+			for (int j = max(0, nbins_3sigma / 2 - i); j < min(nbins - i + nbins_3sigma / 2, min(nbins_3sigma, i + nbins_3sigma / 2)); j++) {
 				res += gauss[j] * artmp[i + j - nbins_3sigma / 2];
 				norm += gauss[j];
 			}
