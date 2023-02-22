@@ -100,7 +100,8 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 	maxSumBin = new int[nChannelsWC];
 
 	//Start reading the raw data from .bin files.
-	stringstream inFileList = list_files(path.c_str(), ".bin"); //all *.bin* files in folder path
+	stringstream inFileList;
+	inFileList << list_files(path.c_str(), ".bin"); //all *.bin* files in folder path
 	int nitem = 1;
 	string fileName;
 	int file_counter = 0;
@@ -414,7 +415,9 @@ void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, doub
 			if (tmp_min < min) min = tmp_min;
 			double tmp_max = TMath::MaxElement(gr->GetN(), gr->GetY());
 			if (tmp_max > max) max = tmp_max;
-			if (normalize) gr->Scale(1. / tmp_max);
+			if (normalize) {
+				for (int j = 0; j < gr->GetN(); j++) gr->SetPointY(j, gr->GetPointY(j) / tmp_max);
+			}
 
 			TString name(Form("channel_%02d", active_channels[i]));
 			TString title(Form("Channel %d", active_channels[i]));
@@ -655,7 +658,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool doaverage,
 				if (!doaverage) his->SetBinContent(i, his->GetBinContent(i) - corr);
 				else his->SetBinContent(i, yvals[i] - corr);
 			}
-			delete[] yvals; //delete slow
+			delete[] yvals; 
 		}
 
 		baseline_correction_result.push_back(vector<float>());
@@ -943,6 +946,7 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 				lastevent = currevent;
 			}
 		}
+		delete his;
 	}
 
 	if (verbose) cout << endl;
@@ -984,6 +988,7 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, double rangestart,
 					skip_event[floor(j / nchannels)] = true;
 					counter++;
 				}
+				delete his;
 			}
 		}
 	}
@@ -1012,29 +1017,33 @@ void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, fl
 	cout << "\n\nRemoving events with individual integral threshold per channel :: ";
 	int counter = 0;
 	float integral = 0;
+	int currevent_counter = 0;
+	int currchannel = 0;
+	int currevent = 0;
 
 	for (int j = 0; j < nwf; j++) {
-		int currevent_counter = floor(j / nchannels);
+		currevent_counter = floor(j / nchannels);
 
 		if (use_AND_condition || !skip_event[currevent_counter]) {
-			int currchannel = j - nchannels * currevent_counter;
+			currchannel = j - nchannels * currevent_counter;
 
 			if (currchannel < static_cast<int>(thresholds.size())) {
 				auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
 				integral = GetPeakIntegral(his, windowlow, windowhi, start, end, currchannel);
 
 				if (thresholds[currchannel] != 0 && !skip_event[currevent_counter] && ((highlow[currchannel] && integral > thresholds[currchannel]) || (!highlow[currchannel] && integral < thresholds[currchannel]))) {
-					int currevent = eventnr_storage[currevent_counter];
+					currevent = eventnr_storage[currevent_counter];
 					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
 					skip_event[currevent_counter] = true;
 					while (floor((j + 1) / nchannels) == currevent_counter) j++;
 					counter++;
 				}
 				else if (use_AND_condition && thresholds[currchannel] != 0 && skip_event[currevent_counter] && !highlow[currchannel]) {
-					int currevent = eventnr_storage[currevent_counter];
+					currevent = eventnr_storage[currevent_counter];
 					skip_event[currevent_counter] = false;
 					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\thas been flagged good by integral";
 				}
+				delete his;
 			}
 			if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
 		}
@@ -1221,11 +1230,13 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 /// @param windowhi ...to "windowhi" ns from max.
 /// @param start Find max from "start" in ns...
 /// @param end ...to "end" in ns.
-float* ReadRun::ChargeList(int channel_index, float windowlow, float windowhi, float start, float end) {
+/// @param negative_vals If true will save negative values. If false will set negative values to 0.
+float* ReadRun::ChargeList(int channel_index, float windowlow, float windowhi, float start, float end, bool negative_vals) {
 	float* charge_list = new float[nevents];
 	for (int j = 0; j < nevents; j++) {
 		TH1F* his = ((TH1F*)rundata->At(j * nchannels + channel_index));
 		charge_list[j] = GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index);
+		if (!negative_vals && charge_list[j] < 0.) charge_list[j] = 0.;
 	}
 	return charge_list;
 }
@@ -1239,7 +1250,8 @@ float* ReadRun::ChargeList(int channel_index, float windowlow, float windowhi, f
 /// @param windowhi ...to "windowhi" ns from max.
 /// @param start Find max from "start" in ns...
 /// @param end ...to "end" in ns.
-void ReadRun::SaveChargeLists(float windowlow, float windowhi, float start, float end) {
+/// @param negative_vals If true will save negative values. If false will set negative values to 0.
+void ReadRun::SaveChargeLists(float windowlow, float windowhi, float start, float end, bool negative_vals) {
 	float* event_list = new float[nevents];
 	for (int i = 0; i < nevents; i++) event_list[i] = static_cast<float>(i);
 
@@ -1250,7 +1262,7 @@ void ReadRun::SaveChargeLists(float windowlow, float windowhi, float start, floa
 	for (int i = 0; i < nchannels; i++) {
 		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
 			TString name(Form("charge_list_ch_%02d", active_channels[i]));
-			float* charge_list = ChargeList(i, windowlow, windowhi, start, end);
+			float* charge_list = ChargeList(i, windowlow, windowhi, start, end, negative_vals);
 			TGraph* charge_list_graph = new TGraph(nevents, event_list, charge_list);
 			charge_list_graph->SetLineWidth(0);
 			charge_list_graph->SetMarkerStyle(2);
@@ -1395,7 +1407,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			else if (which_fitf == 1) { // landau gauss convolution for large number of photons
 				Fitf_langaus fitf;
 				int n_par = 4;
-				TF1* f = new TF1("fitf_langaus", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
+				TF1* f = new TF1("fitf_langaus", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
 
 				f->SetParName(0, "Width");				f->SetParameter(0, 35);
 				f->SetParName(1, "MPV");				f->SetParameter(1, 1000);
@@ -1413,7 +1425,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			else if (which_fitf == 2) { // if pedestal is biased because of peak finder algorithm
 				Fitf_biased fitf;
 				int n_par = 9;
-				TF1* f = new TF1("fitf_biased", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
+				TF1* f = new TF1("fitf_biased", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
 
 				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
 				f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
@@ -1442,7 +1454,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			else if (which_fitf == 3) { // SiPM fit function with exponential delayed afterpulsing
 				Fitf_full fitf;
 				int n_par = 9;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
 
 				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
 				f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
@@ -1465,15 +1477,12 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			else if (which_fitf == 4) { // ideal PMT fit function
 				Fitf_PMT_ideal fitf;
 				int n_par = 4;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
 
 				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
 				f->SetParName(1, "#mu");				f->SetParameter(1, 1.);
 				f->SetParName(2, "#sigma");				f->SetParameter(2, 5.);
 				f->SetParName(3, "gain");				f->SetParameter(3, 10.);
-
-				f->SetLineColor(2);
-				f->SetNpx(1000);
 
 				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
@@ -1486,7 +1495,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			else if (which_fitf == 5) { // PMT fit function
 				Fitf_PMT fitf;
 				int n_par = 8;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
 
 				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
 				f->SetParName(1, "w");					f->SetParameter(1, .05);	f->SetParLimits(1, 1.e-99, 4.e-1); //probability for type II BG
@@ -1496,9 +1505,6 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetParName(5, "#mu");				f->SetParameter(5, 1.);
 				f->SetParName(6, "#sigma_{1}");			f->SetParameter(6, 5.);		f->SetParLimits(6, 1.e-9, 1.e3);
 				f->SetParName(7, "Q_{1}");				f->SetParameter(7, 10.);
-
-				f->SetLineColor(2);
-				f->SetNpx(1000);
 
 				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
@@ -1511,7 +1517,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			else if (which_fitf == 6) { // PMT fit function with biased pedestal
 				Fitf_PMT_pedestal fitf;
 				int n_par = 9;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
 
 				f->SetParName(0, "A");					f->SetParameter(0, his->Integral());
 				f->SetParName(1, "w");					f->SetParameter(1, .05);	f->SetParLimits(1, 1.e-9, 4.e-1);	//probability for type II BG
@@ -1522,9 +1528,6 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetParName(6, "#sigma_{1}");			f->SetParameter(6, 5.);		f->SetParLimits(6, 1.e-9, 1.e3);
 				f->SetParName(7, "Q_{1}");				f->SetParameter(7, 10.);	f->SetParLimits(7, 1.e-9, 1.e9);
 				f->SetParName(8, "A_{0}");				f->SetParameter(8, 1.);		f->SetParLimits(8, 1.e-9, 1.e1);
-
-				f->SetLineColor(2);
-				f->SetNpx(1000);
 
 				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
@@ -1537,7 +1540,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			else if (which_fitf == 7) { // default SiPM fit function + dark count spectrum (for lots of false triggers)
 				Fitf_plus_DC fitf;
 				int n_par = 9;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
 
 				f->SetParName(0, "A");					f->SetParameter(0, his->Integral());
 				f->SetParName(1, "w");					f->SetParameter(1, .05);	f->SetParLimits(1, 1.e-9, 4.e-1);	//probability for type II BG
@@ -1548,9 +1551,6 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 				f->SetParName(6, "#sigma_{1}");			f->SetParameter(6, 5.);		f->SetParLimits(6, 1.e-9, 1.e3);
 				f->SetParName(7, "#mu_darkcount");		f->SetParameter(7, .1);		f->SetParLimits(7, 1.e-9, 1.);
 				f->SetParName(8, "N_{0}_darkcount");	f->SetParameter(8, .05);	f->SetParLimits(8, 1.e-9, .3);
-
-				f->SetLineColor(2);
-				f->SetNpx(1000);
 
 				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
@@ -1563,7 +1563,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			else { // default SiPM fit function
 				Fitf fitf;
 				int n_par = 7;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3);
+				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
 
 				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
 				f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
@@ -1783,6 +1783,104 @@ void ReadRun::PrintDCR(float windowlow, float windowhi, float rangestart, float 
 	}
 }
 
+/// @brief Plot distribution of the event-dependent angle phi_ew in a histogram. \n 
+/// The angle is calculated using vectorial addition and the lightyield of each channel in each event. \n
+/// For more info, see master thesis of Alexander Vagts. \n
+/// Currently uses the uncorrected formulas
+/// @param phi_chx Vector of the associated angles of each channel. Order is important. Angle of the first channel first. \n
+/// E.g. if channel 0 is used, the first angle would be from channel 0
+/// @param ly_C0 Vector of the lightyield of all channels at C0 position for the correction. Order must be the same as in phi_chx
+/// @param SiPMchannels all SiPM channels which should be included in analysis, e.g. {0, 2, 4, 6}
+/// @param windowmin left edge of integration window for lightyield
+/// @param windowmax right edge of integration window for lightyield
+/// @param maxfrom searches for peak from this to
+/// @param maxto this
+/// @param nbins Number of bins in histogram
+/// @param corr selection bool for corrected or uncorrected spectra \n
+/// If true - corrected spectra \n
+/// If false - uncorrected spectra
+/// @param periodic If true, will print all phi_ew shifted by +/- 360° (so normal phi_ew distri * 3) and fit a periodic gauss
+/// @return Phi_ew spectrum
+void ReadRun::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<int> SiPMchannels, float windowmin, float windowmax, float maxfrom, float maxto, int nbins, bool corr, bool periodic) {
+
+	// plotting uncorrected/corected phi_ew - spectra ; first: map the phi_i to the channels, like Alex did, but with new channel positions
+	// match channel number to channel index (still very specific)
+	int sipmnum = SiPMchannels.size();
+	vector<int> ch_index; for (int i = 0; i < sipmnum; i++) ch_index.push_back(0); // initialze the ch_index vector
+	for (int i = 0; i < active_channels.size(); i++) {
+		for (int j = 0; j < sipmnum; j++) { 
+			if (active_channels[i] == SiPMchannels[j]) ch_index[j] = i;
+		}
+	}
+
+	// compute correction factor
+	vector<float> ly_corr;
+	if (corr) {
+		float ly_av = 0; 
+		// average lightyield of all channels * sipmnum
+		for (int i = 0; i < sipmnum; i++) ly_av += ly_C0[i]; 
+		// divide ly of one channel by (1/sipmnum)*sipmnum*average ly of all channels
+		for (int i = 0; i < sipmnum; i++) ly_corr.push_back(sipmnum * ly_C0[i] / ly_av); 
+	}
+	else for (int i = 0; i < sipmnum; i++) ly_corr.push_back(1); // no correction
+	
+	// print correction factors
+	for (int i = 0; i < sipmnum; i++) cout << "Correction factor for channel " << SiPMchannels[i] << ":" << ly_corr[i] << endl;
+	
+	// initialize canvas + histogramms
+	gStyle->SetOptStat("nemr"); gStyle->SetOptFit(1111); //draws a box with some histogram parameters
+	TString his_name(Form("#phi_ew-spectrum_from_ch%2d_to_ch%2d", SiPMchannels.front(), SiPMchannels.back()));
+	TCanvas* hisc = new TCanvas(his_name, his_name, 600, 400);
+	
+	int min = -180, max = 180; //plot range
+	if (periodic) { min = -540; max = 540; }
+	TH1* his = new TH1F(his_name, his_name, nbins, min, max);
+	
+	// loop through all events and compute phi_ew
+	float lightyield, anglevaluex, anglevaluey, phi_ew = 0;
+	for (int i = 0; i < nevents; i++) {
+		if (!skip_event[i]) {
+			for (int j = 0; j < sipmnum; j++) { //loop through all SiPM-channels
+				TH1F* hisly = ((TH1F*)rundata->At(i * nchannels + ch_index[j]));
+				lightyield = GetPeakIntegral(hisly, windowmin, windowmax, maxfrom, maxto, 0); //lightyield as the integral around maximum
+				anglevaluex += cos(phi_chx[j] * TMath::Pi() / 180) * lightyield / ly_corr[j]; //x part of vectorial addition
+				anglevaluey += sin(phi_chx[j] * TMath::Pi() / 180) * lightyield / ly_corr[j]; //y part of vectorial addition
+			}
+
+			phi_ew = atan2(anglevaluey, anglevaluex) * 180 / TMath::Pi(); //vectorial addition for phi_ew --> fill in histo
+			his->Fill(phi_ew);
+			if (periodic) {
+				his->Fill(phi_ew + 360); 
+				his->Fill(phi_ew - 360);
+			}
+			anglevaluex = 0, anglevaluey = 0; //reset the x and y parts
+		}
+	}
+
+	//make histogram fancy + printing
+	his->GetXaxis()->SetTitle("#phi_ew (deg.)"); his->GetYaxis()->SetTitle("#Entries"); //titeling of axes
+	his->Draw();
+
+	if (periodic) {
+		Fitf_periodic_gauss fitf;
+		int n_par = 4;
+		TF1* f = new TF1("fitf", fitf, -540, 540, n_par); f->SetLineColor(2); f->SetNpx(1000);
+
+		f->SetParName(0, "A");				f->SetParameter(0, 100);
+		f->SetParName(1, "#Phi_{ew}");		f->SetParameter(1, 0);		f->SetParLimits(1, -180, 180); 
+		f->SetParName(2, "#sigma");			f->SetParameter(2, 40);		f->SetParLimits(1, 0, 360);
+		f->SetParName(3, "offset");			f->SetParameter(3, 10.);
+		
+		TFitResultPtr fresults = his->Fit(f, "LRS");
+		fit_results.push_back(fresults);
+	}
+	
+	hisc->Update();
+	root_out->WriteObject(hisc, "Phi_ew");
+	
+	hisc->SaveAs("phi_ew_spectrum.pdf"); //write the histogram to a .pdf-file
+}
+
 /// @brief Time distribution of maximum, CFD, or 10% - 90% rise time in a certain time window
 /// 
 /// See PrintTimeDist() for parameters.
@@ -1830,6 +1928,7 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 
 				h1->Fill(t90 - t10);
 			}
+			delete his;
 		}
 	}
 	if (which == 1) h1->Fit("gaus", "L", "same");
@@ -1906,6 +2005,7 @@ TGraph2D* ReadRun::MaxDist(int channel_index, float from, float to) {
 			if (from >= 0 && to > 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
 			double max = his->GetMaximum();
 			for (int i = 0; i < 1024; i++) g3d->SetPoint(j * 1024 + i, his->GetXaxis()->GetBinCenter(i), max, his->GetBinContent(i));
+			delete his;
 		}
 	}
 	root_out->WriteObject(g3d, name.Data());
@@ -2175,8 +2275,8 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 /// @brief Helper. Creates a list of .bin data files in data folder to be read in
 /// @param dirname Directory
 /// @param ext File extension
-/// @return Stringstream of line separated file names
-stringstream ReadRun::list_files(const char* dirname, const char* ext) {
+/// @return String of line separated file names
+string ReadRun::list_files(const char* dirname, const char* ext) {
 
 	stringstream ss;
 	TSystemDirectory dir(dirname, dirname);
@@ -2201,7 +2301,7 @@ stringstream ReadRun::list_files(const char* dirname, const char* ext) {
 			}
 		}
 	}
-	return ss;
+	return ss.str();
 }
 
 /// @brief Helper that returns the waveform histogram for a certain channel number and a certain event number
@@ -2274,7 +2374,7 @@ double* ReadRun::gety(TH1F* his, int start_at, int end_at) {
 /// @param i Index of your plotting loop that is to be translated into a useful ROOT color index
 /// @return ROOT color index
 int ReadRun::rcolor(unsigned int i) {
-	int nclrs = 16;
+	const int nclrs = 16;
 	int rclrs[nclrs] = { 1, 2, 3, 4, 5, 6, 7, 13, 28, 30, 34, 38, 40, 31, 46, 49 };
 	return rclrs[i - static_cast<int>(floor(i / nclrs)) * nclrs];
 }

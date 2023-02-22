@@ -13,6 +13,7 @@
 #pragma link C++ class Fitf_PMT_ideal+;
 #pragma link C++ class Fitf_langaus+;
 #pragma link C++ class Fitf_plus_DC+;
+#pragma link C++ class Fitf_periodic_gauss+;
 
 #pragma link C++ global gROOT;
 
