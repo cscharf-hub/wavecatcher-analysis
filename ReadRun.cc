@@ -72,13 +72,14 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 	root_out = TFile::Open(out_file_name.c_str(), "recreate");
 
 	// Wavecatcher hardware/software properties
-	SP = 0.3125;					// ns per bin
-	coef = 2.5 / (4096 * 10);		//?????
-	binNumber = 1024;				//default: 1024, hard coded later on so it can be removed
-	const int nChannelsWC = 64;			//max number of channels default: 32
+	SP = 0.3125;					// ns per bin (sampling rate 3.2 GS/s)
+	coef = 2.5 / (4096 * 10);		// DAC conversion coefficient
+	binNumber = 1024;				// default: 1024, hard coded later on so it can be removed
+	const int nChannelsWC = 64;		// max number of channels (reduce if not using the 64 channel crate)
+
 
 	rundata = new TClonesArray("TH1F", 1e7); //raw data will be stored here as TH1F
-	rundata->BypassStreamer(kFALSE);  //Doramas: I don't know why is it used, but it's better to use when working with TClonesArray
+	rundata->BypassStreamer(kFALSE);		//Doramas: I don't know why is it used, but it's better to use when working with TClonesArray
 	TClonesArray& testrundata = *rundata;
 
 	// verbosity
@@ -243,7 +244,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 					a_channel_data.channel = a_channel_data_without_measurement.channel;
 					a_channel_data.EventIDsamIndex = a_channel_data_without_measurement.EventIDsamIndex;
 					a_channel_data.FirstCellToPlotsamIndex = a_channel_data_without_measurement.FirstCellToPlotsamIndex;
-					memcpy(a_channel_data.waveform, a_channel_data_without_measurement.waveform, 1024 * sizeof(short));
+					memcpy(a_channel_data.waveform, a_channel_data_without_measurement.waveform, binNumber * sizeof(short));
 				}
 
 
@@ -274,13 +275,13 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 						// do a mini-baseline correction (needed in case a voltage offset is set in the wavecathcer)
 						short bsln = (a_channel_data.waveform[0] + a_channel_data.waveform[1] + a_channel_data.waveform[3]) / 3;
-						for (int lll = 0; lll < 1024; lll++) a_channel_data.waveform[lll] -= bsln;
+						for (int lll = 0; lll < binNumber; lll++) a_channel_data.waveform[lll] -= bsln;
 
 						float global_max = TMath::MaxElement(1024, a_channel_data.waveform);
-						//nmax = TMath::LocMax(1024, a_channel_data.waveform);
-						if (global_max < TMath::Abs(TMath::MinElement(1024, a_channel_data.waveform))) {
-							global_max = TMath::Abs(TMath::MinElement(1024, a_channel_data.waveform));
-							//nmax = TMath::LocMin(1024, a_channel_data.waveform);
+						//nmax = TMath::LocMax(binNumber, a_channel_data.waveform);
+						if (global_max < TMath::Abs(TMath::MinElement(binNumber, a_channel_data.waveform))) {
+							global_max = TMath::Abs(TMath::MinElement(binNumber, a_channel_data.waveform));
+							//nmax = TMath::LocMin(binNumber, a_channel_data.waveform);
 						}
 
 
@@ -1832,9 +1833,9 @@ void ReadRun::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<int>
 	TString his_name(Form("#phi_ew-spectrum_from_ch%2d_to_ch%2d", SiPMchannels.front(), SiPMchannels.back()));
 	TCanvas* hisc = new TCanvas(his_name, his_name, 600, 400);
 	
-	int min = -180, max = 180; //plot range
-	if (periodic) { min = -540; max = 540; }
-	TH1* his = new TH1F(his_name, his_name, nbins, min, max);
+	double min_angle = -180, max_angle = 180; // 360 deg plot range
+	if (periodic) { min_angle = -540; max_angle = 540; } // 1080 deg plot range
+	TH1* his = new TH1F(his_name, his_name, nbins, min_angle, max_angle);
 	
 	// loop through all events and compute phi_ew
 	float lightyield, anglevaluex, anglevaluey, phi_ew = 0;
@@ -1864,12 +1865,12 @@ void ReadRun::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<int>
 	if (periodic) {
 		Fitf_periodic_gauss fitf;
 		int n_par = 4;
-		TF1* f = new TF1("fitf", fitf, -540, 540, n_par); f->SetLineColor(2); f->SetNpx(1000);
+		TF1* f = new TF1("fitf", fitf, min_angle, max_angle, n_par); f->SetLineColor(2); f->SetNpx(1000);
 
 		f->SetParName(0, "A");				f->SetParameter(0, 100);
-		f->SetParName(1, "#Phi_{ew}");		f->SetParameter(1, 0);		f->SetParLimits(1, -180, 180); 
-		f->SetParName(2, "#sigma");			f->SetParameter(2, 40);		f->SetParLimits(1, 0, 360);
-		f->SetParName(3, "offset");			f->SetParameter(3, 10.);
+		f->SetParName(1, "#Phi_{ew}");		f->SetParameter(1, 0);		f->SetParLimits(1, -180, 180);
+		f->SetParName(2, "#sigma");			f->SetParameter(2, 40);		f->SetParLimits(2, 0, 360);
+		f->SetParName(3, "offset");			f->SetParameter(3, 10.);	f->SetParLimits(3, 0, 1e9);
 		
 		TFitResultPtr fresults = his->Fit(f, "LRS");
 		fit_results.push_back(fresults);
@@ -1996,7 +1997,7 @@ TGraph2D* ReadRun::MaxDist(int channel_index, float from, float to) {
 	// find maximum amplitude for a given channel in time window [from, to] and return 3d histogram with the number of bins nbinsy,z
 
 	TString name(Form("maxdist_ch%02d", active_channels[channel_index]));
-	TGraph2D* g3d = new TGraph2D((1024 + 2) * nevents);
+	TGraph2D* g3d = new TGraph2D((binNumber + 2) * nevents);
 	g3d->SetTitle("waveforms; t [ns]; max. amplitude [mv]; amplitude [mV]");
 
 	for (int j = 0; j < nevents; j++) {
@@ -2004,7 +2005,7 @@ TGraph2D* ReadRun::MaxDist(int channel_index, float from, float to) {
 			auto his = (TH1F*)((TH1F*)rundata->At(j * nchannels + channel_index))->Clone();
 			if (from >= 0 && to > 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
 			double max = his->GetMaximum();
-			for (int i = 0; i < 1024; i++) g3d->SetPoint(j * 1024 + i, his->GetXaxis()->GetBinCenter(i), max, his->GetBinContent(i));
+			for (int i = 0; i < binNumber; i++) g3d->SetPoint(j * binNumber + i, his->GetXaxis()->GetBinCenter(i), max, his->GetBinContent(i));
 			delete his;
 		}
 	}
@@ -2321,8 +2322,8 @@ TH1F* ReadRun::Getwf(int channelnr, int eventnr, int color) {
 /// @param shift Offset
 /// @return Time array
 double* ReadRun::getx(double shift) {
-	double* xvals = new double[1024];
-	for (int i = 0; i < 1024; i++) {
+	double* xvals = new double[binNumber];
+	for (int i = 0; i < binNumber; i++) {
 		xvals[i] = static_cast<double>(SP) * static_cast<double>(i) + shift;
 	}
 	return xvals;
@@ -2334,7 +2335,7 @@ double* ReadRun::getx(double shift) {
 /// @return Y values of waveform
 double* ReadRun::gety(int channelnr, int eventnr) {
 	TH1F* his = Getwf(channelnr, eventnr);
-	double* yvals = new double[1024];
+	double* yvals = new double[binNumber];
 	for (int i = 0; i < his->GetNbinsX(); i++) {
 		yvals[i] = his->GetBinContent(i);
 	}
@@ -2345,7 +2346,7 @@ double* ReadRun::gety(int channelnr, int eventnr) {
 /// @param his Waveform histogram
 /// @return Y values of waveform
 double* ReadRun::gety(TH1F* his) {
-	double* yvals = new double[1024];
+	double* yvals = new double[binNumber];
 	for (int i = 0; i < his->GetNbinsX(); i++) {
 		yvals[i] = his->GetBinContent(i);
 	}
@@ -2575,7 +2576,7 @@ void ReadRun::PrintFFTWF(int eventnr, float xmin, float xmax, int multiplier) {
 	TCanvas* imfftc = new TCanvas(imname.Data(), imname.Data(), 600, 400);
 	SplitCanvas(imfftc);
 
-	int size = 1024 * multiplier;
+	int size = binNumber * multiplier;
 	double* xvals = new double[size];
 	for (int i = 0; i < size; i++) {
 		xvals[i] = static_cast<double>(i) / (SP * static_cast<double>(size));
@@ -2590,7 +2591,7 @@ void ReadRun::PrintFFTWF(int eventnr, float xmin, float xmax, int multiplier) {
 		TH1F* his = Getwf(i, GetEventIndex(eventnr));
 
 		for (int j = 0; j < size; j++) {
-			if (j < 1024) yvals[j] = his->GetBinContent(j + 1);
+			if (j < binNumber) yvals[j] = his->GetBinContent(j + 1);
 			else yvals[j] = 0.;
 		}
 
