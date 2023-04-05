@@ -460,6 +460,27 @@ void ReadRun::SmoothAll(double sigma, int method) {
 	}
 }
 
+/// @brief Filter all waveforms which are not skipped 
+/// 
+/// Experimental. See FilterArray().
+/// 
+/// @param sigma1 First.
+/// @param sigma2 Second.
+/// @param factor Factor for negative part (0 < factor < 1).
+void ReadRun::FilterAll(double sigma1, double sigma2, double factor) {
+	cout << "\nfiltering wfs";
+	for (int j = 0; j < nwf; j++) {
+		if (!skip_event[j]) {
+			TH1F* his = ((TH1F*)rundata->At(j));
+			double* yvals = gety(his);
+			FilterArray(yvals, binNumber, sigma1, sigma2, factor);
+			for (int i = 1; i < his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i]);
+			delete[] yvals;
+		}
+		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
+	}
+}
+
 /// @brief derivative of all waveforms (for measurements w/o pole-zero cancellation)
 ///
 /// Experimental!
@@ -1401,6 +1422,9 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			TString name(Form("ChargeSpectrum channel_%02d", active_channels[i]));
 			root_out->WriteObject(his, name.Data());
 
+			//store the mean integral of each channel --> used for correction factors of phi_ew analysis
+			mean_integral.push_back(his->GetMean()); 
+
 			chargec->cd(current_canvas);
 
 			//fitting
@@ -1830,7 +1854,7 @@ void ReadRun::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<int>
 	
 	// initialize canvas + histogramms
 	gStyle->SetOptStat("nemr"); gStyle->SetOptFit(1111); //draws a box with some histogram parameters
-	TString his_name(Form("#phi_ew-spectrum_from_ch%2d_to_ch%2d", SiPMchannels.front(), SiPMchannels.back()));
+	TString his_name(Form("#phi_ew-spectrum_from_ch%d_to_ch%d", SiPMchannels.front(), SiPMchannels.back()));
 	TCanvas* hisc = new TCanvas(his_name, his_name, 600, 400);
 	
 	double min_angle = -180, max_angle = 180; // 360 deg plot range
@@ -1867,10 +1891,16 @@ void ReadRun::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<int>
 		int n_par = 4;
 		TF1* f = new TF1("fitf", fitf, min_angle, max_angle, n_par); f->SetLineColor(2); f->SetNpx(1000);
 
-		f->SetParName(0, "A");				f->SetParameter(0, 100);
-		f->SetParName(1, "#Phi_{ew}");		f->SetParameter(1, 0);		f->SetParLimits(1, -180, 180);
-		f->SetParName(2, "#sigma");			f->SetParameter(2, 40);		f->SetParLimits(2, 0, 360);
-		f->SetParName(3, "offset");			f->SetParameter(3, 10.);	f->SetParLimits(3, 0, 1e9);
+		double max = his->GetMaximum();
+		double min = his->GetMinimum();
+		his->GetXaxis()->SetRangeUser(-180, 180); //only look at one period for starting values
+		double phi_est = his->GetXaxis()->GetBinCenter(his->GetMaximumBin());
+		his->GetXaxis()->SetRangeUser(0, 0); //reset scale
+
+		f->SetParName(0, "A");				f->SetParameter(0, max - min);		f->SetParLimits(0, 1, 1e9);
+		f->SetParName(1, "#Phi_{ew}");		f->SetParameter(1, phi_est);		f->SetParLimits(1, -180, 180);
+		f->SetParName(2, "#sigma");			f->SetParameter(2, 40);				f->SetParLimits(2, 5, 360);
+		f->SetParName(3, "offset");			f->SetParameter(3, min);			f->SetParLimits(3, 1e-1, 1e9);
 		
 		TFitResultPtr fresults = his->Fit(f, "LRS");
 		fit_results.push_back(fresults);
@@ -1878,8 +1908,11 @@ void ReadRun::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<int>
 	
 	hisc->Update();
 	root_out->WriteObject(hisc, "Phi_ew");
+	root_out->WriteObject(his, "Phi_ew_his");
 	
-	hisc->SaveAs("phi_ew_spectrum.pdf"); //write the histogram to a .pdf-file
+	string pdf_name = "phi_ew_spectrum";
+	if (corr) pdf_name += "_corr.pdf"; else pdf_name += "_uncorr.pdf";
+	hisc->SaveAs(pdf_name.c_str()); //write the histogram to a .pdf-file
 }
 
 /// @brief Time distribution of maximum, CFD, or 10% - 90% rise time in a certain time window
@@ -2235,20 +2268,24 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 
 		// this parameter describes the sigma from different light paths and/or the effective decay time constant for self-absorption and reemission
 		expgconv->SetParName(0, "#tau_{eff}");		expgconv->SetParameter(0, .5);
-		expgconv->SetParLimits(0, 1e-1, 2.5);	//expgconv->FixParameter(0, 1.55);
+		expgconv->SetParLimits(0, 1e-3, 5.);	//expgconv->FixParameter(0, 1.55);
 
 		expgconv->SetParName(1, "#sigma_{gaus}");		expgconv->SetParameter(1, .5);
-		expgconv->SetParLimits(1, 1e-1, 2.5);	//expgconv->FixParameter(1, .7);
+		expgconv->SetParLimits(1, 1e-1, 5.);	//expgconv->FixParameter(1, .7);
 
 		float posmax = his->GetXaxis()->GetBinCenter(his->GetMaximumBin());
 		expgconv->SetParName(2, "t_{0}");		expgconv->SetParameter(2, posmax);
 		expgconv->SetParLimits(2, fitrangestart, fitrangeend);	//expgconv->FixParameter(2, 6.6);
 
 		expgconv->SetParName(3, "norm");		expgconv->SetParameter(3, his->Integral("width"));
-		expgconv->SetParLimits(3, 0.1, 1e6);		//expgconv->FixParameter(3, 105.5);
+		expgconv->SetParLimits(3, 0.1, 1e7);		//expgconv->FixParameter(3, 105.5);
 
 		TFitResultPtr fresults = his->Fit(expgconv, "SR", "same");
 		timing_fit_results.push_back(fresults);
+
+		// for the phi_ew-analysis: print out the time value of the maximum of the best fit --> used to determine timing cuts
+		float t_of_maximum = expgconv->GetMaximumX(-5, 5);
+		cout << "Maximum of the fit is at t=" << t_of_maximum << " ns" << endl;
 
 		TLine* mean = new TLine(expgconv->GetParameter(2), 1e-2, expgconv->GetParameter(2), his->GetMaximum());
 		mean->SetLineColor(1); mean->SetLineWidth(2);
@@ -2486,7 +2523,7 @@ void ReadRun::Convolute(double*& result, double* first, double* second, int size
 
 /// @brief Apply smoothing array of double with length nbins
 /// 
-/// Very inefficient, try not to use.
+/// Use with care. Method=2 is preferred.
 /// 
 /// @param[in,out] ar Array to be smoothed.
 /// @param nbins Number of bins of input.
@@ -2540,7 +2577,7 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method) {
 		int nbins_3sigma = static_cast<int>(ceil(6. * sigma / SP));
 		double* gauss = new double[nbins_3sigma];
 
-		double denom = 3. * sigma * sigma;
+		double denom = 2. * sigma * sigma;
 		for (int i = 0; i < nbins_3sigma; i++) {
 			gauss[i] = TMath::Exp(-1. * TMath::Power(static_cast<double>(i) * SP - 3. * sigma, 2.) / denom);
 		}
@@ -2559,6 +2596,44 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method) {
 		delete[] gauss;
 	}
 	delete[] artmp;
+}
+
+/// @brief Apply filter for array of double with length nbins
+/// 
+/// Experimental, can be used to highlight peaks and supress long tails (suppresses low and high frequencies). Use Filter_test.ipynb to test parameters.
+/// 
+/// @param[in,out] ar Array to be filtered.
+/// @param nbins Number of bins of input.
+/// @param sigma1 First.
+/// @param sigma2 Second.
+/// @param factor Factor for negative part (<=1).
+void ReadRun::FilterArray(double*& ar, int nbins, double sigma1, double sigma2, double factor) {
+
+	double* artmp = new double[nbins];
+	for (int i = 0; i < nbins; i++) artmp[i] = ar[i];
+
+	// shifted difference of two gauss functions (~smoothed derivative)
+	int nbins_2sigma = static_cast<int>(ceil((2. * sigma1 + 3. * sigma2) / SP));
+	double* sdog = new double[nbins_2sigma];
+
+	double denom1 = 2. * sigma1 * sigma1;
+	double denom2 = 2. * sigma2 * sigma2;
+	for (int i = 0; i < nbins_2sigma; i++) {
+		sdog[i] = TMath::Exp(-1. * TMath::Power(static_cast<double>(i) * SP - 3. * sigma2, 2.) / denom1) - factor * TMath::Exp(-1. * TMath::Power(static_cast<double>(i) * SP - 2. * sigma2, 2.) / denom2);
+	}
+
+	double res = 0;
+	double norm = 0;
+	for (int i = 0; i < nbins; i++) {
+		res = 0.;
+		norm = 0.;
+		for (int j = max(0, nbins_2sigma / 2 - i); j < min(nbins - i + nbins_2sigma / 2, min(nbins_2sigma, i + nbins_2sigma / 2)); j++) {
+			res += sdog[j] * artmp[i + j - nbins_2sigma / 2];
+			if(sdog[j] > 0.) norm += sdog[j];
+		}
+		if (norm != 0.) ar[i] = res / norm;
+	}
+	delete[] sdog;
 }
 
 /// @brief Print fourier transform of waveform

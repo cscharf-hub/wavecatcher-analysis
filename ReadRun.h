@@ -52,6 +52,7 @@
 #include <stdlib.h>
 #include <sstream>
 
+#include "src/helpers.h"
 #include "misc/FitFunctions.h"
 
 using namespace std;
@@ -139,6 +140,7 @@ public:
 
 	// average all waveforms to simplify peak ID
 	void SmoothAll(double = 5, int = 0);
+	void FilterAll(double = .3, double = .9, double = .2);
 	void DerivativeAll();
 
 	// functions for charge spectrum
@@ -194,6 +196,7 @@ public:
 	void SplitCanvas(TCanvas*&);								// split canvas into pads to display all active channels on one canvas
 	void Convolute(double*&, double*, double*, int, int);		// convolution for filtering waveforms
 	void SmoothArray(double*&, int, double = 1., int = 0);		// filtering
+	void FilterArray(double*&, int, double = .4, double = 1.2, double = .25); // filtering
 
 	/// @brief Constructor of the class with arguments to filter noise events in the cosmics setup. Default values do nothing 
 	ReadRun(double = 0, int = 1);
@@ -250,6 +253,9 @@ public:
 
 	/// @brief Stores the fit results of PrintChargeSpectrum() for all channels and all function calls in ascending order 
 	vector<TFitResultPtr> fit_results; 
+	
+	/// @brief Stores the mean integral/lightyield from PrintChargeSpectrum() for all channels
+	vector<float> mean_integral;
 
 	/// @brief Stores the event numbers which should be skipped in the analysis
 	/// 
@@ -292,7 +298,8 @@ public:
 	float tCutEndg;
 
 	/// @brief Shift waveforms with CFD so that all events start at the same time
-	/// Call after initializing class and before calling ReadFile().
+	/// Call after initializing class and before calling ReadFile(). \n
+	/// Set the constant fraction, the bin to shift the signal to, and the search window with tWF_CF, tWF_CF_bin, and tWF_CF_lo and tWF_CF_hi, respectively.
 	bool Shift_WFs_in_file_loop = false;
 	/// @brief Constant fraction of maximum (between ~0.1 and 1) for ReadRun::Shift_WFs_in_file_loop
 	float tWF_CF = 0.3;
