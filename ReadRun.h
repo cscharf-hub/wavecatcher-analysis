@@ -175,7 +175,7 @@ public:
 	TH1F* His_GetTimingCFD(int, float, float, int = -999);
 	void Print_GetTimingCFD(float = 100, float = 140, int = 0, int = -999, string = "S", bool = true);
 	TH1F* His_GetTimingCFD_diff(vector<int>, vector<int>, float, float, int = -999);
-	void Print_GetTimingCFD_diff(vector<int>, vector<int>, float = 100, float = 140, int = 0, int = -999, float = -999, float = -999, string = "RS", bool= true);
+	void Print_GetTimingCFD_diff(vector<int>, vector<int>, float = 100, float = 140, int = 0, int = -999, float = -999, float = -999, string = "RS", bool = true);
 
 	// print FFT
 	void PrintFFTWF(int = 1, float = 0., float = 0., int = 1);
@@ -188,7 +188,7 @@ public:
 	double* gety(TH1F*);								// y values for histogram
 	double* gety(TH1F*, int, int);						// y values for dedicated y range of a histogram 
 	int rcolor(unsigned int);							// useful root colors
-	
+
 	float LinearInterpolation(float, float, float, float, float); // linear interpolation
 
 	int GetEventIndex(int);										// get index of a triggered event (finds the correct event if files are not read sequentially)
@@ -218,7 +218,7 @@ public:
 	/// If set to -1 (default) all channels will be read in one go. \n
 	/// Else channels from "start_read_at_channel" to "end_read_at_channel" will be read. \n 
 	/// If "end_read_at_channel" is not defined will only read channel specified in "start_read_at_channel".
-	int start_read_at_channel = -1;	
+	int start_read_at_channel = -1;
 	/// @brief See ReadRun::start_read_at_channel
 	int end_read_at_channel = -1;
 
@@ -252,8 +252,8 @@ public:
 	vector<int> plot_active_channels;
 
 	/// @brief Stores the fit results of PrintChargeSpectrum() for all channels and all function calls in ascending order 
-	vector<TFitResultPtr> fit_results; 
-	
+	vector<TFitResultPtr> fit_results;
+
 	/// @brief Stores the mean integral/lightyield from PrintChargeSpectrum() for all channels
 	vector<float> mean_integral;
 
@@ -270,7 +270,7 @@ public:
 	/// @brief Special parameter for HU cosmics setup
 	///
 	/// define how many PMT channels need to be above threshold to discard event (RF pick up should be seen by alls PMTs).
-	int skip_event_threshold_nch; 
+	int skip_event_threshold_nch;
 
 	void SkipEventsPerChannel(vector<double>, double = 0, double = 0, bool = false);  // in case you want to have indiviual thresholds in individual channels
 	void IntegralFilter(vector<double>, vector<bool>, float, float, float = 50, float = 250, bool = false, bool = false); // Same as SkipEventsPerChannel() but filtering all events with integrals <(>) threshold
