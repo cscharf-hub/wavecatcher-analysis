@@ -258,8 +258,8 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 					if (event_counter == 0) active_channels.push_back(static_cast<int>(output_channel));
 
-					TString name(Form("channel_%02d, event %05d ", output_channel, an_event.EventNumber));
-					TString title(Form("Channel %d, event %d raw data", output_channel, an_event.EventNumber));
+					TString name(Form("channel%02d_event%05d", output_channel, an_event.EventNumber));
+					TString title(Form("Channel %d, event %d raw data;time [ns];signal [mV]", output_channel, an_event.EventNumber));
 					auto hCh = (TH1F*)testrundata.ConstructedAt(wfcounter);
 					hCh->SetName(name.Data());
 					hCh->SetTitle(title.Data());
@@ -400,7 +400,8 @@ void ReadRun::PlotChannelSums(bool doaverage, bool normalize, double shift, doub
 
 	double* xv = getx(shift);
 	TMultiGraph* mgsums = new TMultiGraph();
-	mgsums->SetTitle("channel sums; t [ns]; amplitude [arb.]");
+	mgsums->SetTitle("channel sums; t [ns]; amplitude [mV]");
+	if (normalize) mgsums->SetTitle("channel sums; t [ns]; amplitude [arb.]");
 
 	double max = 0., min = 0.;
 
@@ -1211,7 +1212,14 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 
 			// draw to canvas
 			intwinc->cd(current_canvas);
+			// formatting
+			gPad->SetTopMargin(.01);
+			if (current_canvas==1) gPad->SetLeftMargin(.15);
+			else gPad->SetLeftMargin(.01);
 			his->Draw();
+			his->SetStats(0);
+			his->GetYaxis()->SetLabelOffset(0.01); 
+
 			if (ymin != 0. && ymax != 0.) his->GetYaxis()->SetRangeUser(ymin, ymax); //for better comparison fix y range
 			low->Draw("same");
 			hi->Draw("same");
@@ -1244,6 +1252,8 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 			}
 		}
 	}
+
+	gPad->SetRightMargin(.01);
 	intwinc->Update();
 
 	root_out->WriteObject(intwinc, name.Data());
