@@ -1215,10 +1215,8 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 			// formatting
 			gPad->SetTopMargin(.01);
 			if (current_canvas==1) gPad->SetLeftMargin(.15);
-			else gPad->SetLeftMargin(.01);
 			his->Draw();
-			his->SetStats(0);
-			his->GetYaxis()->SetLabelOffset(0.01); 
+			his->SetStats(0); 
 
 			if (ymin != 0. && ymax != 0.) his->GetYaxis()->SetRangeUser(ymin, ymax); //for better comparison fix y range
 			low->Draw("same");
