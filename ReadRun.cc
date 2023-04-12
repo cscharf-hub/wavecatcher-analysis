@@ -461,7 +461,7 @@ void ReadRun::SmoothAll(double sigma, int method) {
 	}
 }
 
-/// @brief Filter all waveforms which are not skipped 
+/// @brief Filter all waveforms
 /// 
 /// Experimental. See FilterArray().
 /// 
@@ -471,13 +471,11 @@ void ReadRun::SmoothAll(double sigma, int method) {
 void ReadRun::FilterAll(double sigma1, double sigma2, double factor) {
 	cout << "\nfiltering wfs";
 	for (int j = 0; j < nwf; j++) {
-		if (!skip_event[j]) {
-			TH1F* his = ((TH1F*)rundata->At(j));
-			double* yvals = gety(his);
-			FilterArray(yvals, binNumber, sigma1, sigma2, factor);
-			for (int i = 1; i < his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i]);
-			delete[] yvals;
-		}
+		TH1F* his = ((TH1F*)rundata->At(j));
+		double* yvals = gety(his);
+		FilterArray(yvals, binNumber, sigma1, sigma2, factor);
+		for (int i = 1; i < his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i]);
+		delete[] yvals;
 		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
 	}
 }
@@ -1214,7 +1212,10 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 			intwinc->cd(current_canvas);
 			// formatting
 			gPad->SetTopMargin(.01);
-			if (current_canvas==1) gPad->SetLeftMargin(.15);
+			int last_canvas = nchannels;
+			if (!plot_active_channels.empty()) last_canvas = static_cast<int>(plot_active_channels.size());
+			if (current_canvas == 1 && last_canvas < 4) gPad->SetLeftMargin(.15);
+			if (current_canvas % 4 == 0 || current_canvas == last_canvas) gPad->SetRightMargin(.01);
 			his->Draw();
 			his->SetStats(0); 
 
@@ -1250,8 +1251,6 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 			}
 		}
 	}
-
-	gPad->SetRightMargin(.01);
 	intwinc->Update();
 
 	root_out->WriteObject(intwinc, name.Data());
