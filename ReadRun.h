@@ -52,7 +52,6 @@
 #include <stdlib.h>
 #include <sstream>
 
-#include "src/helpers.h"
 #include "misc/FitFunctions.h"
 
 using namespace std;
