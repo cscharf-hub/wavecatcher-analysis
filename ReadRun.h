@@ -194,8 +194,8 @@ public:
 	int GetChannelIndex(int);									// get index of a certain channel
 	void SplitCanvas(TCanvas*&);								// split canvas into pads to display all active channels on one canvas
 	void Convolute(double*&, double*, double*, int, int);		// convolution for filtering waveforms
-	void SmoothArray(double*&, int, double = 1., int = 0);		// filtering
-	void FilterArray(double*&, int, double = .4, double = 1.2, double = .25); // filtering
+	void SmoothArray(double*&, int, double = 1., int = 0, double = .3125);		// smoothing
+	void FilterArray(double*&, int, double = .4, double = 1.2, double = .25, double = .3125);	// filtering
 
 	/// @brief Constructor of the class with arguments to filter noise events in the cosmics setup. Default values do nothing 
 	ReadRun(double = 0, int = 1);
@@ -228,14 +228,14 @@ public:
 	/// @brief Total number of waveforms in data (nchannels*nacquisitions)
 	int nwf;
 
-	/// @brief ns per bin in data (has to be .3125 ns)
-	float SP;
-	/// @brief Conversion coefficient for wavecatcher
+	/// @brief ns per bin in data (sampling rate 3.2 GS/s -> 0.3125 ns)
+	float SP = .3125;
+	/// @brief DAC conversion coefficient for wavecatcher
 	/// 
 	/// From https://owncloud.lal.in2p3.fr/public.php?service=files&t=56e4a2c53a991cb08f73d03f1ce58ba2 
-	double coef;
-	/// @brief Number of bins (always 1024 samples per waveform)
-	int binNumber;
+	double coef = 2.5 / (4096 * 10);
+	/// @brief Number of bins (always 1024 samples per waveform). Do not change!
+	int binNumber = 1024;
 
 	/// @brief Stores bin numbers where the sum of waveforms have their maximum
 	/// 

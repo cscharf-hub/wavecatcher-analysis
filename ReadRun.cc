@@ -43,6 +43,8 @@ ReadRun::ReadRun(double PMT_threshold, int channels_above_threshold) {
 	PrintChargeSpectrum_cnt = 0;
 	PrintChargeSpectrumPMT_cnt = 0;
 	PrintChargeSpectrumPMTthreshold_cnt = 0;
+
+	root_out = new TFile();	// init results file
 }
 
 /// @brief Routine to read files created by the wavecatcher.
@@ -72,9 +74,6 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 	root_out = TFile::Open(out_file_name.c_str(), "recreate");
 
 	// Wavecatcher hardware/software properties
-	SP = 0.3125;					// ns per bin (sampling rate 3.2 GS/s)
-	coef = 2.5 / (4096 * 10);		// DAC conversion coefficient
-	binNumber = 1024;				// default: 1024, hard coded later on so it can be removed
 	const int nChannelsWC = 64;		// max number of channels (reduce if not using the 64 channel crate)
 
 
@@ -379,11 +378,10 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 /// @brief Destructor
 ReadRun::~ReadRun() {
-	rundata->Clear("C");
-	//delete[] maxSumBin;
-	//delete baseline_correction_result;
+	//rundata->Clear("C");
+	//if (maxSumBin) delete[] maxSumBin;
 	//plot_active_channels.clear();
-	//root_out->Close();
+	if (root_out->IsOpen()) root_out->Close();
 	cout << "\ndeleting nothing currently..." << endl;
 }
 
@@ -1913,7 +1911,7 @@ void ReadRun::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<int>
 		f->SetParName(0, "A");				f->SetParameter(0, max - min);		f->SetParLimits(0, 1, 1e9);
 		f->SetParName(1, "#Phi_{ew}");		f->SetParameter(1, phi_est);		f->SetParLimits(1, -180, 180);
 		f->SetParName(2, "#sigma");			f->SetParameter(2, 40);				f->SetParLimits(2, 5, 360);
-		f->SetParName(3, "offset");			f->SetParameter(3, min);			f->SetParLimits(3, 1e-1, 1e9);
+		f->SetParName(3, "offset");			f->SetParameter(3, min);			f->SetParLimits(3, TMath::Min(min - 1, 0.1), 1e9);
 
 		TFitResultPtr fresults = his->Fit(f, "LRS");
 		fit_results.push_back(fresults);
@@ -2217,8 +2215,9 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 /// @brief Plot timing difference between the mean timings of two channel ranges
 /// 
 /// Plots the difference between the peak times between the mean times of two ranges of channels for each event. \n
-/// It calculates \f$ \Delta t = <t_{second,i}> - <t_{first,i}> \f$ . \n
-/// Example: \n
+/// It calculates \f$ \Delta t = <t_{second,i}> - <t_{first,i}> \f$ . \n \n \n
+/// 
+/// Example:
 /// > mymeas.Print_GetTimingCFD_diff({ 26, 14 }, { 19 }, 0, 20, 2, 200); \n
 /// Plots \f$ \Delta t = t_{ch19} - (t_{ch26} + t_{ch14})/2 \f$ from 0 ns to 20 ns with 200 bins (100 ps bin width).
 /// 
@@ -2536,15 +2535,18 @@ void ReadRun::Convolute(double*& result, double* first, double* second, int size
 
 /// @brief Apply smoothing array of double with length nbins
 /// 
-/// Use with care. Method=2 is preferred.
+/// Use with care. Method=2 is preferred. \n \n
+///
+/// Please note that if you want to use gaussian smoothing for data with a binning different from 0.3125 ns/bin you need to set the variable SP to the new bin size.
 /// 
 /// @param[in,out] ar Array to be smoothed.
 /// @param nbins Number of bins of input.
-/// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution.
+/// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution (see parameter bin_size).
 /// @param method If 0 use running average (box kernel smoothing). Simple, very fast. \n 
 /// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
 /// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
-void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method) {
+/// @param bin_size Bin width of the array to smooth for gauss sigma. Default is .3125 for wavecatcher sampling rate. Set to 1 to change sigma unit to number of bins.
+void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method, double bin_size) {
 
 	double* artmp = new double[nbins];
 	for (int i = 0; i < nbins; i++) artmp[i] = ar[i];
@@ -2573,7 +2575,7 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method) {
 		double position = 0.;
 
 		for (int i = 0; i < nbins; i++) {
-			if (static_cast<double>(i) * SP < 5 * sigma) gauss[i] = TMath::Exp(-1. * TMath::Power((static_cast<double>(i) * SP - 5 * sigma), 2.) / (2. * sigma * sigma)) / (sigma * 2.506628);
+			if (static_cast<double>(i) * bin_size < 5 * sigma) gauss[i] = TMath::Exp(-1. * TMath::Power((static_cast<double>(i) * bin_size - 5 * sigma), 2.) / (2. * sigma * sigma)) / (sigma * 2.506628);
 			else gauss[i] = 0.;
 			sum += gauss[i];
 		}
@@ -2587,12 +2589,12 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method) {
 	}
 	else {
 		// gauss kernel 3*sigma
-		int nbins_3sigma = static_cast<int>(ceil(6. * sigma / SP));
+		int nbins_3sigma = static_cast<int>(ceil(6. * sigma / bin_size));
 		double* gauss = new double[nbins_3sigma];
 
 		double denom = 2. * sigma * sigma;
 		for (int i = 0; i < nbins_3sigma; i++) {
-			gauss[i] = TMath::Exp(-1. * TMath::Power(static_cast<double>(i) * SP - 3. * sigma, 2.) / denom);
+			gauss[i] = TMath::Exp(-1. * TMath::Power(static_cast<double>(i) * bin_size - 3. * sigma, 2.) / denom);
 		}
 
 		double res = 0;
@@ -2600,8 +2602,8 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method) {
 		for (int i = 0; i < nbins; i++) {
 			res = 0.;
 			norm = 0.;
-			for (int j = max(0, nbins_3sigma / 2 - i); j < min(nbins - i + nbins_3sigma / 2, min(nbins_3sigma, i + nbins_3sigma / 2)); j++) {
-				res += gauss[j] * artmp[i + j - nbins_3sigma / 2];
+			for (int j = max(0, nbins_3sigma / 2 - i); j < min(nbins - i + nbins_3sigma / 2, nbins_3sigma); j++) {
+					res += gauss[j] * artmp[i + j - nbins_3sigma / 2];
 				norm += gauss[j];
 			}
 			if (norm != 0.) ar[i] = res / norm;
@@ -2620,19 +2622,20 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method) {
 /// @param sigma1 First.
 /// @param sigma2 Second.
 /// @param factor Factor for negative part (<=1).
-void ReadRun::FilterArray(double*& ar, int nbins, double sigma1, double sigma2, double factor) {
+/// @param bin_size Bin width. Default is .3125. Set to 1 to get sigma in units of bins.
+void ReadRun::FilterArray(double*& ar, int nbins, double sigma1, double sigma2, double factor, double bin_size) {
 
 	double* artmp = new double[nbins];
 	for (int i = 0; i < nbins; i++) artmp[i] = ar[i];
 
 	// shifted difference of two gauss functions (~smoothed derivative)
-	int nbins_2sigma = static_cast<int>(ceil((2. * sigma1 + 3. * sigma2) / SP));
+	int nbins_2sigma = static_cast<int>(ceil((2. * sigma1 + 3. * sigma2) / bin_size));
 	double* sdog = new double[nbins_2sigma];
 
 	double denom1 = 2. * sigma1 * sigma1;
 	double denom2 = 2. * sigma2 * sigma2;
 	for (int i = 0; i < nbins_2sigma; i++) {
-		sdog[i] = TMath::Exp(-1. * TMath::Power(static_cast<double>(i) * SP - 3. * sigma2, 2.) / denom1) - factor * TMath::Exp(-1. * TMath::Power(static_cast<double>(i) * SP - 2. * sigma2, 2.) / denom2);
+		sdog[i] = TMath::Exp(-1. * TMath::Power(static_cast<double>(i) * bin_size - 3. * sigma2, 2.) / denom1) - factor * TMath::Exp(-1. * TMath::Power(static_cast<double>(i) * bin_size - 2. * sigma2, 2.) / denom2);
 	}
 
 	double res = 0;
@@ -2640,7 +2643,7 @@ void ReadRun::FilterArray(double*& ar, int nbins, double sigma1, double sigma2, 
 	for (int i = 0; i < nbins; i++) {
 		res = 0.;
 		norm = 0.;
-		for (int j = max(0, nbins_2sigma / 2 - i); j < min(nbins - i + nbins_2sigma / 2, min(nbins_2sigma, i + nbins_2sigma / 2)); j++) {
+		for (int j = max(0, nbins_2sigma / 2 - i); j < min(nbins - i + nbins_2sigma / 2, nbins_2sigma); j++) {
 			res += sdog[j] * artmp[i + j - nbins_2sigma / 2];
 			if (sdog[j] > 0.) norm += sdog[j];
 		}
