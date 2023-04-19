@@ -2537,7 +2537,7 @@ void ReadRun::Convolute(double*& result, double* first, double* second, int size
 /// 
 /// Use with care. Method=2 is preferred. \n \n
 ///
-/// Please note that if you want to use gaussian smoothing for data with a binning different from 0.3125 ns/bin you need to set the variable SP to the new bin size.
+/// Please note that if you want to use gaussian smoothing for data with a binning different from 0.3125 ns/bin you need to set the variable bin_size to the new bin size.
 /// 
 /// @param[in,out] ar Array to be smoothed.
 /// @param nbins Number of bins of input.
