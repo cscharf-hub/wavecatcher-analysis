@@ -2590,25 +2590,30 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method, doub
 	else {
 		// gauss kernel 3*sigma
 		int nbins_3sigma = static_cast<int>(ceil(6. * sigma / bin_size));
-		double* gauss = new double[nbins_3sigma];
+		if (nbins_3sigma % 2 == 0) nbins_3sigma++;
+		
+		if (nbins_3sigma > 1) {
+			double* gauss = new double[nbins_3sigma];
+			double gauss_offset = floor(static_cast<double>(nbins_3sigma) / 2. * bin_size); 
+			double denom = 2. * sigma * sigma;
 
-		double denom = 2. * sigma * sigma;
-		for (int i = 0; i < nbins_3sigma; i++) {
-			gauss[i] = TMath::Exp(-1. * TMath::Power(static_cast<double>(i) * bin_size - 3. * sigma, 2.) / denom);
-		}
-
-		double res = 0;
-		double norm = 0;
-		for (int i = 0; i < nbins; i++) {
-			res = 0.;
-			norm = 0.;
-			for (int j = max(0, nbins_3sigma / 2 - i); j < min(nbins - i + nbins_3sigma / 2, nbins_3sigma); j++) {
-					res += gauss[j] * artmp[i + j - nbins_3sigma / 2];
-				norm += gauss[j];
+			for (int i = 0; i < nbins_3sigma; i++) {
+				gauss[i] = TMath::Exp(-1. * TMath::Power((static_cast<double>(i)) * bin_size - gauss_offset, 2.) / denom);
 			}
-			if (norm != 0.) ar[i] = res / norm;
+
+			double res = 0;
+			double norm = 0;
+			for (int i = 0; i < nbins; i++) {
+				res = 0.;
+				norm = 0.;
+				for (int j = max(0, nbins_3sigma / 2 - i); j < min(nbins - i + nbins_3sigma / 2, nbins_3sigma); j++) {
+					res += gauss[j] * artmp[i + j - nbins_3sigma / 2];
+					norm += gauss[j];
+				}
+				if (norm != 0.) ar[i] = res / norm;
+			}
+			delete[] gauss;
 		}
-		delete[] gauss;
 	}
 	delete[] artmp;
 }
