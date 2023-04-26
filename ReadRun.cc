@@ -797,7 +797,7 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool doaverage, double 
 /// @param start_at_t Time in ns to start searching.
 /// @param end_at_t Time in ns to end searching.
 /// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution.
-/// This will bias the results! Do not use (or use very carefully, only for noisy data)!
+/// This will bias the results! Do not use (or use very carefully, only for noisy data)! Set to 0 if you do not want to use smoothing.
 /// @param find_CF_from_start If true will start search from "start_at_t" \n 
 /// If false searches backwards from time of maximum (default setting).
 /// @param smooth_method If 0 use running average (box kernel smoothing). Simple, very fast. \n 

@@ -132,7 +132,7 @@ public:
 	void CorrectBaselineMin(int = 100, bool = false, double = 0.5, int = 0, int = 0, int = 2, int = 8);
 
 	// get timing of peaks
-	void GetTimingCFD(float = .3, float = 100, float = 140, double = 0.2, bool = false, int = 2, bool = false);
+	void GetTimingCFD(float = .3, float = 100, float = 140, double = 0., bool = false, int = 2, bool = false);
 	void SkipEventsTimeDiffCut(int, int, double, double, bool = false);
 
 	void FractionEventsAboveThreshold(float = 4, bool = true, bool = true, double = 0., double = 0., bool = false);
