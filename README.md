@@ -57,4 +57,5 @@ christian.scharf at physik.hu-berlin.de
 
 [^1]: If your ROOT has c++11 (or 14) you need to change line 15 in makefile --std=c++17 to --std=c++11 (or 14).  
 Older versions of ROOT are not tested.
+
 [^2]: You might need to delete the .o and .sl files by hand before you compile the code another time, depending on read-write permissions.
