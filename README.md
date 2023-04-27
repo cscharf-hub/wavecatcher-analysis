@@ -41,15 +41,18 @@ The documentation can be found here:
 
 # Additional remarks
 
-You need to add
+You should close root with ```.q``` and restart it if you want to re-run a macro. 
+
+If you start root from a different directory you might need to add
 ```
 gSystem->Load("ReadRunLib.sl");
 ```
-to your macros or to rootlogon.C (rootlogon.C needs to be in the folder from where you start CERN ROOT).
+to your macros or to rootlogon.C (the rootlogon.C needs to be in the directory from where you start CERN ROOT).
 
-Note that you can add ```-b``` for batch mode or ```-q``` to quit root after running the analysis.
+Note that you can add ```-b``` for batch mode or ```-q``` to quit root after running your macro.
 
-You should close root with ```.q``` and restart it if you want to re-run the code because currently not everything is deleted which might lead to crashes.
+
+
 
 Support and feature requests:  
 christian.scharf at physik.hu-berlin.de
