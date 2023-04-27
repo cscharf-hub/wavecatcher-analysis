@@ -17,7 +17,7 @@ void read_exampledata() // main
 	string path;
 
 	// edit for your fs
-	path = "/mnt/c/SHiP/github/wavecatcher-analysis/examples/";
+	path = "examples/";
 
 	switch (which) { //specify folder to run below, ALL bin files in this folder will be used
 	case(0): {
