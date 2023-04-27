@@ -186,16 +186,16 @@ public:
 	double* gety(int, int);								// y values for waveform(ch, event)
 	double* gety(TH1F*);								// y values for histogram
 	double* gety(TH1F*, int, int);						// y values for dedicated y range of a histogram 
-	int rcolor(unsigned int);							// useful root colors
+	static int rcolor(unsigned int);					// useful root colors
 
-	float LinearInterpolation(float, float, float, float, float); // linear interpolation
+	static float LinearInterpolation(float, float, float, float, float); // linear interpolation
 
 	int GetEventIndex(int);										// get index of a triggered event (finds the correct event if files are not read sequentially)
 	int GetChannelIndex(int);									// get index of a certain channel
 	void SplitCanvas(TCanvas*&);								// split canvas into pads to display all active channels on one canvas
-	void Convolute(double*&, double*, double*, int, int);		// convolution for filtering waveforms
-	void SmoothArray(double*&, int, double = 1., int = 0, double = .3125);		// smoothing
-	void FilterArray(double*&, int, double = .4, double = 1.2, double = .25, double = .3125);	// filtering
+	static void Convolute(double*&, double*, double*, int, int);	// convolution for filtering waveforms
+	static void SmoothArray(double*&, int, double = 1., int = 0, double = .3125);		// smoothing
+	static void FilterArray(double*&, int, double = .4, double = 1.2, double = .25, double = .3125);	// filtering
 
 	/// @brief Constructor of the class with arguments to filter noise events in the cosmics setup. Default values do nothing 
 	ReadRun(double = 0, int = 1);
