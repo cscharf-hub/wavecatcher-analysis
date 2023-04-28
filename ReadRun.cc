@@ -3,7 +3,9 @@
 /// 
 /// You can find the relevant documentation at <a href="classReadRun.html"> ReadRun Class Reference</a> \n \n
 ///  
-/// The code and instructions for getting started can be found at <https://github.com/cscharf-hub/wavecatcher-analysis>
+/// Installation instructions can be found at <https://cscharf-hub.github.io/wavecatcher-analysis/>
+/// 
+/// And the code can be found at <https://github.com/cscharf-hub/wavecatcher-analysis>
 /// 
 /// Creators: \n
 /// Christian Scharf \n 
@@ -313,7 +315,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 						if (shiftind < 0) shiftind += 1023;
 						else if (shiftind > 1023) shiftind -= 1023;
 						val = a_channel_data.waveform[shiftind] * coef * 1000.;
-						if (change_polarity && (output_channel >= change_sign_from_to_ch_num) || (change_sign_from_to_ch_num < 0 && output_channel <= abs(change_sign_from_to_ch_num))) {
+						if ((change_polarity && (output_channel >= change_sign_from_to_ch_num)) || (change_sign_from_to_ch_num < 0 && output_channel <= abs(change_sign_from_to_ch_num))) {
 							val *= -1.;
 						}
 						hCh->SetBinContent(s + 1, val);
@@ -331,7 +333,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 					// skip events where there are large positive amplitudes in the PMT channels (real PMT photoelectron signals are negative, positive signals are pick up noise)
 					for (int s = 0; s < binNumber; ++s) {
-						if (skip_event_threshold != 0 && (skip_event_threshold > 0 && output_channel > 8 && val >= skip_event_threshold) || skip_event_threshold < 0 && output_channel > 8 && val <= skip_event_threshold) {
+						if ((skip_event_threshold != 0 && (skip_event_threshold > 0 && output_channel > 8 && val >= skip_event_threshold)) || (skip_event_threshold < 0 && output_channel > 8 && val <= skip_event_threshold)) {
 							event_flag_cnt++;
 						}
 					}

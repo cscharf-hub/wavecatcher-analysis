@@ -1,11 +1,11 @@
 # wavecatcher-analysis
 
-This is the main analysis framework for the SiPM/PMT setups in the high energy physics group at HU Berlin which use WaveCatcher devices for digitization.
+This is the main analysis framework for the SiPM/PMT setups in the high energy physics group at Humboldt University of Berlin which use WaveCatcher devices for digitization.
 
 # Requirements
 CERN ROOT Release 6.24/02 or later compiled with c++17[^1] recommended. 
 
-It is highly recommended to install ROOT with conda:  
+It is highly recommended to install ROOT with [conda](https://waylonwalker.com/install-miniconda/):  
 <https://root.cern/install/#conda>
 
 On Windows please install WSL and Ubuntu following these intructions:   
@@ -36,8 +36,10 @@ root -x examples/read_exampledata.cc
 # Documentation
 
 The documentation can be found here:  
-<https://wavecatcher-analysis.web.cern.ch/>  
-<https://wavecatcher-analysis.web.cern.ch/classReadRun.html>
+<https://wavecatcher-analysis.web.cern.ch/>
+
+Link to repository:
+https://github.com/cscharf-hub/wavecatcher-analysis
 
 # Additional remarks
 
@@ -51,8 +53,7 @@ to your macros or to rootlogon.C (the rootlogon.C needs to be in the directory f
 
 Note that you can add ```-b``` for batch mode or ```-q``` to quit root after running your macro.
 
-
-
+# Contact
 
 Support and feature requests:  
 christian.scharf at physik.hu-berlin.de
