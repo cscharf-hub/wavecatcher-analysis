@@ -38,7 +38,7 @@ root -x examples/read_exampledata.cc
 The documentation can be found here:  
 <https://wavecatcher-analysis.web.cern.ch/>
 
-Link to repository:
+Link to repository:   
 <https://github.com/cscharf-hub/wavecatcher-analysis>
 
 # Additional remarks
