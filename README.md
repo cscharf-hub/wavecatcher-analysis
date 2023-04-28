@@ -8,8 +8,7 @@ CERN ROOT Release 6.24/02 or later compiled with c++17[^1] recommended.
 It is highly recommended to install ROOT with [conda](https://waylonwalker.com/install-miniconda/):  
 <https://root.cern/install/#conda>
 
-On Windows please install WSL and Ubuntu following these intructions:   
-<https://ubuntu.com/tutorials/install-ubuntu-on-wsl2-on-windows-11-with-gui-support>
+On Windows please install first WSL and then Ubuntu from the Microsoft Store[^2]. Once done, open Ubuntu and follow the steps above in Ubuntu.   
 
 # Getting started
 
@@ -23,7 +22,7 @@ Navigate to the repository:
 cd wavecatcher-analysis
 ```
 
-And compile[^2] the library: 
+And compile[^3] the library: 
 ```
 make
 ```
@@ -31,6 +30,10 @@ make
 This should be it. You can now execute an example macro to test if everything works:
 ```
 root -x examples/read_exampledata.cc
+```
+or 
+```
+ root -b -x examples/timing_example.cc -q
 ```
 
 # Documentation
@@ -62,4 +65,8 @@ christian.scharf at physik.hu-berlin.de
 [^1]: If your ROOT has c++11 (or 14) you need to change line 15 in makefile --std=c++17 to --std=c++11 (or 14).  
 Older versions of ROOT are not tested.
 
-[^2]: You might need to delete the .o and .sl files by hand before you compile the code another time, depending on read-write permissions.
+[^2]: To open the Microsoft store press the Windows button, type ```store``` and press enter. Now search for ```wsl``` and install it. Repeat with ```ubuntu```.   
+If you encounter issues check:   
+<https://ubuntu.com/tutorials/install-ubuntu-on-wsl2-on-windows-11-with-gui-support>
+
+[^3]: You might need to delete the .o and .sl files by hand before you compile the code another time, depending on read-write permissions.

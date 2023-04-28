@@ -34,7 +34,7 @@ void read_exampledata() // main
 	ReadRun mymeas(0);
 
 	// read data
-	mymeas.ReadFile(path, true);
+	mymeas.ReadFile(path, true, 8, "exampleresults.root");
 
 	// only plot channels specified below (can be uncommented to analyze all active channels in data)
 	int channel_to_plot = 9;
@@ -42,8 +42,8 @@ void read_exampledata() // main
 	mymeas.plot_active_channels.push_back(14);
 	mymeas.plot_active_channels.push_back(15);
 
-	//apply baseline correction to ALL waveforms <- NEEDED but slow when not compiled
-	mymeas.CorrectBaseline(0., 50.);	// use mean from 0 ns to 50 ns
+	//apply baseline correction to ALL waveforms
+	mymeas.CorrectBaseline(0., 50.);	// most simple method for data without dark counts uses mean from 0 ns to 50 ns
 
 	// print events above a threshold to identify interesting events
 	mymeas.FractionEventsAboveThreshold(4, true, true, 100, 150);

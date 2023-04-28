@@ -2593,15 +2593,12 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method, doub
 		// gauss kernel 3*sigma
 		int nbins_3sigma = static_cast<int>(ceil(6. * sigma / bin_size));
 		if (nbins_3sigma % 2 == 0) nbins_3sigma++;
-		cout << "\n" << nbins_3sigma;
 		if (nbins_3sigma > 1) {
 			double* gauss = new double[nbins_3sigma];
 			double gauss_offset = floor(static_cast<double>(nbins_3sigma) / 2.) * bin_size; 
 			double denom = 2. * sigma * sigma;
-			cout << "\t" << gauss_offset;
 			for (int i = 0; i < nbins_3sigma; i++) {
 				gauss[i] = TMath::Exp(-1. * TMath::Power((static_cast<double>(i)) * bin_size - gauss_offset, 2.) / denom);
-				cout << "> | <" << i << ":" << gauss[i];
 			}
 
 			double res = 0;
