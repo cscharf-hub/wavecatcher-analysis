@@ -78,7 +78,7 @@ The documentation of all functions and variables can be found here:
 <https://wavecatcher-analysis.web.cern.ch/>   
 <https://wavecatcher-analysis.web.cern.ch/classReadRun.html>
 
-The documentation of ROOT can be found here:
+The documentation of ROOT can be found here:   
 <https://root.cern/doc/master/>
 
 Link to repository:   
