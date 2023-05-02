@@ -5,8 +5,7 @@ This is the main analysis framework for the SiPM/PMT setups in the high energy p
 # Requirements
 CERN ROOT Release 6.24/02 or later[^1] recommended. 
 
-It is highly recommended to install ROOT with [conda](https://waylonwalker.com/install-miniconda/):  
-<https://root.cern/install/#conda>
+It is highly recommended to install [ROOT](https://root.cern/install/#conda) with [conda](https://docs.conda.io/en/latest/miniconda.html). The easiest way to install all dependencies can be achieved by executing the included scripts as explained under [Getting started](#Getting-started).
 
 On Windows please install first WSL and then Ubuntu from the Microsoft Store[^2]. Once done, open Ubuntu and install ROOT with conda.   
 
@@ -22,7 +21,9 @@ Navigate to the repository:
 cd wavecatcher-analysis
 ```
 
-And compile[^3] the library: 
+Check if you have conda and ROOT installed with ```conda --version && root --version```. If you don't, please first install conda with ```bash etc/scripts/install_miniconda.sh``` and then close and restart the shell. Now install ROOT with  ```bash etc/scripts/install_root.sh```. This will likely take a few minutes, so please be patient. Once done test if ROOT installed correctly . 
+
+Now you have all the requirements and can compile[^3] the analysis library: 
 ```
 make
 ```
@@ -64,8 +65,6 @@ christian.scharf at physik.hu-berlin.de
 
 [^1]: Older versions of ROOT are not tested.
 
-[^2]: To open the Microsoft store press the Windows button, type ```store``` and press enter. Now search for ```wsl``` and install it. Repeat with ```ubuntu```.   
-If you encounter issues check:   
-<https://ubuntu.com/tutorials/install-ubuntu-on-wsl2-on-windows-11-with-gui-support>
+[^2]: To open the Microsoft store press the Windows button, type ```store``` and press enter. Now search for ```wsl``` and install it. Repeat with ```ubuntu```. If you encounter issues check [this link](https://ubuntu.com/tutorials/install-ubuntu-on-wsl2-on-windows-11-with-gui-support).
 
 [^3]: You might need to delete the .o and .sl files by hand before you compile the code another time, depending on read-write permissions.

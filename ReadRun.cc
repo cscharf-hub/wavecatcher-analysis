@@ -1,7 +1,8 @@
 /// \mainpage Introduction
-/// Page is under construction!! \n \n 
+/// This page serves as documentation of the waveform analysis framework for WaveCatcher setups in the high 
+/// energy physics groups at the Humboldt University of Berlin. \n \n \n
 /// 
-/// You can find the relevant documentation at <a href="classReadRun.html"> ReadRun Class Reference</a> \n \n
+/// You can find the relevant documentation of the functions and variables at <a href="classReadRun.html"> ReadRun Class Reference</a>
 ///  
 /// Installation instructions can be found at <https://cscharf-hub.github.io/wavecatcher-analysis/>
 /// 
