@@ -11,7 +11,7 @@ On Windows please install first WSL and then Ubuntu from the Microsoft Store[^2]
 
 # Getting started
 
-To get started open a linux or mac terminal and download repository with:
+To get started open a linux or mac terminal and download repository:
 ```
 git clone https://github.com/cscharf-hub/wavecatcher-analysis
 ```
@@ -21,7 +21,20 @@ Navigate to the repository:
 cd wavecatcher-analysis
 ```
 
-Check if you have conda and ROOT installed with ```conda --version && root --version```. If you don't, please first install conda with ```bash etc/scripts/install_miniconda.sh``` and then close and restart the shell. Now install ROOT with  ```bash etc/scripts/install_root.sh```. This will likely take a few minutes, so please be patient. Once done test if ROOT installed correctly . 
+Check if you have conda and ROOT installed:
+```
+conda --version && root --version
+``` 
+If you don't, please first install conda: 
+```
+bash etc/scripts/install_miniconda.sh
+```
+and close and restart the shell once the installation has finished. Now you should see a ```base``` in front of your username in the shell. This is the default conda environment. You can create dedicated environments for the ROOT installation(s) if you like. 
+ROOT can be installed with  
+```
+bash etc/scripts/install_root.sh
+```
+This will likely take a few minutes, so please be patient.
 
 Now you have all the requirements and can compile[^3] the analysis library: 
 ```
