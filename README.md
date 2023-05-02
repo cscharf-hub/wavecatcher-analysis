@@ -3,7 +3,9 @@
 This is the main analysis framework for the SiPM/PMT setups in the high energy physics group at Humboldt University of Berlin which use WaveCatcher devices for digitization.
 
 # Requirements
-CERN ROOT Release 6.24/02 or later[^1] recommended. Make is required 
+CERN ROOT Release 6.24/02 or later[^1] recommended.
+
+Needs ```make``` for the compilation, which can be installed with ```sudo apt install make```. 
 
 It is highly recommended to install [ROOT](https://root.cern/install/#conda) with [conda](https://docs.conda.io/en/latest/miniconda.html). The easiest way to install all dependencies can be achieved by executing the included scripts as explained under [Getting started](#Getting-started).
 
@@ -100,6 +102,6 @@ christian.scharf at physik.hu-berlin.de
 
 [^2]: To open the Microsoft store press the Windows button, type ```store``` and press enter. Now search for ```wsl``` and install it. Repeat with ```ubuntu```. If you encounter issues check [this link](https://ubuntu.com/tutorials/install-ubuntu-on-wsl2-on-windows-11-with-gui-support).
 
-[^3]: Needs ```make``` for the compilation, which can be installed with ```sudo apt install make```. One some rare systems the .o and .sl files need to be deleted by hand before compiling the code another time, depending on read-write permissions.
+[^3]: One some rare systems the .o and .sl files need to be deleted by hand before compiling the code another time, depending on read-write permissions.
 
 [^4]: To avoid repeating this step every time you log in call ```nano ~/.rootrc``` and add line ```source /usr/local/root6/pro/bin/thisroot.sh```.
