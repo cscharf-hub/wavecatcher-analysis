@@ -12,6 +12,15 @@ CFLAGS  = -Dextname -Df2cFortran -I/usr/local/include
 
 CPPFLAGS        =-I $(INCROOT)/ -I $(INCDIR)/
 CXXFLAGS        =-fPIC -g -O
+
+# Check the version of the C++ compiler for older systems
+CXXVER := $(shell $(CXX) -dumpversion)
+$(info CXXVER returns $(CXXVER))
+# Set the C++11 flag if the version is less than 4.8
+ifeq ($(shell expr $(word 1,$(subst ., ,$(CXXVER))) \< 4), 1)
+	CXXFLAGS += -std=c++11
+endif
+
 MKDEPFLAGS      =-Y ${INCL} -m -w 110
 
 DICTB           =ReadRunDictUX

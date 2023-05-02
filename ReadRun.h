@@ -121,7 +121,7 @@ public:
 	TClonesArray* rundata;
 
 	// plots amplValuessum
-	void PlotChannelSums(bool = true, bool = false, double = 0., double = 4., int = 0);
+	void PlotChannelSums(bool = false, bool = false, double = 0., double = 0., int = 2);
 
 	// baseline correction (shifts all waveforms individually)
 	void CorrectBaseline(float, float = -999);

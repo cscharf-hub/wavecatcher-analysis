@@ -3,7 +3,7 @@
 This is the main analysis framework for the SiPM/PMT setups in the high energy physics group at Humboldt University of Berlin which use WaveCatcher devices for digitization.
 
 # Requirements
-CERN ROOT Release 6.24/02 or later[^1] recommended. 
+CERN ROOT Release 6.24/02 or later[^1] recommended. Make is required 
 
 It is highly recommended to install [ROOT](https://root.cern/install/#conda) with [conda](https://docs.conda.io/en/latest/miniconda.html). The easiest way to install all dependencies can be achieved by executing the included scripts as explained under [Getting started](#Getting-started).
 
@@ -11,6 +11,7 @@ On Windows please install first WSL and then Ubuntu from the Microsoft Store[^2]
 
 # Getting started
 
+## Doing a custom setup
 To get started open a linux or mac terminal and download repository:
 ```
 git clone https://github.com/cscharf-hub/wavecatcher-analysis
@@ -50,6 +51,25 @@ or
  root -b -x examples/timing_example.cc -q
 ```
 
+## Running of the HU EE computing infrastructure
+
+The library can be used efficiently on our computing infrastructure. This has the benefit that you do not need to download measurements and can do the analysis of large data on more powerful machines. Log into the computing cluster via ssh:
+```
+ssh -X <your-username>@eelg05.physik.hu-berlin.de
+```
+Now execute:
+```
+git clone https://github.com/cscharf-hub/wavecatcher-analysis && cd wavecatcher-analysis
+```
+Now source ROOT[^4]:
+```
+source etc/scripts/root_init_ee.sh
+```
+And compile the library:
+```
+make
+```
+
 # Documentation
 
 The documentation can be found here:  
@@ -80,4 +100,6 @@ christian.scharf at physik.hu-berlin.de
 
 [^2]: To open the Microsoft store press the Windows button, type ```store``` and press enter. Now search for ```wsl``` and install it. Repeat with ```ubuntu```. If you encounter issues check [this link](https://ubuntu.com/tutorials/install-ubuntu-on-wsl2-on-windows-11-with-gui-support).
 
-[^3]: You might need to delete the .o and .sl files by hand before you compile the code another time, depending on read-write permissions.
+[^3]: Needs ```make``` for the compilation, which can be installed with ```sudo apt install make```. One some rare systems the .o and .sl files need to be deleted by hand before compiling the code another time, depending on read-write permissions.
+
+[^4]: To avoid repeating this step every time you log in call ```nano ~/.rootrc``` and add line ```source /usr/local/root6/pro/bin/thisroot.sh```.
