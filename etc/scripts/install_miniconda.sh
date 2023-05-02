@@ -29,6 +29,7 @@ source $HOME/.bashrc
 rm miniconda.sh
 
 # Initialize the base environment
-conda init bash
+$HOME/miniconda/bin/conda init bash
+$HOME/miniconda/bin/conda init zsh
 
 # Please restart shell after this step
