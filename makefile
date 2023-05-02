@@ -17,7 +17,7 @@ CXXFLAGS        =-fPIC -g -O
 CXXVER := $(shell $(CXX) -dumpversion)
 $(info CXXVER returns $(CXXVER))
 # Set the C++11 flag if the version is less than 4.8
-ifeq ($(shell expr $(word 1,$(subst ., ,$(CXXVER))) \< 4), 1)
+ifeq ($(shell expr $(word 1,$(subst ., ,$(CXXVER))) \< 5), 1)
 	CXXFLAGS += -std=c++11
 endif
 

@@ -5,11 +5,11 @@ This is the main analysis framework for the SiPM/PMT setups in the high energy p
 # Requirements
 CERN ROOT Release 6.24/02 or later[^1] recommended.
 
-Needs ```make``` for the compilation, which can be installed with ```sudo apt install make```. 
-
 It is highly recommended to install [ROOT](https://root.cern/install/#conda) with [conda](https://docs.conda.io/en/latest/miniconda.html). The easiest way to install all dependencies can be achieved by executing the included scripts as explained under [Getting started](#Getting-started).
 
-On Windows please install first WSL and then Ubuntu from the Microsoft Store[^2]. Once done, open Ubuntu and install ROOT with conda.   
+Needs ```make``` for the compilation, which can be installed e. g. with ```sudo apt install make```. 
+
+On Windows please install first WSL and then Ubuntu from the Microsoft Store[^2]. Once done, open Ubuntu and install ROOT with conda as described below. 
 
 # Getting started
 
@@ -53,7 +53,7 @@ or
  root -b -x examples/timing_example.cc -q
 ```
 
-## Running of the HU EE computing infrastructure
+## On HU EE computing infrastructure
 
 The library can be used efficiently on our computing infrastructure. This has the benefit that you do not need to download measurements and can do the analysis of large data on more powerful machines. Log into the computing cluster via ssh:
 ```
@@ -74,8 +74,9 @@ make
 
 # Documentation
 
-The documentation can be found here:  
+The documentation of all functions and variables can be found here:  
 <https://wavecatcher-analysis.web.cern.ch/>
+<https://wavecatcher-analysis.web.cern.ch/classReadRun.html>
 
 Link to repository:   
 <https://github.com/cscharf-hub/wavecatcher-analysis>
@@ -92,11 +93,14 @@ to your macros or to rootlogon.C (the rootlogon.C needs to be in the directory f
 
 Note that you can add ```-b``` for batch mode or ```-q``` to quit root after running your macro.
 
+The analysis can be easily used with Jupyter Notebooks (see examples). It can be installed e. g. with ```pip install notebook```. On Windows WSL you can set ```c.NotebookApp.use_redirect_file = True``` and add your default browser ```export BROWSER=<path-to-your-fav-browser>```.
+
 # Contact
 
 Support and feature requests:  
 christian.scharf at physik.hu-berlin.de
 
+# Footnotes
 
 [^1]: Older versions of ROOT are not tested.
 
