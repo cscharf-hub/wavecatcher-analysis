@@ -11,7 +11,7 @@ INCROOT         =$(shell root-config --incdir)
 CFLAGS  = -Dextname -Df2cFortran -I/usr/local/include 
 
 CPPFLAGS        =-I $(INCROOT)/ -I $(INCDIR)/
-CXXFLAGS        =-fPIC -g -O --std=c++17
+CXXFLAGS        =-fPIC -g -O
 MKDEPFLAGS      =-Y ${INCL} -m -w 110
 
 DICTB           =ReadRunDictUX

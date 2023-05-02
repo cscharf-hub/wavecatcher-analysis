@@ -3,12 +3,12 @@
 This is the main analysis framework for the SiPM/PMT setups in the high energy physics group at Humboldt University of Berlin which use WaveCatcher devices for digitization.
 
 # Requirements
-CERN ROOT Release 6.24/02 or later compiled with c++17[^1] recommended. 
+CERN ROOT Release 6.24/02 or later[^1] recommended. 
 
 It is highly recommended to install ROOT with [conda](https://waylonwalker.com/install-miniconda/):  
 <https://root.cern/install/#conda>
 
-On Windows please install first WSL and then Ubuntu from the Microsoft Store[^2]. Once done, open Ubuntu and follow the steps above in Ubuntu.   
+On Windows please install first WSL and then Ubuntu from the Microsoft Store[^2]. Once done, open Ubuntu and install ROOT with conda.   
 
 # Getting started
 
@@ -62,8 +62,7 @@ Support and feature requests:
 christian.scharf at physik.hu-berlin.de
 
 
-[^1]: If your ROOT has c++11 (or 14) you need to change line 15 in makefile --std=c++17 to --std=c++11 (or 14).  
-Older versions of ROOT are not tested.
+[^1]: Older versions of ROOT are not tested.
 
 [^2]: To open the Microsoft store press the Windows button, type ```store``` and press enter. Now search for ```wsl``` and install it. Repeat with ```ubuntu```.   
 If you encounter issues check:   
