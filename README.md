@@ -39,7 +39,7 @@ bash etc/scripts/install_root.sh
 ```
 This will likely take a few minutes, so please be patient.
 
-Now you have all the requirements and can compile[^3] the analysis library: 
+Now you should have all the requirements and can compile[^3] the analysis library: 
 ```
 make
 ```
