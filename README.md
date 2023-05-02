@@ -59,7 +59,7 @@ The library can be used efficiently on our computing infrastructure. This has th
 ```
 ssh -X <your-username>@eelg05.physik.hu-berlin.de
 ```
-Now execute:
+Clone the repository and navigate to the downloaded folder:
 ```
 git clone https://github.com/cscharf-hub/wavecatcher-analysis && cd wavecatcher-analysis
 ```
@@ -67,7 +67,7 @@ Now source ROOT[^4]:
 ```
 source etc/scripts/root_init_ee.sh
 ```
-And compile the library:
+And finally compile the library:
 ```
 make
 ```
