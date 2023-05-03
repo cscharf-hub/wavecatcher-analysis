@@ -28,9 +28,9 @@ DICTH           =${DICTB}.h
 DICT            =${DICTB}.cc
 DICTO           =${DICTB}.o
 
-HDRS            =src/ReadRun.h
-DICTHDRS        = $(HDRS) src/LinkDef.h
-SRCS            =src/ReadRun.cc src/helpers.cc
+HDRS            =src/ReadRun.h src/LinkDef.h
+DICTHDRS        = $(HDRS) 
+SRCS            =src/ReadRun.cc
 OBJS            =src/ReadRun.o $(DICTO)
 
 ROOTLIBS      = $(shell root-config --libs)

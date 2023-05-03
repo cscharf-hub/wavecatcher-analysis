@@ -123,6 +123,8 @@ public:
 	// plots amplValuessum
 	void PlotChannelSums(bool = false, bool = false, double = 0., double = 0., int = 2);
 
+	void PlotChannelAverages(bool = false);
+
 	// baseline correction (shifts all waveforms individually)
 	void CorrectBaseline(float, float = -999);
 	void CorrectBaseline_function(TH1F*, float, float, int);
@@ -180,7 +182,7 @@ public:
 	void PrintFFTWF(int = 1, float = 0., float = 0., int = 1);
 
 	// helper functions defined in helpers.cc
-	string list_files(const char*, const char*);	// find data files
+	string ListFiles(const char*, const char*);	// find data files
 	TH1F* Getwf(int, int, int = 1);					// channel, eventnr, color
 	double* getx(double = 0.);						// x values
 	double* gety(int, int);							// y values for waveform(ch, event)
@@ -198,7 +200,7 @@ public:
 
 	/// @brief Constructor of the class with arguments to filter noise events in the cosmics setup. Default values do nothing 
 	ReadRun(double = 0, int = 1);
-
+	
 	void ReadFile(string, bool = false, int = 9, string = "out.root", bool = false);
 
 	virtual ~ReadRun();
@@ -312,4 +314,3 @@ public:
 	ClassDef(ReadRun, 1)
 };
 #endif
-
