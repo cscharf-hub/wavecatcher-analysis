@@ -13,13 +13,16 @@ On Windows please install first WSL and then Ubuntu from the Microsoft Store[^2]
 
 # Getting started
 
+Before you download the repository, use ```cd``` to navigate to the directory where you want to store the analysis code. 
+On WSL you might want to save the analysis in your Windows home folder to make it more easily accessible: ```cd /mnt/c/Users/<your_user_name>/```
+
 ## Doing a custom setup
 To get started open a Linux or Mac terminal and download repository:
 ```
 git clone https://github.com/cscharf-hub/wavecatcher-analysis
 ```
 
-Navigate to the repository:
+This will create a new folder in your current directory. Navigate to the downloaded folder:
 ```
 cd wavecatcher-analysis
 ```
@@ -97,6 +100,8 @@ to your macros or to rootlogon.C (the rootlogon.C needs to be in the directory f
 
 Note that you can add ```-b``` for batch mode or ```-q``` to quit root after running your macro.
 
+To update the repository to the latest version, navigate into the folder of the repository and type ```git pull``` and then compile it again ```make```.
+
 The analysis can be easily used with Jupyter Notebook[^5] (see examples). It can be installed e. g. with ```pip install notebook``` and open with ```jupyter notebook```.
 
 # Contact
@@ -110,7 +115,7 @@ christian.scharf at physik.hu-berlin.de
 
 [^2]: To open the Microsoft store press the Windows button, type ```store``` and press enter. Now search for ```wsl``` and install it. Repeat with ```ubuntu```. If you encounter issues check [this link](https://ubuntu.com/tutorials/install-ubuntu-on-wsl2-on-windows-11-with-gui-support).
 
-[^3]: One some rare systems the .o and .sl files need to be deleted by hand before compiling the code another time, depending on read-write permissions.
+[^3]: On some systems you need to call ```make clean``` before compiling the code another time.
 
 [^4]: To avoid repeating this step every time you log in call ```nano ~/.rootrc``` and add line ```source /usr/local/root6/pro/bin/thisroot.sh```.
 

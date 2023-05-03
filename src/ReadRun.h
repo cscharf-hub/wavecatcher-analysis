@@ -52,7 +52,7 @@
 #include <stdlib.h>
 #include <sstream>
 
-#include "misc/FitFunctions.h"
+#include "../misc/FitFunctions.h"
 
 using namespace std;
 
@@ -179,28 +179,27 @@ public:
 	// print FFT
 	void PrintFFTWF(int = 1, float = 0., float = 0., int = 1);
 
-	// helper functions
+	// helper functions defined in helpers.cc
 	string list_files(const char*, const char*);	// find data files
-	TH1F* Getwf(int, int, int = 1);						// channel, eventnr, color
-	double* getx(double = 0.);							// x values
-	double* gety(int, int);								// y values for waveform(ch, event)
-	double* gety(TH1F*);								// y values for histogram
-	double* gety(TH1F*, int, int);						// y values for dedicated y range of a histogram 
-	static int rcolor(unsigned int);					// useful root colors
-
+	TH1F* Getwf(int, int, int = 1);					// channel, eventnr, color
+	double* getx(double = 0.);						// x values
+	double* gety(int, int);							// y values for waveform(ch, event)
+	double* gety(TH1F*);							// y values for histogram
+	double* gety(TH1F*, int, int);					// y values for dedicated y range of a histogram 
+	static int rcolor(unsigned int);				// useful root colors
 	static float LinearInterpolation(float, float, float, float, float); // linear interpolation
-
-	int GetEventIndex(int);										// get index of a triggered event (finds the correct event if files are not read sequentially)
-	int GetChannelIndex(int);									// get index of a certain channel
-	void SplitCanvas(TCanvas*&);								// split canvas into pads to display all active channels on one canvas
+	int GetEventIndex(int);			// get index of a triggered event (finds the correct event if files are not read sequentially)
+	int GetChannelIndex(int);		// get index of a certain channel
+	void SplitCanvas(TCanvas*&);	// split canvas into pads to display all active channels on one canvas
 	static void Convolute(double*&, double*, double*, int, int);	// convolution for filtering waveforms
 	static void SmoothArray(double*&, int, double = 1., int = 0, double = .3125);		// smoothing
 	static void FilterArray(double*&, int, double = .4, double = 1.2, double = .25, double = .3125);	// filtering
 
+
 	/// @brief Constructor of the class with arguments to filter noise events in the cosmics setup. Default values do nothing 
 	ReadRun(double = 0, int = 1);
 
-	void ReadFile(string, bool = false, int = 9, string = "out.root", bool = false); // file name, bool whether or not to change sign of PMT channels (channel number>8)
+	void ReadFile(string, bool = false, int = 9, string = "out.root", bool = false);
 
 	virtual ~ReadRun();
 

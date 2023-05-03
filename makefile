@@ -15,7 +15,7 @@ CXXFLAGS        =-fPIC -g -O
 
 # Check the version of the C++ compiler for older systems
 CXXVER := $(shell $(CXX) -dumpversion)
-$(info CXXVER returns $(CXXVER))
+$(info g++ compiler version $(CXXVER))
 # Set the C++11 flag if the version is less than 4.8
 ifeq ($(shell expr $(word 1,$(subst ., ,$(CXXVER))) \< 5), 1)
 	CXXFLAGS += -std=c++11
@@ -28,10 +28,10 @@ DICTH           =${DICTB}.h
 DICT            =${DICTB}.cc
 DICTO           =${DICTB}.o
 
-HDRS            =ReadRun.h
-DICTHDRS        = $(HDRS) LinkDef.h
-SRCS            =ReadRun.cc
-OBJS            =ReadRun.o $(DICTO)
+HDRS            =src/ReadRun.h
+DICTHDRS        = $(HDRS) src/LinkDef.h
+SRCS            =src/ReadRun.cc src/helpers.cc
+OBJS            =src/ReadRun.o $(DICTO)
 
 ROOTLIBS      = $(shell root-config --libs)
 ROOTGLIBS     = $(shell root-config --glibs) 
@@ -51,7 +51,7 @@ ${DICT}:        ${DICTHDRS}
 		rootcint -f ${DICT} -c ${DICTHDRS}
 
 clean:
-		@rm ${SL} ${OBJS} ${DICTO} ${DICTB}.* core
+		@rm ${SL} ${OBJS} ${DICTB}.cc
 
 %.o             : %.cc
 		${LD} ${CPPFLAGS} ${CXXFLAGS} -c $< -o $@          
