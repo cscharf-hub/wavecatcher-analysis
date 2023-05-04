@@ -107,7 +107,7 @@ You can do so by starting ROOT with ```root``` and then typing ```new TBrowser``
 If you don't like the browser-based TBrowser you can use the old-school TBrowser by calling ```root --web=off```. 
 
 To save typing, you can create an alias with ```sudo nano ~/.bash_aliases``` and add the line ```alias root='root --web=off'```. 
-For WSL you could also add a Windows browser, e. g. ```alias root='root --web="/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe"'```.
+For WSL you could also add a Windows browser ```alias root='root --web="/mnt/c/Program\ Files\ \(x86\)/.../your-browser.exe"'```.
 
 To update the repository to the latest version, navigate into the folder of the repository and type ```git pull``` and then compile it again ```make```. 
 Please note that this does not apply if there are changes in your local repository.
