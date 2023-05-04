@@ -35,7 +35,7 @@
 #include <TText.h>
 #include <TFitResultPtr.h>
 #include <TFitResult.h>
-#include <TSpline.h> 
+#include <TSpline.h>
 #include <TPaveStats.h> 
 //#include <TSpectrum.h>   // peakfinder
 //#include <TPolyMarker.h> // peakfinder
@@ -143,6 +143,7 @@ public:
 	void SmoothAll(double = 5, int = 0);
 	void FilterAll(double = .3, double = .9, double = .2);
 	void DerivativeAll();
+	void ShiftAllToAverageCF();
 
 	// functions for charge spectrum
 	int* GetIntWindow(TH1F*, float, float, float, float, int);
@@ -185,6 +186,7 @@ public:
 	string ListFiles(const char*, const char*);	// find data files
 	TH1F* Getwf(int, int, int = 1);					// channel, eventnr, color
 	double* getx(double = 0.);						// x values
+	double* gety(int);							// y values for waveform index
 	double* gety(int, int);							// y values for waveform(ch, event)
 	double* gety(TH1F*);							// y values for histogram
 	double* gety(TH1F*, int, int);					// y values for dedicated y range of a histogram 
@@ -192,8 +194,10 @@ public:
 	static float LinearInterpolation(float, float, float, float, float); // linear interpolation
 	int GetEventIndex(int);			// get index of a triggered event (finds the correct event if files are not read sequentially)
 	int GetChannelIndex(int);		// get index of a certain channel
+	int GetCurrentChannel(int);		// get index of channel for a certain waveform
+	int GetCurrentEvent(int);		// get index of event for a certain waveform
 	void SplitCanvas(TCanvas*&);	// split canvas into pads to display all active channels on one canvas
-	static void Convolute(double*&, double*, double*, int, int);	// convolution for filtering waveforms
+	static void Convolute(double*&, double*, double*, int);	// convolution for filtering waveforms
 	static void SmoothArray(double*&, int, double = 1., int = 0, double = .3125);		// smoothing
 	static void FilterArray(double*&, int, double = .4, double = 1.2, double = .25, double = .3125);	// filtering
 

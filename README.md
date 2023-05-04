@@ -35,7 +35,8 @@ If you don't, please first install conda:
 ```
 bash etc/scripts/install_miniconda.sh
 ```
-and close and restart the shell once the installation has finished. Now you should see a ```base``` in front of your username in the shell. This is the default conda environment. You can create dedicated environments for the ROOT installation(s) if you like. 
+and close and restart the shell once the installation has finished. Now you should see a ```base``` in front of your username in the shell. 
+This is the default conda environment. You can create dedicated environments for the ROOT installation(s) if you like. 
 ROOT can be installed with  
 ```
 bash etc/scripts/install_root.sh
@@ -58,7 +59,8 @@ or
 
 ## On HU EE computing infrastructure
 
-The library can be used efficiently on our computing infrastructure and the setup only takes a minute since ROOT is already installed there. This has the additional benefit that you do not need to download measurements and can do the analysis of large data on more powerful machines. 
+The library can be used efficiently on our computing infrastructure and the setup only takes a minute since ROOT is already installed there. 
+This has the additional benefit that you do not need to download measurements and can do the analysis of large data on more powerful machines. 
 Log into the computing cluster via ssh:
 ```
 ssh -X <your-username>@eelg05.physik.hu-berlin.de
@@ -100,9 +102,18 @@ to your macros or to rootlogon.C (the rootlogon.C needs to be in the directory f
 
 Note that you can add ```-b``` for batch mode or ```-q``` to quit root after running your macro.
 
-To update the repository to the latest version, navigate into the folder of the repository and type ```git pull``` and then compile it again ```make```.
+The results of the analysis are stored in ```.root``` files. In order to see the content of the ```.root``` files you need to start a ```TBrowser```.
+You can do so by starting ROOT with ```root``` and then typing ```new TBrowser```. You can, of course, also double click on the file if you have root installed locally. 
+If you don't like the browser-based TBrowser you can use the old-school TBrowser by calling ```root --web=off```. 
 
-The analysis can be easily used with Jupyter Notebook[^5] (see examples). It can be installed e. g. with ```pip install notebook``` and open with ```jupyter notebook```.
+To save typing, you can create an alias with ```sudo nano ~/.bash_aliases``` and add the line ```alias root='root --web=off'```. 
+For WSL you could also add a Windows browser, e. g. ```alias root='root --web="/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe"'```.
+
+To update the repository to the latest version, navigate into the folder of the repository and type ```git pull``` and then compile it again ```make```. 
+Please note that this does not apply if there are changes in your local repository.
+
+The analysis can be easily used with Jupyter Notebook[^5] (see examples). 
+It can be installed e. g. with ```pip install notebook``` and open with ```jupyter notebook```.
 
 # Contact
 
@@ -115,7 +126,7 @@ christian.scharf at physik.hu-berlin.de
 
 [^2]: To open the Microsoft store press the Windows button, type ```store``` and press enter. Now search for ```wsl``` and install it. Repeat with ```ubuntu```. If you encounter issues check [this link](https://ubuntu.com/tutorials/install-ubuntu-on-wsl2-on-windows-11-with-gui-support).
 
-[^3]: On some systems you need to call ```make clean``` before compiling the code another time.
+[^3]: On some systems you might need to call ```make clean``` before compiling another time with ```make```.
 
 [^4]: To avoid repeating this step every time you log in call ```nano ~/.rootrc``` and add line ```source /usr/local/root6/pro/bin/thisroot.sh```.
 

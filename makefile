@@ -1,27 +1,20 @@
 CXX             =g++
-FC              =g++
 LD              =g++
-MKDEP           =makedepend
 
-RKDIR           =$(shell pwd)
-OBJDIR          =$(WRKDIR)/obj
-INCDIR          =$(WRKDIR)/inc
-SRCDIR          =$(WRKDIR)/src
 INCROOT         =$(shell root-config --incdir)
-CFLAGS  = -Dextname -Df2cFortran -I/usr/local/include 
 
 CPPFLAGS        =-I $(INCROOT)/ -I $(INCDIR)/
-CXXFLAGS        =-fPIC -g -O
+CXXFLAGS        =-fPIC -g -O2 -Wall -Wextra
 
 # Check the version of the C++ compiler for older systems
 CXXVER := $(shell $(CXX) -dumpversion)
-$(info g++ compiler version $(CXXVER))
-# Set the C++11 flag if the version is less than 4.8
+# $(info g++ compiler version $(CXXVER))
+ifeq ($(shell expr $(word 1,$(subst ., ,$(CXXVER))) \< 7), 1)
+	CXXFLAGS += -std=c++14
+endif
 ifeq ($(shell expr $(word 1,$(subst ., ,$(CXXVER))) \< 5), 1)
 	CXXFLAGS += -std=c++11
 endif
-
-MKDEPFLAGS      =-Y ${INCL} -m -w 110
 
 DICTB           =ReadRunDictUX
 DICTH           =${DICTB}.h
@@ -29,13 +22,10 @@ DICT            =${DICTB}.cc
 DICTO           =${DICTB}.o
 
 HDRS            =src/ReadRun.h src/LinkDef.h
-DICTHDRS        = $(HDRS) 
-SRCS            =src/ReadRun.cc
+DICTHDRS        =$(HDRS) 
 OBJS            =src/ReadRun.o $(DICTO)
 
-ROOTLIBS      = $(shell root-config --libs)
-ROOTGLIBS     = $(shell root-config --glibs) 
-LIBSLIN       = $(ROOTGLIBS) -lpthread -lm -ldl
+LIBSLIN			=$(shell root-config --glibs)
 
 SLL             =ReadRunLib.sl
 
@@ -43,15 +33,16 @@ SLL             =ReadRunLib.sl
 
 all:		${OBJS} ${DICTO}
 		${LD} -shared ${CXXFLAGS} -o ${SLL} ${OBJS} ${LIBSLIN}	
-
-depend:         ${HDRS} ${SRCS}
-		${MKDEP} ${MKDEPFLAGS} ${SRCS}
+		$(MAKE) clean-intermediate
 
 ${DICT}:        ${DICTHDRS}
 		rootcint -f ${DICT} -c ${DICTHDRS}
 
+clean-intermediate:
+		@rm ${OBJS} ${DICTB}.cc
+
 clean:
-		@rm ${SL} ${OBJS} ${DICTB}.cc
+		@rm ${SLL}
 
 %.o             : %.cc
 		${LD} ${CPPFLAGS} ${CXXFLAGS} -c $< -o $@          

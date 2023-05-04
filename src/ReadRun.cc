@@ -90,9 +90,9 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 	unsigned short output_channel;
 	unsigned int output_event;
-	unsigned long long int output_tdc;
+	//unsigned long long int output_tdc;
 	unsigned short output_nbchannels;
-	unsigned short read_channels;
+	unsigned short read_channels = 0;
 
 	amplValuessum = new double* [nChannelsWC]; //sum of all wf for each channel
 	for (int i = 0; i < nChannelsWC; i++) {//init
@@ -105,10 +105,8 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 	//Start reading the raw data from .bin files.
 	stringstream inFileList;
 	inFileList << ListFiles(path.c_str(), ".bin"); //all *.bin* files in folder path
-	int nitem = 1;
 	string fileName;
 	int file_counter = 0;
-	int currentPrint = -1;
 	int wfcounter = 0;
 	int event_counter = 0;
 	int removed_event_counter = 0;
@@ -212,7 +210,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 			if (debug_data) printf("%03d has %d channels\n", an_event.EventNumber, an_event.nchannelstored);
 
 			output_event = an_event.EventNumber;
-			output_tdc = an_event.TDCsamIndex;
+			//output_tdc = an_event.TDCsamIndex;
 			output_nbchannels = an_event.nchannelstored;
 
 			if (debug_data && output_event % 200 == 0) printf("EventNr: %d, nCh: %d\n", output_event, output_nbchannels);
@@ -437,9 +435,10 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 	root_out->WriteObject(sumc, "channelsums_c");
 }
 
-/// @brief Plot averages of all waveforms for each channel
+/// @brief Plot averages only of the good, corrected waveforms for each channel
 /// 
-/// Similar to PlotChannelSums(), but will average all waveforms after baseline correction etc. has been applied.
+/// Similar to PlotChannelSums(), but will average all non-skipped waveforms. \n
+/// Can be used to inspect average waveforms after baseline correction etc. has been applied.
 /// 
 /// @param normalize If true will normalize the maximum to 1.
 void ReadRun::PlotChannelAverages(bool normalize) {
@@ -457,11 +456,13 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 			double* yv = new double[binNumber];
 			for (int k = 0; k < binNumber; k++) yv[k] = 0.;
 			for (int j = 0; j < nevents; j++) {
-				double* y_tmp = gety(i, j);
-				for (int k = 0; k < binNumber; k++) yv[k] += y_tmp[k];
-				delete[] y_tmp;
+				if (!skip_event[j]) {
+					double* y_tmp = gety(i, j);
+					for (int k = 0; k < binNumber; k++) yv[k] += y_tmp[k];
+					delete[] y_tmp;
+				}
 			}
-			for (int k = 0; k < binNumber; k++) yv[k] /= static_cast<double>(nevents);
+			for (int k = 0; k < binNumber; k++) yv[k] /= static_cast<double>(Nevents_good());
 
 			TGraph* gr = new TGraph(binNumber, xv, yv);
 			delete[] yv;
@@ -507,7 +508,7 @@ void ReadRun::SmoothAll(double sigma, int method) {
 			TH1F* his = ((TH1F*)rundata->At(j));
 			double* yvals = gety(his);
 			SmoothArray(yvals, binNumber, sigma, method);
-			for (int i = 1; i < his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i]);
+			for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i - 1]);
 			delete[] yvals;
 		}
 		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
@@ -527,7 +528,7 @@ void ReadRun::FilterAll(double sigma1, double sigma2, double factor) {
 		TH1F* his = ((TH1F*)rundata->At(j));
 		double* yvals = gety(his);
 		FilterArray(yvals, binNumber, sigma1, sigma2, factor);
-		for (int i = 1; i < his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i]);
+		for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i - 1]);
 		delete[] yvals;
 		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
 	}
@@ -542,10 +543,52 @@ void ReadRun::DerivativeAll() {
 	for (int j = 0; j < nwf; j++) {
 		TH1F* his = ((TH1F*)rundata->At(j));
 		double* yvals = gety(his);
-		for (int i = 1; i < his->GetNbinsX() - 1; i++) his->SetBinContent(i, yvals[i + 1] - yvals[i]);
+		for (int i = 1; i <= his->GetNbinsX() - 1; i++) his->SetBinContent(i, yvals[i + 1] - yvals[i]);
 		delete[] yvals;
 		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
 	}
+}
+
+/// @brief Shift all waveforms to average CF time
+///
+/// Please make sure to call GetTimingCFD() beforehand with useful parameters\n
+/// 
+void ReadRun::ShiftAllToAverageCF() {
+	cout << "\nshifting all WFs to the average CF time for each channel.\n";
+	
+	//call GetTimingCFD() in case it was not initialized
+	if (static_cast<int>(timing_results.size()) == 0) GetTimingCFD();
+	
+	double* timing_mean = new double[nchannels];
+	for (int i = 0; i < nchannels; i++) timing_mean[i] = 0.;
+	
+	for (int j = 0; j < nwf; j++) {
+		if (!skip_event[GetCurrentEvent(j)]) timing_mean[GetCurrentChannel(j)] += timing_results[j][0];
+	}
+
+	double norm = static_cast<double>(Nevents_good()) * SP;
+
+	int* timing_mean_n = new int[nchannels];
+	for (int i = 0; i < nchannels; i++) {
+		timing_mean_n[i] = static_cast<int>(round(timing_mean[i] / norm ));
+	}
+	delete[] timing_mean;
+
+	for (int j = 0; j < nwf; j++) {
+		if (!skip_event[GetCurrentEvent(j)]) {
+			TH1F* his = ((TH1F*)rundata->At(j));
+			double* yvals = gety(his);
+			int shift = static_cast<int>(round(timing_results[j][0] / SP)) - timing_mean_n[GetCurrentChannel(j)];
+			for (int i = 0; i < his->GetNbinsX(); i++) {
+				if (i + shift >= 0 && i + shift < his->GetNbinsX()) his->SetBinContent(i + 1, yvals[i + shift]);
+				else if (i + shift >= his->GetNbinsX()) his->SetBinContent(i + 1, yvals[i + shift - 1024]);
+				else his->SetBinContent(i + 1, yvals[i + shift + 1024]);
+			}
+			delete[] yvals;
+		}
+		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
+	}
+	delete[] timing_mean_n;
 }
 
 /// @brief Baseline correction constant window
@@ -769,7 +812,6 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 /// 
 void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool smooth, double sigma, int max_bin_for_baseline, int start_at, int smooth_method, int skip_channel) {
 
-	int binNumberSlope = binNumber - 1;
 	skip_channel += 1;
 
 	if (start_at > max_bin_for_baseline - nIntegrationWindow) start_at = 0;
@@ -956,13 +998,13 @@ void ReadRun::SkipEventsTimeDiffCut(int first_channel_abs, int second_channel_ab
 
 	// loop through events, calculate timing difference between channels and compare with cuts
 	for (int j = 0; j < nwf; j += nchannels) {
-		if (!skip_event[floor(j / nchannels)]) {
+		if (!skip_event[GetCurrentEvent(j)]) {
 			float time_diff = timing_results[j + second_channel][1] - timing_results[j + first_channel][1];
 
 			if (j <= static_cast<int>(timing_results.size()) && (time_diff < time_diff_min || time_diff > time_diff_max)) {
-				int currevent = eventnr_storage[floor(j / nchannels)];
+				int currevent = eventnr_storage[GetCurrentEvent(j)];
 				if (verbose) cout << "\nevent:\t" << currevent << "\tchannels:\t" << first_channel_abs << " & " << second_channel_abs << "\ttime diff:\t" << time_diff;
-				skip_event[floor(j / nchannels)] = true;
+				skip_event[GetCurrentEvent(j)] = true;
 				counter++;
 			}
 		}
@@ -1008,10 +1050,10 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 			his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
 		}
 
-		currchannel = j - nchannels * floor(j / nchannels);
+		currchannel = j - nchannels * GetCurrentEvent(j);
 		if (find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[currchannel]) != plot_active_channels.end()) {
 			if ((max && greater && his->GetMaximum() > threshold) || (max && !greater && his->GetMaximum() < threshold) || (!max && greater && his->GetMinimum() > threshold) || (!max && !greater && his->GetMinimum() < threshold)) {
-				currevent = eventnr_storage[floor(j / nchannels)];
+				currevent = eventnr_storage[GetCurrentEvent(j)];
 
 				if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel];
 
@@ -1055,17 +1097,17 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, double rangestart,
 	int counter = 0;
 
 	for (int j = 0; j < nwf; j++) {
-		if (!skip_event[floor(j / nchannels)]) {
-			int currchannel = j - nchannels * floor(j / nchannels);
+		if (!skip_event[GetCurrentEvent(j)]) {
+			int currchannel = j - nchannels * GetCurrentEvent(j);
 			if (currchannel < static_cast<int>(thresholds.size())) {
 				auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
 				if (rangestart != 0 && rangeend != 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(rangeend));
 
-				if (thresholds[currchannel] != 0. && !skip_event[floor(j / nchannels)] && ((thresholds[currchannel] > 0 && his->GetMaximum() > thresholds[currchannel]) || (thresholds[currchannel] < 0 && his->GetMinimum() < thresholds[currchannel]))) {
+				if (thresholds[currchannel] != 0. && !skip_event[GetCurrentEvent(j)] && ((thresholds[currchannel] > 0 && his->GetMaximum() > thresholds[currchannel]) || (thresholds[currchannel] < 0 && his->GetMinimum() < thresholds[currchannel]))) {
 
-					int currevent = eventnr_storage[floor(j / nchannels)];
+					int currevent = eventnr_storage[GetCurrentEvent(j)];
 					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
-					skip_event[floor(j / nchannels)] = true;
+					skip_event[GetCurrentEvent(j)] = true;
 					counter++;
 				}
 				delete his;
@@ -1102,7 +1144,7 @@ void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, fl
 	int currevent = 0;
 
 	for (int j = 0; j < nwf; j++) {
-		currevent_counter = floor(j / nchannels);
+		currevent_counter = GetCurrentEvent(j);
 
 		if (use_AND_condition || !skip_event[currevent_counter]) {
 			currchannel = j - nchannels * currevent_counter;
@@ -1403,11 +1445,17 @@ void ReadRun::ChargeCorrelation(float windowlow, float windowhi, float start, fl
 	for (int i = 0; i < nevents; i++) {
 		if (!ignore_skipped_events || !skip_event[i]) charge_corr->Fill(charge1[i], charge2[i]);
 	}
+	
 	charge_corr->Draw("colz");
 	root_out->WriteObject(charge_corr, name.str().c_str());
 
-	// move stat box out of the way
-	gPad->Update(); TPaveStats* stat_box = (TPaveStats*)charge_corr->FindObject("stats"); stat_box->SetX1NDC(0.6); stat_box->SetX2NDC(.85);
+	charge_corr_canvas->Update();
+	// move stat box out of the way (causing problems since May 23?)
+	//TPaveStats* stat_box = (TPaveStats*)charge_corr->FindObject("stats"); 
+	//stat_box->SetX1NDC(0.6); 
+	//stat_box->SetX2NDC(0.85);
+	charge_corr->SetStats(0);
+	charge_corr_canvas->Modified();
 	name << "_canvas";
 	root_out->WriteObject(charge_corr_canvas, name.str().c_str());
 }
@@ -1898,7 +1946,7 @@ void ReadRun::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<int>
 	// match channel number to channel index (still very specific)
 	int sipmnum = SiPMchannels.size();
 	vector<int> ch_index; for (int i = 0; i < sipmnum; i++) ch_index.push_back(0); // initialize the ch_index vector
-	for (int i = 0; i < active_channels.size(); i++) {
+	for (int i = 0; i < static_cast<int>(active_channels.size()); i++) {
 		for (int j = 0; j < sipmnum; j++) {
 			if (active_channels[i] == SiPMchannels[j]) ch_index[j] = i;
 		}
@@ -2513,6 +2561,18 @@ double* ReadRun::getx(double shift) {
 }
 
 /// @brief Get array of y values for a certain waveform
+/// @param waveform_index Waveform index
+/// @return Y values of waveform
+double* ReadRun::gety(int waveform_index) {
+	TH1F* his = (TH1F*)rundata->At(waveform_index);
+	double* yvals = new double[binNumber];
+	for (int i = 0; i < his->GetNbinsX(); i++) {
+		yvals[i] = his->GetBinContent(i);
+	}
+	return yvals;
+}
+
+/// @brief Get array of y values for a certain waveform
 /// @param channelnr Channel number index (not the actual channel number)
 /// @param eventnr Event number
 /// @return Y values of waveform
@@ -2587,6 +2647,20 @@ int ReadRun::GetChannelIndex(int channel_number) {
 	return channel_index;
 }
 
+/// @brief Get the current channel index for a certain waveform index
+/// @param waveform_index 
+/// @return Current channel index
+int ReadRun::GetCurrentChannel(int waveform_index) {
+	return (waveform_index - nchannels * floor(waveform_index / nchannels));
+}
+
+/// @brief Get the current event index for a certain waveform index
+/// @param waveform_index 
+/// @return Current event index
+int ReadRun::GetCurrentEvent(int waveform_index) {
+	return floor(waveform_index / nchannels);
+}
+
 /// @brief Helper to split canvas according to the number of channels to be plotted
 /// @param c Canvas to be split
 void ReadRun::SplitCanvas(TCanvas*& c) {
@@ -2612,33 +2686,23 @@ float ReadRun::LinearInterpolation(float ym, float x1, float x2, float y1, float
 /// @param[in,out] result Array containing convolution result
 /// @param first First array for convolution
 /// @param second Second array for convolution 
-/// @param size1 Size of first array (ideally size1 should be equal to size2)
-/// @param size2 Size of second array
-void ReadRun::Convolute(double*& result, double* first, double* second, int size1, int size2) {
+/// @param size Size of arrays
+void ReadRun::Convolute(double*& result, double* first, double* second, int size) {
 
-	// uncomment to use sum instead of FFT
-	// faster if size1<size2
-	//for (int i = 0; i < size2; i++) {
-	//	result[i] = 0.;
-	//	for (int j = 0; j < TMath::Min(size1, i); j++) {
-	//		result[i] += first[j] * second[i - j];
-	//	}
-	//}
+	double* refirst = new double[size];
+	double* imfirst = new double[size];
+	double* resecond = new double[size];
+	double* imsecond = new double[size];
+	double* reres = new double[size];
+	double* imres = new double[size];
 
-	double* refirst = new double[size1];
-	double* imfirst = new double[size1];
-	double* resecond = new double[size1];
-	double* imsecond = new double[size1];
-	double* reres = new double[size1];
-	double* imres = new double[size1];
-
-	TVirtualFFT* fftfirst = TVirtualFFT::FFT(1, &size1, "R2C ES");
+	TVirtualFFT* fftfirst = TVirtualFFT::FFT(1, &size, "R2C ES");
 	fftfirst->SetPoints(first);
 	fftfirst->Transform();
 	fftfirst->GetPointsComplex(refirst, imfirst);
 	delete fftfirst;
 
-	TVirtualFFT* fftsecond = TVirtualFFT::FFT(1, &size1, "R2C ES");
+	TVirtualFFT* fftsecond = TVirtualFFT::FFT(1, &size, "R2C ES");
 	fftsecond->SetPoints(second);
 	fftsecond->Transform();
 	fftsecond->GetPointsComplex(resecond, imsecond);
@@ -2648,18 +2712,18 @@ void ReadRun::Convolute(double*& result, double* first, double* second, int size
 	TComplex cosecond;
 	TComplex cores;
 
-	for (int i = 0; i < size1; i++) {
+	for (int i = 0; i < size; i++) {
 		cofirst(refirst[i], imfirst[i]);
 		cosecond(resecond[i], imsecond[i]);
 
-		cores = cofirst * cosecond / static_cast<double>(size1);
+		cores = cofirst * cosecond / static_cast<double>(size);
 
 		reres[i] = cores.Re();
 		imres[i] = cores.Im();
 	}
 
 	//cout << "performing IFFT ... ";
-	TVirtualFFT* fft_back = TVirtualFFT::FFT(1, &size1, "C2R ES");
+	TVirtualFFT* fft_back = TVirtualFFT::FFT(1, &size, "C2R ES");
 	fft_back->SetPointsComplex(reres, imres);
 	fft_back->Transform();
 	fft_back->GetPoints(result);
@@ -2706,7 +2770,6 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method, doub
 		double* gauss = new double[nbins];
 
 		double sum = 0.;
-		double position = 0.;
 
 		for (int i = 0; i < nbins; i++) {
 			if (static_cast<double>(i) * bin_size < 5 * sigma) gauss[i] = TMath::Exp(-1. * TMath::Power((static_cast<double>(i) * bin_size - 5 * sigma), 2.) / (2. * sigma * sigma)) / (sigma * 2.506628);
@@ -2718,7 +2781,7 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method, doub
 			gauss[i] /= sum;
 		}
 
-		Convolute(ar, artmp, gauss, nbins, nbins);
+		Convolute(ar, artmp, gauss, nbins);
 		delete[] gauss;
 	}
 	else {
