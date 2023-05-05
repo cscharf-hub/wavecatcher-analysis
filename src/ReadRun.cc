@@ -381,7 +381,10 @@ ReadRun::~ReadRun() {
 	cout << "\ndeleting nothing currently..." << endl;
 }
 
-/// @brief Plot sums of all waveforms for each channel
+/// @brief Plot sums of all raw waveforms for each channel
+/// 
+/// To plot the average waveforms after baseline correction etc. use PlotChannelAverages().
+/// 
 /// @param smooth If true it will apply smoothing to plots. \n 
 /// Do not use without very good reason as it biases the results.
 /// @param normalize If true will normalize the maximum to 1.

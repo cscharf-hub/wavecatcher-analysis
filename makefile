@@ -10,11 +10,13 @@ CXXFLAGS        =-fPIC -g -O2 -Wall -Wextra
 CXXVER := $(shell $(CXX) -dumpversion)
 # $(info g++ compiler version $(CXXVER))
 ifeq ($(shell expr $(word 1,$(subst ., ,$(CXXVER))) \< 7), 1)
-	CXXFLAGS += -std=c++14
+	ifeq ($(shell expr $(word 1,$(subst ., ,$(CXXVER))) \< 5), 1)
+		CXXFLAGS += -std=c++11
+	else
+		CXXFLAGS += -std=c++14
+	endif
 endif
-ifeq ($(shell expr $(word 1,$(subst ., ,$(CXXVER))) \< 5), 1)
-	CXXFLAGS += -std=c++11
-endif
+
 
 DICTB           =ReadRunDictUX
 DICTH           =${DICTB}.h
