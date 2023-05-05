@@ -438,7 +438,8 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 /// @brief Plot averages only of the good, corrected waveforms for each channel
 /// 
 /// Similar to PlotChannelSums(), but will average all non-skipped waveforms. \n
-/// Can be used to inspect average waveforms after baseline correction etc. has been applied.
+/// Can be used to inspect average waveforms after baseline correction etc. has been applied. 
+/// To do so, call function after calling correction and event filter functions.
 /// 
 /// @param normalize If true will normalize the maximum to 1.
 void ReadRun::PlotChannelAverages(bool normalize) {
@@ -549,9 +550,9 @@ void ReadRun::DerivativeAll() {
 	}
 }
 
-/// @brief Shift all waveforms to average CF time
+/// @brief Shift all waveforms to the average start times of the signals per channel
 ///
-/// Please make sure to call GetTimingCFD() beforehand with useful parameters\n
+/// Please make sure to call GetTimingCFD() with parameters useful for your data **before** calling this function. \n
 /// 
 void ReadRun::ShiftAllToAverageCF() {
 	cout << "\nshifting all WFs to the average CF time for each channel.\n";
