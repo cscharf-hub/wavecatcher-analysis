@@ -570,7 +570,7 @@ void ReadRun::ShiftAllToAverageCF() {
 		if (!skip_event[GetCurrentEvent(j)]) timing_mean[GetCurrentChannel(j)] += timing_results[j][0];
 	}
 
-	double norm = static_cast<double>(Nevents_good()) * SP;
+	double norm = static_cast<double>(Nevents_good());
 
 	int* timing_mean_n = new int[nchannels];
 	for (int i = 0; i < nchannels; i++) {
@@ -582,11 +582,13 @@ void ReadRun::ShiftAllToAverageCF() {
 		if (!skip_event[GetCurrentEvent(j)]) {
 			TH1F* his = ((TH1F*)rundata->At(j));
 			double* yvals = gety(his);
-			int shift = static_cast<int>(round(timing_results[j][0] / SP)) - timing_mean_n[GetCurrentChannel(j)];
+			int shift = static_cast<int>(timing_results[j][0]) - timing_mean_n[GetCurrentChannel(j)];
+
 			for (int i = 0; i < his->GetNbinsX(); i++) {
-				if (i + shift >= 0 && i + shift < his->GetNbinsX()) his->SetBinContent(i + 1, yvals[i + shift]);
-				else if (i + shift >= his->GetNbinsX()) his->SetBinContent(i + 1, yvals[i + shift - 1024]);
-				else his->SetBinContent(i + 1, yvals[i + shift + 1024]);
+				int icycle = 0;
+				if (i + shift >= his->GetNbinsX()) icycle = -1 * his->GetNbinsX();
+				else if (i + shift < 0) icycle = his->GetNbinsX();
+				his->SetBinContent(i + 1, yvals[i + shift + icycle]);
 			}
 			delete[] yvals;
 		}
@@ -885,6 +887,7 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool smooth, double sig
 		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
 	}
 }
+/// @example timing_example.cc
 
 /// @brief Determine the timing of the maximum peak with constant fraction discrimination
 /// 
@@ -977,6 +980,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 	}
 	cout << endl;
 }
+/// @example timing_example.cc
 
 /// @brief Skip events where the time difference between two channels is outside of specified range
 /// 
@@ -1015,6 +1019,7 @@ void ReadRun::SkipEventsTimeDiffCut(int first_channel_abs, int second_channel_ab
 	}
 	cout << "\n\n\t" << counter << " events will be cut out of " << nevents << "\n\n";
 }
+/// @example timing_example.cc
 
 /// @brief Find events with max/min above/below a certain threshold
 /// 
@@ -1354,6 +1359,7 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 
 	root_out->WriteObject(intwinc, name.Data());
 }
+/// @example timing_example.cc
 
 /// @brief Returns array with the individual "charge"/amplitude for all events of one channel
 /// 
@@ -1463,6 +1469,7 @@ void ReadRun::ChargeCorrelation(float windowlow, float windowhi, float start, fl
 	name << "_canvas";
 	root_out->WriteObject(charge_corr_canvas, name.str().c_str());
 }
+/// @example timing_example.cc
 
 /// @brief Histogram of the "charge" spectrum for one channel
 /// 
@@ -2211,7 +2218,7 @@ TH1F* ReadRun::His_GetTimingCFD(int channel_index, float rangestart, float range
 /// @param do_fit If 1: fits a gaussian. \n
 /// Else do not fit. \n 
 /// Fit results per channel are stored in ReadRun::timing_fit_results.
-/// @param nbins Number of bins for histogram.
+/// @param nbins Number of bins for histogram. Will use 320 MHz sampling rate for binning if nbins = -999.
 /// @param fitoption ROOT fit option, default is "S".
 /// @param set_errors Assign errors to the bins. Will assign errors of 1 to empty bins and \f$ \sqrt(N) \f$ if they are not empty. 
 /// Can improve the chi^2 fit.
@@ -2259,6 +2266,7 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, i
 	timing_cfd_c->Update();
 	root_out->WriteObject(timing_cfd_c, "TimingCFD");
 }
+/// @example timing_example.cc
 
 /// @brief Plot timing difference between the mean timings of two channel ranges
 /// 
@@ -2385,7 +2393,8 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 		auto expgconv = new TF1("exp x gauss convolution", gxe.c_str(), fitrangestart, fitrangeend);
 		expgconv->SetNpx(5000);
 
-		// this parameter describes the sigma from different light paths and/or the effective decay time constant for self-absorption and reemission
+		// this parameter describes the sigma from different light paths 
+		// and/or the effective decay time constant for self-absorption and reemission
 		expgconv->SetParName(0, "#tau_{eff}");		expgconv->SetParameter(0, .5);
 		expgconv->SetParLimits(0, 1e-3, 5.);	//expgconv->FixParameter(0, 1.55);
 
@@ -2426,6 +2435,7 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 	timing_cfd_d_c->Update();
 	root_out->WriteObject(timing_cfd_d_c, "TimingCFD_diff");
 }
+/// @example timing_example.cc
 
 /// @brief Print Fourier transform of waveform
 /// @param eventnr Event number
@@ -2623,7 +2633,7 @@ double* ReadRun::gety(TH1F* his, int start_at, int end_at) {
 /// @return ROOT color index
 int ReadRun::rcolor(unsigned int i) {
 	const int nclrs = 16;
-	int rclrs[nclrs] = { 1, 2, 3, 4, 5, 6, 7, 13, 28, 30, 34, 38, 40, 31, 46, 49 };
+	int rclrs[nclrs] = { 1, 2, 3, 4, 6, 7, 13, 20, 28, 30, 34, 38, 40, 31, 46, 49 };
 	return rclrs[i - static_cast<int>(floor(i / nclrs)) * nclrs];
 }
 
