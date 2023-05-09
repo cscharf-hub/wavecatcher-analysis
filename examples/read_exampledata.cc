@@ -29,7 +29,7 @@ void read_exampledata(int which = 0)
 	//mymeas.plot_active_channels.push_back(15);
 	
 	// apply baseline correction to ALL waveforms
-	// CorrectBaseline() is the most simple method for data without dark counts (PMT data). Uses mean from 5 ns to 55 ns
+	// searches for the minimum of sum(y_i^2)+sum(y_i)^2 over 100 bins, starting at bin 50 going until bin 250 without smoothing
 	mymeas.CorrectBaselineMinSlopeRMS(100, false, 0, 250, 50);
 
 	////plotting
