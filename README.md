@@ -50,11 +50,17 @@ make
 
 This should be it. You can now execute an example macro to test if everything works:
 ```
-root -x examples/read_exampledata.cc
+root "examples/read_exampledata.cc(0)"
 ```
-or 
+This should execute the macro ```read_exampledata.cc``` with the parameter ```0```. You can also call: 
 ```
- root -b -x examples/timing_example.cc -q
+ root examples/timing_example.cc -q
+```
+to run the timing example macro and close root once it has finished. The results will be saved in a .root file.
+
+**In order to find bugs it is highly advisable to compile your macros** every now and then. This can be achieved by simply adding a ```+``` after the file name:
+```
+ root -b -x "examples/read_exampledata.cc+(0)" -q
 ```
 
 ## On HU EE computing infrastructure

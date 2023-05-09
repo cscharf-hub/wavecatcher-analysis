@@ -32,6 +32,8 @@ ClassImp(ReadRun)
 ReadRun::ReadRun(double PMT_threshold, int channels_above_threshold) {
 
 	cout << "\ninitializing ..." << endl;
+	ROOT::EnableImplicitMT();
+	TH1::AddDirectory(kFALSE);
 
 	skip_event_threshold = PMT_threshold;
 	skip_event_threshold_nch = channels_above_threshold;
@@ -46,6 +48,7 @@ ReadRun::ReadRun(double PMT_threshold, int channels_above_threshold) {
 	PrintChargeSpectrum_cnt = 0;
 	PrintChargeSpectrumPMT_cnt = 0;
 	PrintChargeSpectrumPMTthreshold_cnt = 0;
+	PlotChannelAverages_cnt = 0;
 
 	root_out = new TFile();	// init results file
 }
@@ -437,6 +440,7 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 	root_out->WriteObject(mgsums, "channelsums");
 	root_out->WriteObject(sumc, "channelsums_c");
 }
+/// @example read_exampledata.cc
 
 /// @brief Plot averages only of the good, corrected waveforms for each channel
 /// 
@@ -446,11 +450,11 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 /// 
 /// @param normalize If true will normalize the maximum to 1.
 void ReadRun::PlotChannelAverages(bool normalize) {
-
+	
 	double* xv = getx();
 	TMultiGraph* mgav = new TMultiGraph();
 	mgav->SetTitle("channel averages; t [ns]; amplitude [mV]");
-	if (normalize) mgav->SetTitle("channel averages; t [ns]; amplitude [arb.]");
+	if (normalize) mgav->SetTitle("channel averages; t[ns]; amplitude[arb.]");
 
 	double max = 0., min = 0.;
 		
@@ -490,7 +494,8 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 	}
 	delete[] xv;
 
-	TCanvas* avc = new TCanvas("Averages", "", 600, 400);
+	string cname("Averages_" + to_string(PlotChannelAverages_cnt++));
+	TCanvas* avc = new TCanvas(cname.c_str(), cname.c_str(), 600, 400);
 	mgav->Draw("AL");
 	if (normalize) mgav->GetYaxis()->SetRangeUser(-0.2, 1);
 	else mgav->GetYaxis()->SetRangeUser(min, max);
@@ -498,6 +503,8 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 	root_out->WriteObject(mgav, "channelaverages");
 	root_out->WriteObject(avc, "channelaverages_c");
 }
+/// @example timing_example.cc
+/// @example read_exampledata.cc
 
 /// @brief Smoothing all waveforms which are not skipped (for testing, do not use for analysis!)
 /// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution.
@@ -554,8 +561,9 @@ void ReadRun::DerivativeAll() {
 }
 
 /// @brief Shift all waveforms to the average start times of the signals per channel
-///
+/// 
 /// Please make sure to call GetTimingCFD() with parameters useful for your data **before** calling this function. \n
+/// Also make sure to call PrintChargeSpectrumWF() **before** calling this function since the timing reference (blue line) won't be shifted.
 /// 
 void ReadRun::ShiftAllToAverageCF() {
 	cout << "\nshifting all WFs to the average CF time for each channel.\n";
@@ -801,6 +809,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 	}
 	delete[] slope;
 }
+/// @example read_exampledata.cc
 
 /// @brief Baseline correction using minimum sum (\f$\propto\f$ mean) in range for correction 
 /// 
@@ -816,8 +825,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 /// Results will be visualized for each event in PrintChargeSpectrumWF(). \n 
 /// For parameters see CorrectBaselineMinSlopeRMS() 
 /// 
-void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool smooth, double sigma, int max_bin_for_baseline, int start_at, int smooth_method, int skip_channel) {
-
+void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_bin_for_baseline, int start_at, int smooth_method, int skip_channel) {
 	skip_channel += 1;
 
 	if (start_at > max_bin_for_baseline - nIntegrationWindow) start_at = 0;
@@ -862,18 +870,10 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool smooth, double sig
 				}
 			}
 
-			corr = 0.;
-			if (!smooth) {
-				corr = his->Integral(iintwindowstart, iintwindowstart + nIntegrationWindow) / static_cast<float>(nIntegrationWindow + 1);
-			}
-			else {
-				for (int i = iintwindowstart; i < iintwindowstart + nIntegrationWindow; i++) corr += yvals[i];
-				corr /= static_cast<float>(nIntegrationWindow);
-			}
+			corr = his->Integral(iintwindowstart, iintwindowstart + nIntegrationWindow) / static_cast<float>(nIntegrationWindow + 1);
 
 			for (int i = 0; i < binNumber; i++) {
-				if (!smooth) his->SetBinContent(i, his->GetBinContent(i) - corr);
-				else his->SetBinContent(i, yvals[i] - corr);
+				his->SetBinContent(i, his->GetBinContent(i) - corr);
 			}
 			delete[] yvals; //delete slow
 		}
@@ -902,8 +902,8 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, bool smooth, double sig
 /// @param end_at_t Time in ns to end searching.
 /// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution.
 /// This will bias the results! Do not use (or use very carefully, only for noisy data)! Set to 0 if you do not want to use smoothing.
-/// @param find_CF_from_start If true will start search from "start_at_t" \n 
-/// If false searches backwards from time of maximum (default setting).
+/// @param find_CF_from_start If true will start search from "start_at_t" to find the first arriving photon (default setting). \n 
+/// If false search backwards from the time of the maximum.  
 /// @param smooth_method If 0 use running average (box kernel smoothing). Simple, very fast. \n 
 /// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
 /// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
@@ -1182,6 +1182,8 @@ void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, fl
 
 	cout << "\n\n\t" << counter << " events will be cut out of " << nevents << endl;
 }
+/// @example timing_example.cc
+/// @example read_exampledata.cc
 
 /// @brief Prints a list of all skipped events into the terminal for diagnostics
 void ReadRun::PrintSkippedEvents() {
@@ -1360,6 +1362,7 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 	root_out->WriteObject(intwinc, name.Data());
 }
 /// @example timing_example.cc
+/// @example read_exampledata.cc
 
 /// @brief Returns array with the individual "charge"/amplitude for all events of one channel
 /// 
@@ -1533,19 +1536,16 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 
 	cout << "\n\nThere is data recorded in " << active_channels.size() << " channels \n\n\n";
 	int current_canvas = 0;
-
+	
+	TH1F* his;
 	for (int i = 0; i < nchannels; i++) {
 		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
 			current_canvas++;
-
-			TH1F* his;
+			
 			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins);
 			his->GetYaxis()->SetTitle("#Entries");
 			if (windowlow + windowhi > 0.) his->GetXaxis()->SetTitle("integral in mV#timesns");
 			else his->GetXaxis()->SetTitle("amplitude in mV");
-
-			TString name(Form("ChargeSpectrum channel_%02d", active_channels[i]));
-			root_out->WriteObject(his, name.Data());
 
 			//store the mean integral of each channel --> used for correction factors of phi_ew analysis
 			mean_integral.push_back(his->GetMean());
@@ -1553,195 +1553,200 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			chargec->cd(current_canvas);
 
 			//fitting
-			if (which_fitf == 0) {}
-			else if (which_fitf == 1) { // landau gauss convolution for large number of photons
-				Fitf_langaus fitf;
-				int n_par = 4;
-				TF1* f = new TF1("fitf_langaus", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
+			if (i < max_channel_nr_to_fit) {
+				if (which_fitf == 0) {}
+				else if (which_fitf == 1) { // landau gauss convolution for large number of photons
+					Fitf_langaus fitf;
+					int n_par = 4;
+					TF1* f = new TF1("fitf_langaus", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
 
-				f->SetParName(0, "Width");				f->SetParameter(0, 35);
-				f->SetParName(1, "MPV");				f->SetParameter(1, 1000);
-				f->SetParName(2, "Area");			    f->SetParameter(2, 10000);
-				f->SetParName(3, "#sigma_{Gauss}");		f->SetParameter(3, 100);
+					f->SetParName(0, "Width");				f->SetParameter(0, 35);
+					f->SetParName(1, "MPV");				f->SetParameter(1, 1000);
+					f->SetParName(2, "Area");			    f->SetParameter(2, 10000);
+					f->SetParName(3, "#sigma_{Gauss}");		f->SetParameter(3, 100);
 
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(4, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+					if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(4, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
 
-				if (i < max_channel_nr_to_fit) {
-					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
-					TFitResultPtr fresults = his->Fit(f, "LRS");
-					fit_results.push_back(fresults);
+					if (i < max_channel_nr_to_fit) {
+						cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+						TFitResultPtr fresults = his->Fit(f, "LRS");
+						fit_results.push_back(fresults);
+					}
+				}
+				else if (which_fitf == 2) { // if pedestal is biased because of peak finder algorithm
+					Fitf_biased fitf;
+					int n_par = 9;
+					TF1* f = new TF1("fitf_biased", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
+
+					f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
+					f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
+					f->SetParName(2, "#lambda");			f->SetParameter(2, .04);
+					f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 2.1);
+					f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4); //f->SetParLimits(4, 1.e-9, 1.e3);
+					f->SetParName(5, "Gain");				f->SetParameter(5, 30.); //f->FixParameter(5, 10.);
+					f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
+					f->SetParName(7, "norm_{0}");			f->SetParameter(7, 0.7);
+					f->SetParName(8, "x_{0}");				f->SetParameter(8, 5.);
+
+					if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+
+					if (i < max_channel_nr_to_fit) {
+						cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+						TFitResultPtr fresults = his->Fit(f, "LRS");
+						fit_results.push_back(fresults);
+					}
+
+					// get number of excess events in the pedestal in the fit region. To get the absolute number of excess events the full pedestal needs to be inside of the fit range (fitrangestart, fitrangeend)
+					//double excessEventsInPedestal = f->Integral(fitrangestart, fitrangeend)/.3125;
+					//f->SetParameter(7, 1.);
+					//excessEventsInPedestal -= f->Integral(fitrangestart, fitrangeend)/.3125;
+					//cout << "\nNumber of excess events in the pedestal within the fit range:\t" << excessEventsInPedestal << "\n\n";
+				}
+				else if (which_fitf == 3) { // SiPM fit function with exponential delayed after pulsing
+					Fitf_full fitf;
+					int n_par = 9;
+					TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
+
+					f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
+					f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
+					f->SetParName(2, "#lambda");			f->SetParameter(2, .04);
+					f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 2.1);
+					f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4);
+					f->SetParName(5, "Gain");				f->SetParameter(5, 30.); //f->FixParameter(5, 40.);
+					f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
+					f->SetParName(7, "#alpha");				f->SetParameter(7, .1); //f->FixParameter(7, .2);
+					f->SetParName(8, "#beta");				f->SetParameter(8, 80.); //f->FixParameter(8, 80);
+
+					if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+
+					if (i < max_channel_nr_to_fit) {
+						cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+						TFitResultPtr fresults = his->Fit(f, "LRS");
+						fit_results.push_back(fresults);
+					}
+				}
+				else if (which_fitf == 4) { // ideal PMT fit function
+					Fitf_PMT_ideal fitf;
+					int n_par = 4;
+					TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
+
+					f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
+					f->SetParName(1, "#mu");				f->SetParameter(1, 1.);
+					f->SetParName(2, "#sigma");				f->SetParameter(2, 5.);
+					f->SetParName(3, "gain");				f->SetParameter(3, 10.);
+
+					if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+
+					if (i < max_channel_nr_to_fit) {
+						cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+						TFitResultPtr fresults = his->Fit(f, "LRS");
+						fit_results.push_back(fresults);
+					}
+				}
+				else if (which_fitf == 5) { // PMT fit function
+					Fitf_PMT fitf;
+					int n_par = 8;
+					TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
+
+					f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
+					f->SetParName(1, "w");					f->SetParameter(1, .05);	f->SetParLimits(1, 1.e-99, 4.e-1); //probability for type II BG
+					f->SetParName(2, "#alpha");				f->SetParameter(2, .05);	f->SetParLimits(2, 1.e-99, 5.e-2); //coefficient of exponential decrease of typ II BG
+					f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 5.);		f->SetParLimits(3, 1.e-9, 1.e3);
+					f->SetParName(4, "Q_{0}");				f->SetParameter(4, 0.);
+					f->SetParName(5, "#mu");				f->SetParameter(5, 1.);
+					f->SetParName(6, "#sigma_{1}");			f->SetParameter(6, 5.);		f->SetParLimits(6, 1.e-9, 1.e3);
+					f->SetParName(7, "Q_{1}");				f->SetParameter(7, 10.);
+
+					if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+
+					if (i < max_channel_nr_to_fit) {
+						cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+						TFitResultPtr fresults = his->Fit(f, "LRS");
+						fit_results.push_back(fresults);
+					}
+				}
+				else if (which_fitf == 6) { // PMT fit function with biased pedestal
+					Fitf_PMT_pedestal fitf;
+					int n_par = 9;
+					TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
+
+					f->SetParName(0, "A");					f->SetParameter(0, his->Integral());
+					f->SetParName(1, "w");					f->SetParameter(1, .05);	f->SetParLimits(1, 1.e-9, 4.e-1);	//probability for type II BG
+					f->SetParName(2, "#alpha");				f->SetParameter(2, .05);	f->SetParLimits(2, 1.e-9, 5.e-2);	//coefficient of exponential decrease of typ II BG
+					f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 5.);		f->SetParLimits(3, 1.e-9, 1.e3);
+					f->SetParName(4, "Q_{0}");				f->SetParameter(4, 0.);		f->SetParLimits(4, -1.e2, 1.e2);
+					f->SetParName(5, "#mu");				f->SetParameter(5, 1.);		f->SetParLimits(5, 1.e-9, 1.e2);
+					f->SetParName(6, "#sigma_{1}");			f->SetParameter(6, 5.);		f->SetParLimits(6, 1.e-9, 1.e3);
+					f->SetParName(7, "Q_{1}");				f->SetParameter(7, 10.);	f->SetParLimits(7, 1.e-9, 1.e9);
+					f->SetParName(8, "A_{0}");				f->SetParameter(8, 1.);		f->SetParLimits(8, 1.e-9, 1.e1);
+
+					if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+
+					if (i < max_channel_nr_to_fit) {
+						cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+						TFitResultPtr fresults = his->Fit(f, "LRS");
+						fit_results.push_back(fresults);
+					}
+				}
+				else if (which_fitf == 7) { // default SiPM fit function + dark count spectrum (for lots of false triggers)
+					Fitf_plus_DC fitf;
+					int n_par = 9;
+					TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
+
+					f->SetParName(0, "A");					f->SetParameter(0, his->Integral());
+					f->SetParName(1, "w");					f->SetParameter(1, .05);	f->SetParLimits(1, 1.e-9, 4.e-1);	//probability for type II BG
+					f->SetParName(2, "#alpha");				f->SetParameter(2, .05);	f->SetParLimits(2, 1.e-9, 5.e-2);	//coefficient of exponential decrease of typ II BG
+					f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 5.);		f->SetParLimits(3, 1.e-9, 1.e3);
+					f->SetParName(4, "Q_{0}");				f->SetParameter(4, 0.);		f->SetParLimits(4, -1.e2, 1.e2);
+					f->SetParName(5, "#mu");				f->SetParameter(5, 1.);		f->SetParLimits(5, 1.e-9, 1.e2);
+					f->SetParName(6, "#sigma_{1}");			f->SetParameter(6, 5.);		f->SetParLimits(6, 1.e-9, 1.e3);
+					f->SetParName(7, "#mu_darkcount");		f->SetParameter(7, .1);		f->SetParLimits(7, 1.e-9, 1.);
+					f->SetParName(8, "N_{0}_darkcount");	f->SetParameter(8, .05);	f->SetParLimits(8, 1.e-9, .3);
+
+					if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+
+					if (i < max_channel_nr_to_fit) {
+						cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+						TFitResultPtr fresults = his->Fit(f, "LRS");
+						fit_results.push_back(fresults);
+					}
+				}
+				else { // default SiPM fit function
+					Fitf fitf;
+					int n_par = 7;
+					TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
+
+					f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
+					f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
+					f->SetParName(2, "#lambda");			f->SetParameter(2, .04);
+					f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 2.1);
+					f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4);
+					f->SetParName(5, "Gain");				f->SetParameter(5, 30.); //f->FixParameter(5, 40.);
+					f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
+
+					if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
+
+					if (i < max_channel_nr_to_fit) {
+						cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
+						TFitResultPtr fresults = his->Fit(f, "LRS");
+						fit_results.push_back(fresults);
+					}
 				}
 			}
-			else if (which_fitf == 2) { // if pedestal is biased because of peak finder algorithm
-				Fitf_biased fitf;
-				int n_par = 9;
-				TF1* f = new TF1("fitf_biased", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
-
-				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
-				f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
-				f->SetParName(2, "#lambda");			f->SetParameter(2, .04);
-				f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 2.1);
-				f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4); //f->SetParLimits(4, 1.e-9, 1.e3);
-				f->SetParName(5, "Gain");				f->SetParameter(5, 30.); //f->FixParameter(5, 10.);
-				f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
-				f->SetParName(7, "norm_{0}");			f->SetParameter(7, 0.7);
-				f->SetParName(8, "x_{0}");				f->SetParameter(8, 5.);
-
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
-
-				if (i < max_channel_nr_to_fit) {
-					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
-					TFitResultPtr fresults = his->Fit(f, "LRS");
-					fit_results.push_back(fresults);
-				}
-
-				// get number of excess events in the pedestal in the fit region. To get the absolute number of excess events the full pedestal needs to be inside of the fit range (fitrangestart, fitrangeend)
-				//double excessEventsInPedestal = f->Integral(fitrangestart, fitrangeend)/.3125;
-				//f->SetParameter(7, 1.);
-				//excessEventsInPedestal -= f->Integral(fitrangestart, fitrangeend)/.3125;
-				//cout << "\nNumber of excess events in the pedestal within the fit range:\t" << excessEventsInPedestal << "\n\n";
-			}
-			else if (which_fitf == 3) { // SiPM fit function with exponential delayed after pulsing
-				Fitf_full fitf;
-				int n_par = 9;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
-
-				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
-				f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
-				f->SetParName(2, "#lambda");			f->SetParameter(2, .04);
-				f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 2.1);
-				f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4);
-				f->SetParName(5, "Gain");				f->SetParameter(5, 30.); //f->FixParameter(5, 40.);
-				f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
-				f->SetParName(7, "#alpha");				f->SetParameter(7, .1); //f->FixParameter(7, .2);
-				f->SetParName(8, "#beta");				f->SetParameter(8, 80.); //f->FixParameter(8, 80);
-
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
-
-				if (i < max_channel_nr_to_fit) {
-					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
-					TFitResultPtr fresults = his->Fit(f, "LRS");
-					fit_results.push_back(fresults);
-				}
-			}
-			else if (which_fitf == 4) { // ideal PMT fit function
-				Fitf_PMT_ideal fitf;
-				int n_par = 4;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
-
-				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
-				f->SetParName(1, "#mu");				f->SetParameter(1, 1.);
-				f->SetParName(2, "#sigma");				f->SetParameter(2, 5.);
-				f->SetParName(3, "gain");				f->SetParameter(3, 10.);
-
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
-
-				if (i < max_channel_nr_to_fit) {
-					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
-					TFitResultPtr fresults = his->Fit(f, "LRS");
-					fit_results.push_back(fresults);
-				}
-			}
-			else if (which_fitf == 5) { // PMT fit function
-				Fitf_PMT fitf;
-				int n_par = 8;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
-
-				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
-				f->SetParName(1, "w");					f->SetParameter(1, .05);	f->SetParLimits(1, 1.e-99, 4.e-1); //probability for type II BG
-				f->SetParName(2, "#alpha");				f->SetParameter(2, .05);	f->SetParLimits(2, 1.e-99, 5.e-2); //coefficient of exponential decrease of typ II BG
-				f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 5.);		f->SetParLimits(3, 1.e-9, 1.e3);
-				f->SetParName(4, "Q_{0}");				f->SetParameter(4, 0.);
-				f->SetParName(5, "#mu");				f->SetParameter(5, 1.);
-				f->SetParName(6, "#sigma_{1}");			f->SetParameter(6, 5.);		f->SetParLimits(6, 1.e-9, 1.e3);
-				f->SetParName(7, "Q_{1}");				f->SetParameter(7, 10.);
-
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
-
-				if (i < max_channel_nr_to_fit) {
-					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
-					TFitResultPtr fresults = his->Fit(f, "LRS");
-					fit_results.push_back(fresults);
-				}
-			}
-			else if (which_fitf == 6) { // PMT fit function with biased pedestal
-				Fitf_PMT_pedestal fitf;
-				int n_par = 9;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
-
-				f->SetParName(0, "A");					f->SetParameter(0, his->Integral());
-				f->SetParName(1, "w");					f->SetParameter(1, .05);	f->SetParLimits(1, 1.e-9, 4.e-1);	//probability for type II BG
-				f->SetParName(2, "#alpha");				f->SetParameter(2, .05);	f->SetParLimits(2, 1.e-9, 5.e-2);	//coefficient of exponential decrease of typ II BG
-				f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 5.);		f->SetParLimits(3, 1.e-9, 1.e3);
-				f->SetParName(4, "Q_{0}");				f->SetParameter(4, 0.);		f->SetParLimits(4, -1.e2, 1.e2);
-				f->SetParName(5, "#mu");				f->SetParameter(5, 1.);		f->SetParLimits(5, 1.e-9, 1.e2);
-				f->SetParName(6, "#sigma_{1}");			f->SetParameter(6, 5.);		f->SetParLimits(6, 1.e-9, 1.e3);
-				f->SetParName(7, "Q_{1}");				f->SetParameter(7, 10.);	f->SetParLimits(7, 1.e-9, 1.e9);
-				f->SetParName(8, "A_{0}");				f->SetParameter(8, 1.);		f->SetParLimits(8, 1.e-9, 1.e1);
-
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
-
-				if (i < max_channel_nr_to_fit) {
-					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
-					TFitResultPtr fresults = his->Fit(f, "LRS");
-					fit_results.push_back(fresults);
-				}
-			}
-			else if (which_fitf == 7) { // default SiPM fit function + dark count spectrum (for lots of false triggers)
-				Fitf_plus_DC fitf;
-				int n_par = 9;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
-
-				f->SetParName(0, "A");					f->SetParameter(0, his->Integral());
-				f->SetParName(1, "w");					f->SetParameter(1, .05);	f->SetParLimits(1, 1.e-9, 4.e-1);	//probability for type II BG
-				f->SetParName(2, "#alpha");				f->SetParameter(2, .05);	f->SetParLimits(2, 1.e-9, 5.e-2);	//coefficient of exponential decrease of typ II BG
-				f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 5.);		f->SetParLimits(3, 1.e-9, 1.e3);
-				f->SetParName(4, "Q_{0}");				f->SetParameter(4, 0.);		f->SetParLimits(4, -1.e2, 1.e2);
-				f->SetParName(5, "#mu");				f->SetParameter(5, 1.);		f->SetParLimits(5, 1.e-9, 1.e2);
-				f->SetParName(6, "#sigma_{1}");			f->SetParameter(6, 5.);		f->SetParLimits(6, 1.e-9, 1.e3);
-				f->SetParName(7, "#mu_darkcount");		f->SetParameter(7, .1);		f->SetParLimits(7, 1.e-9, 1.);
-				f->SetParName(8, "N_{0}_darkcount");	f->SetParameter(8, .05);	f->SetParLimits(8, 1.e-9, .3);
-
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
-
-				if (i < max_channel_nr_to_fit) {
-					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
-					TFitResultPtr fresults = his->Fit(f, "LRS");
-					fit_results.push_back(fresults);
-				}
-			}
-			else { // default SiPM fit function
-				Fitf fitf;
-				int n_par = 7;
-				TF1* f = new TF1("fitf", fitf, fitrangestart, fitrangeend, n_par); f->SetLineColor(3); f->SetNpx(1000);
-
-				f->SetParName(0, "N_{0}");				f->SetParameter(0, his->Integral());
-				f->SetParName(1, "#mu");				f->SetParameter(1, 2.);
-				f->SetParName(2, "#lambda");			f->SetParameter(2, .04);
-				f->SetParName(3, "#sigma_{0}");			f->SetParameter(3, 2.1);
-				f->SetParName(4, "#sigma_{1}");			f->SetParameter(4, 3.4);
-				f->SetParName(5, "Gain");				f->SetParameter(5, 30.); //f->FixParameter(5, 40.);
-				f->SetParName(6, "Pedestal");			f->SetParameter(6, 2.);
-
-				if (!PrintChargeSpectrum_pars.empty()) for (int j = 0; j < min(n_par, static_cast<int>(PrintChargeSpectrum_pars.size())); j++) f->SetParameter(j, PrintChargeSpectrum_pars[j]);
-
-				if (i < max_channel_nr_to_fit) {
-					cout << "\n\n---------------------- Fit for channel " << active_channels[i] << " ----------------------\n";
-					TFitResultPtr fresults = his->Fit(f, "LRS");
-					fit_results.push_back(fresults);
-				}
-			}
+			TString name(Form("ChargeSpectrum channel_%02d", active_channels[i]));
+			root_out->WriteObject(his, name.Data());
 			his->Draw();
 		}
 	}
-
-	chargec->Update();
 	root_out->WriteObject(chargec, "ChargeSpectra");
 }
+/// @example timing_example.cc
+/// @example read_exampledata.cc
 
 /// @brief "Charge" spectrum optimized for PMT signals
 /// 
-/// Just for plotting. To analyze the data use PrintChargeSpectrum() with Fitf_PMT_pedestal() for low number of photons and Fitf_langaus() for >10-15 photons. \n 
+/// Just for plotting. To analyze the data use PrintChargeSpectrum() with Fitf_PMT_pedestal() for low number of photons 
+/// and Fitf_langaus() for >10-15 photons. \n 
 /// See PrintChargeSpectrum() for parameters.
 /// 
 void ReadRun::PrintChargeSpectrumPMT(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins) {
@@ -2144,6 +2149,7 @@ void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangee
 	time_dist_c->Update();
 	root_out->WriteObject(time_dist_c, "TimeDist");
 }
+/// @example read_exampledata.cc
 
 /// @brief Finds maximum amplitude for a given channel in time window ["from", "to"] and creates 3d map of waveforms ordered by maxima
 /// 
@@ -2632,8 +2638,8 @@ double* ReadRun::gety(TH1F* his, int start_at, int end_at) {
 /// @param i Index of your plotting loop that is to be translated into a useful ROOT color index
 /// @return ROOT color index
 int ReadRun::rcolor(unsigned int i) {
-	const int nclrs = 16;
-	int rclrs[nclrs] = { 1, 2, 3, 4, 6, 7, 13, 20, 28, 30, 34, 38, 40, 31, 46, 49 };
+	const int nclrs = 17;
+	int rclrs[nclrs] = { 1, 2, 3, 4, 6, 8, 9, 13, 20, 28, 30, 34, 38, 40, 31, 46, 49 };
 	return rclrs[i - static_cast<int>(floor(i / nclrs)) * nclrs];
 }
 
@@ -2826,6 +2832,7 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method, doub
 	}
 	delete[] artmp;
 }
+/// @example use_functions_wo_measurement.cc
 
 /// @brief Apply filter for array of double with length nbins
 /// 
