@@ -205,8 +205,7 @@ public:
 	static void FilterArray(double*&, int, double = .4, double = 1.2, double = .25, double = .3125);	// filtering
 
 
-	/// @brief Constructor of the class with arguments to filter noise events in the cosmics setup. Default values do nothing 
-	ReadRun(double = 0, int = 1);
+	ReadRun(int = 0);
 	
 	void ReadFile(string, bool = false, int = 9, string = "out.root", bool = false);
 
@@ -216,6 +215,11 @@ public:
 	/// 
 	/// Can be used to save analysis results in the data folder
 	string data_path;
+
+	/// <summary>
+	/// Number of bin files to be read in. Can be used to test analysis on a small sample of the data.
+	/// </summary>
+	int NoOfBinFilesToRead;
 
 	/// @brief Do analysis only for limited range of channels to reduce memory usage
 	/// 
@@ -269,15 +273,6 @@ public:
 	/// To identify events to be filtered use functions IntegralFilter(), SkipEventsPerChannel(), and SkipEventsTimeDiffCut().
 	vector<bool> skip_event;
 	int Nevents_good();
-
-	/// @brief Special parameter for HU cosmics setup
-	/// 
-	/// Threshold (usually 4 mV) for PMT signal (hardcoded channel >8) to skip events where PMTs pick up radio frequency noise (NO BASELINE CORRECTION!).
-	double skip_event_threshold;
-	/// @brief Special parameter for HU cosmics setup
-	///
-	/// define how many PMT channels need to be above threshold to discard event (RF pick up should be seen by alls PMTs).
-	int skip_event_threshold_nch;
 
 	void SkipEventsPerChannel(vector<double>, double = 0, double = 0, bool = false);  // in case you want to have indiviual thresholds in individual channels
 	void IntegralFilter(vector<double>, vector<bool>, float, float, float = 50, float = 250, bool = false, bool = false); // Same as SkipEventsPerChannel() but filtering all events with integrals <(>) threshold

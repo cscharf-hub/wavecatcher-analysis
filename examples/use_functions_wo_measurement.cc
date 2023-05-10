@@ -21,6 +21,7 @@ void use_functions_wo_measurement() {
 
 	// create graph of the original "data"
 	auto orig = new TGraph(n_entries, x, test_arr);
+	orig->SetTitle("original data; x title [arb.]; y title [arb.]");
 
 	// now the array is smoothed with a gauss kernel (method = 2) with a sigma of 1.2 using ReadRun::SmoothArray()
 	ReadRun::SmoothArray(test_arr, n_entries, 1.2, 2, bin_size); // sigma = 1.2, method = 2
@@ -29,6 +30,7 @@ void use_functions_wo_measurement() {
 	cout << "\n\nsmoothed: ";
 	for (int i = 0; i < n_entries; i++) cout << setprecision(2) << test_arr[i] << "\t";
 	auto smoothed = new TGraph(n_entries, x, test_arr); 
+	smoothed->SetTitle("smoothed data");
 	smoothed->SetLineColor(ReadRun::rcolor(1));
 	cout << endl;
 
@@ -38,13 +40,16 @@ void use_functions_wo_measurement() {
 	cout << "\naveraged: ";
 	for (int i = 0; i < n_entries; i++) cout << setprecision(2) << test_arr[i] << "\t";
 	cout << endl;
-	auto more_smoothed = new TGraph(n_entries, x, test_arr);	
+	auto more_smoothed = new TGraph(n_entries, x, test_arr);
+	more_smoothed->SetTitle("even more smoothed data");
 	more_smoothed->SetLineColor(4);
 
 	// plot results
+	gStyle->SetOptTitle(0); // no title
 	orig->Draw("AC+");
 	smoothed->Draw("C same");
 	more_smoothed->Draw("C same");
+	gPad->BuildLegend(.5,.7,.9,.9); // draw legend to coordinates
 
 	// clean up
 	delete[] test_arr;

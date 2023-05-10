@@ -1,14 +1,14 @@
 /// \mainpage Introduction
-/// This page serves as documentation of the waveform analysis framework for WaveCatcher setups in the high 
-/// energy physics groups at the Humboldt University of Berlin. \n \n \n
+/// This page serves as documentation of the waveform analysis framework ```wavecatcher-analysis``` for WaveCatcher setups 
+/// in the Experimental Elementary Particle Physics Group at the Institute of Physics at Humboldt University of Berlin. \n \n \n
 /// 
-/// You can find the relevant documentation of the functions and variables at <a href="classReadRun.html"> ReadRun Class Reference</a>
-///  
+/// You can find the documentation of the functions and variables at <a href="classReadRun.html"> ReadRun Class Reference</a>
+/// 
 /// Installation instructions can be found at <https://cscharf-hub.github.io/wavecatcher-analysis/>
 /// 
-/// And the code can be found at <https://github.com/cscharf-hub/wavecatcher-analysis>
+/// The source code is available at <https://github.com/cscharf-hub/wavecatcher-analysis>
 /// 
-/// Creators: \n
+/// Development and maintenance: \n
 /// Christian Scharf \n 
 /// Contributors: \n 
 /// Doramas Jimeno Sanchez \n
@@ -25,30 +25,23 @@
 
 ClassImp(ReadRun)
 
-/// @brief Constructor of the class with arguments to filter noise events in the cosmics setup. Default values do nothing 
-/// 
-/// PMT_threshold -> set to 0 to do nothing. If a value is set, events where the maximum value is > PMT_threshold in \n
-/// channel > 7 are removed from the analysis (for cosmics setup). Used to filter out events where the PMTs have triggered on picked-up radio frequency noise signals
-ReadRun::ReadRun(double PMT_threshold, int channels_above_threshold) {
+/// <summary>
+/// Constructor of the class
+/// </summary>
+/// <param name="no_of_bin_files_to_read"> Set to >1 in order to constrain the number of .bin files read from the target folder. 
+/// Intended for quick tests on a fraction of the full dataset.</param>
+ReadRun::ReadRun(int no_of_bin_files_to_read) {
 
 	cout << "\ninitializing ..." << endl;
 	ROOT::EnableImplicitMT();
 	TH1::AddDirectory(kFALSE);
 
-	skip_event_threshold = PMT_threshold;
-	skip_event_threshold_nch = channels_above_threshold;
-	if (skip_event_threshold > 0) {
-		cout << "\n removing events where channels 9-16 have entries exceeding +" << skip_event_threshold << " mV amplitude in at least " << channels_above_threshold << " PMTs\n\n";
-	}
-	else if (skip_event_threshold < 0) {
-		cout << "\n removing events where channels 9-16 have entries below " << skip_event_threshold << " mV amplitude in at least " << channels_above_threshold << " PMTs\n\n";
-	}
 	nwf = 0;
-
 	PrintChargeSpectrum_cnt = 0;
 	PrintChargeSpectrumPMT_cnt = 0;
 	PrintChargeSpectrumPMTthreshold_cnt = 0;
 	PlotChannelAverages_cnt = 0;
+	NoOfBinFilesToRead = no_of_bin_files_to_read;
 
 	root_out = new TFile();	// init results file
 }
@@ -112,10 +105,10 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 	int file_counter = 0;
 	int wfcounter = 0;
 	int event_counter = 0;
-	int removed_event_counter = 0;
 
 	while (inFileList >> fileName) {
 		// file loop
+		if (NoOfBinFilesToRead > 0 && file_counter >= NoOfBinFilesToRead) break;
 
 		fileName = path + fileName;
 		ifstream input_file(fileName.c_str(), std::ios::binary | std::ios::in);
@@ -208,8 +201,6 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 		while (input_file.read((char*)(&an_event), sizeof(an_event))) {
 			//event loop
-			int event_flag_cnt = 0;
-
 			if (debug_data) printf("%03d has %d channels\n", an_event.EventNumber, an_event.nchannelstored);
 
 			output_event = an_event.EventNumber;
@@ -330,25 +321,14 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 						CorrectBaseline_function(hCh, tCutg, tCutEndg, wfcounter);
 					}
 
-
-					// skip events where there are large positive amplitudes in the PMT channels (real PMT photoelectron signals are negative, positive signals are pick up noise)
-					for (int s = 0; s < binNumber; ++s) {
-						if ((skip_event_threshold != 0 && (skip_event_threshold > 0 && output_channel > 8 && val >= skip_event_threshold)) || (skip_event_threshold < 0 && output_channel > 8 && val <= skip_event_threshold)) {
-							event_flag_cnt++;
-						}
-					}
-
 					wfcounter++;
 				}//--------------------------------------------------------------------------------------------------------------
 
 			} // for ch
 
-			bool event_flag = false;
-			if (event_flag_cnt >= skip_event_threshold_nch) event_flag = true; // Skip events
-			skip_event.push_back(event_flag);
+			skip_event.push_back(false);
 			eventnr_storage.push_back(output_event); // Stores the current WaveCatcher event number
 			event_counter++;
-			if (event_flag) removed_event_counter++;
 		} // while an_event
 
 		input_file.close();
@@ -371,8 +351,6 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 	nevents = event_counter;
 	nwf = wfcounter;
-
-	if (skip_event_threshold != 0) cout << "\n\n total number of events: " << nevents << "\n number of removed events: " << removed_event_counter << "\n\n";
 }
 
 /// @brief Destructor
