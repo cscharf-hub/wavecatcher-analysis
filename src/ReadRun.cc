@@ -25,11 +25,7 @@
 
 ClassImp(ReadRun)
 
-/// <summary>
-/// Constructor of the class
-/// </summary>
-/// <param name="no_of_bin_files_to_read"> Set to >1 in order to constrain the number of .bin files read from the target folder. 
-/// Intended for quick tests on a fraction of the full dataset.</param>
+/// @brief Constructor of the class
 ReadRun::ReadRun(int no_of_bin_files_to_read) {
 
 	cout << "\ninitializing ..." << endl;
@@ -251,7 +247,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 					if (event_counter == 0) active_channels.push_back(static_cast<int>(output_channel));
 
 					TString name(Form("channel%02d_event%05d", output_channel, an_event.EventNumber));
-					TString title(Form("Channel %d, event %d raw data;time [ns];signal [mV]", output_channel, an_event.EventNumber));
+					TString title(Form("Channel %d, event %d;time [ns];signal [mV]", output_channel, an_event.EventNumber));
 					auto hCh = (TH1F*)testrundata.ConstructedAt(wfcounter);
 					hCh->SetName(name.Data());
 					hCh->SetTitle(title.Data());
@@ -327,7 +323,8 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 			} // for ch
 
 			skip_event.push_back(false);
-			eventnr_storage.push_back(output_event); // Stores the current WaveCatcher event number
+			if (!discard_original_eventnr) eventnr_storage.push_back(output_event); // Stores the current WaveCatcher event number
+			else eventnr_storage.push_back(event_counter);
 			event_counter++;
 		} // while an_event
 
@@ -365,6 +362,8 @@ ReadRun::~ReadRun() {
 /// @brief Plot sums of all raw waveforms for each channel
 /// 
 /// To plot the average waveforms after baseline correction etc. use PlotChannelAverages().
+/// 
+/// \image html PlotChannelSums.png "This function plots the sum of all waveforms for each channel, without any corrections. Channel 9 was measured with an offset as visible here. See example." width=50%
 /// 
 /// @param smooth If true it will apply smoothing to plots. \n 
 /// Do not use without very good reason as it biases the results.
@@ -426,6 +425,8 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 /// Can be used to inspect average waveforms after baseline correction etc. has been applied. 
 /// To do so, call function after calling correction and event filter functions.
 /// 
+/// \image html PlotChannelAverages.png "This function plots the sum of all non-skipped waveforms for each channel, with corrections. See example." width=50%
+/// 
 /// @param normalize If true will normalize the maximum to 1.
 void ReadRun::PlotChannelAverages(bool normalize) {
 	
@@ -441,6 +442,7 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 			
 			double* yv = new double[binNumber];
 			for (int k = 0; k < binNumber; k++) yv[k] = 0.;
+
 			for (int j = 0; j < nevents; j++) {
 				if (!skip_event[j]) {
 					double* y_tmp = gety(i, j);
@@ -448,7 +450,9 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 					delete[] y_tmp;
 				}
 			}
-			for (int k = 0; k < binNumber; k++) yv[k] /= static_cast<double>(Nevents_good());
+
+			double norm = static_cast<double>(Nevents_good());
+			for (int k = 0; k < binNumber; k++) yv[k] /= norm;
 
 			TGraph* gr = new TGraph(binNumber, xv, yv);
 			delete[] yv;
@@ -638,7 +642,7 @@ void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int
 
 	// write corrected values to histograms
 	if (tCut >= 0) {
-		for (int i = 1; i < his->GetNbinsX(); i++) his->SetBinContent(i, his->GetBinContent(i) - corr);
+		for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, his->GetBinContent(i) - corr);
 	}
 
 	if (!Using_BaselineCorrection_in_file_loop) {
@@ -768,8 +772,8 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 			}
 
 			for (int i = 0; i < binNumber; i++) {
-				if (!smooth) his->SetBinContent(i, his->GetBinContent(i) - corr);
-				else his->SetBinContent(i, yvals[i] - corr);
+				if (!smooth) his->SetBinContent(i + 1, his->GetBinContent(i + 1) - corr);
+				else his->SetBinContent(i + 1, yvals[i] - corr);
 			}
 			delete[] yvals;
 		}
@@ -851,7 +855,7 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_b
 			corr = his->Integral(iintwindowstart, iintwindowstart + nIntegrationWindow) / static_cast<float>(nIntegrationWindow + 1);
 
 			for (int i = 0; i < binNumber; i++) {
-				his->SetBinContent(i, his->GetBinContent(i) - corr);
+				his->SetBinContent(i + 1, his->GetBinContent(i + 1) - corr);
 			}
 			delete[] yvals; //delete slow
 		}
@@ -1260,6 +1264,8 @@ float ReadRun::GetPeakIntegral(TH1F* his, float windowlow, float windowhi, float
 /// See GetIntWindow() for explanation of parameters. \n
 /// Will also add CFD timing if GetTimingCFD() was called before. 
 /// 
+/// image html PrintChargeSpectrumWF.png "Waveforms in all channels for a single event. See example."
+/// 
 /// @param windowlow Integrate from "windowlow" ns from max...
 /// @param windowhi ...to "windowhi" ns from max.
 /// @param start Find max from "start" in ns...
@@ -1340,7 +1346,6 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 	root_out->WriteObject(intwinc, name.Data());
 }
 /// @example timing_example.cc
-/// @example read_exampledata.cc
 
 /// @brief Returns array with the individual "charge"/amplitude for all events of one channel
 /// 
@@ -1406,7 +1411,9 @@ void ReadRun::SaveChargeLists(float windowlow, float windowhi, float start, floa
 
 /// @brief Plot correlation of integrals/amplitudes between two channels
 /// 
-/// See GetIntWindow() and PrintChargeSpectrum().
+/// See GetIntWindow() and PrintChargeSpectrum() for parameters.
+/// 
+/// \image html ChargeCorrelation.png "Plots the integrals of two channels against each other. See example." width=50% 
 /// 
 /// @param windowlow Integrate from "windowlow" ns from max...
 /// @param windowhi ...to "windowhi" ns from max.
@@ -1426,7 +1433,7 @@ void ReadRun::ChargeCorrelation(float windowlow, float windowhi, float start, fl
 	if (windowlow + windowhi > 0.) title << ";integral ch" << channel1 << " in mV#timesns;integral ch" << channel2 << " in mV#timesns;Entries";
 	else title << ";amplitude ch" << channel1 << " in mV;amplitude ch" << channel2 << " in mV;Entries";
 
-	auto charge_corr_canvas = new TCanvas(name.str().c_str(), "canvas", 600, 400);
+	auto charge_corr_canvas = new TCanvas(name.str().c_str(), "canvas", 600, 600);
 	charge_corr_canvas->SetRightMargin(0.15);
 
 	float* charge1 = ChargeList(GetChannelIndex(channel1), windowlow, windowhi, start, end);
@@ -1441,13 +1448,14 @@ void ReadRun::ChargeCorrelation(float windowlow, float windowhi, float start, fl
 	root_out->WriteObject(charge_corr, name.str().c_str());
 
 	charge_corr_canvas->Update();
+	charge_corr_canvas->SetGrid();
 	// move stat box out of the way (causing problems since May 23?)
 	//TPaveStats* stat_box = (TPaveStats*)charge_corr->FindObject("stats"); 
 	//stat_box->SetX1NDC(0.6); 
 	//stat_box->SetX2NDC(0.85);
 	charge_corr->SetStats(0);
 	charge_corr_canvas->Modified();
-	name << "_canvas";
+	name << "_c";
 	root_out->WriteObject(charge_corr_canvas, name.str().c_str());
 }
 /// @example timing_example.cc
@@ -1477,6 +1485,8 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 /// and return the charge histogram with x range ("rangestart", "rangeend") and the number of bins "nbins". \n 
 /// It is not really charge, but either amplitude (mV) or integral (mV x ns).
 /// See ChargeSpectrum() and GetIntWindow().
+/// 
+/// \image html PrintChargeSpectrum.png "Simple example of the integrated signals for a single channel. The resulting integrated signals are fitted with a Landau-Gauss convolution (-> energy deposition of a minimum ionizing particle in a thin absorber). See example." width=50%
 /// 
 /// @param windowlow Integrate from "windowlow" ns from max...
 /// @param windowhi ...to "windowhi" ns from max.
@@ -1932,7 +1942,7 @@ void ReadRun::PrintDCR(float windowlow, float windowhi, float rangestart, float 
 /// @param corr selection bool for corrected or uncorrected spectra \n
 /// If true - corrected spectra \n
 /// If false - uncorrected spectra
-/// @param periodic If true, will print all phi_ew shifted by +/- 360° (so normal phi_ew distri * 3) and fit a periodic gauss
+/// @param periodic If true, will print all phi_ew shifted by +/- 360 deg (so normal phi_ew distri * 3) and fit a periodic gauss
 /// @return Phi_ew spectrum
 void ReadRun::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<int> SiPMchannels, float windowmin, float windowmax, float maxfrom, float maxto, int nbins, bool corr, bool periodic) {
 
@@ -2197,6 +2207,9 @@ TH1F* ReadRun::His_GetTimingCFD(int channel_index, float rangestart, float range
 }
 
 /// @brief Plot results of GetTimingCFD()
+/// 
+/// \image html Print_GetTimingCFD.png "Beginning of the signals for all good events determined with constant fraction discrimination. See example." width=50%
+/// 
 /// @param rangestart Start of x range for plot in ns.
 /// @param rangeend End of x range for plot in ns.
 /// @param do_fit If 1: fits a gaussian. \n
@@ -2229,7 +2242,7 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, i
 			his->GetXaxis()->SetTitle("time [ns]");
 
 			if (set_errors) {
-				for (int i = 0; i < his->GetNbinsX(); i++) {
+				for (int i = 1; i <= his->GetNbinsX(); i++) {
 					if (his->GetBinContent(i) < 2) his->SetBinError(i, 1);
 					else his->SetBinError(i, sqrt(his->GetBinContent(i)));
 				}
@@ -2255,6 +2268,8 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, i
 /// @brief Plot timing difference between the mean timings of two channel ranges
 /// 
 /// See Print_GetTimingCFD_diff() for parameters.
+/// 
+/// \image html Print_GetTimingCFD_diff.png "Time differences of the start of the signals of two groups of channels. See example." width=50%
 /// 
 /// @return Histogram with event-wise timing differences between two channel ranges
 TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels2, float rangestart, float rangeend, int nbins) {
@@ -2358,7 +2373,7 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 	his->GetXaxis()->SetTitle("time [ns]");
 
 	if (set_errors) {
-		for (int i = 0; i < his->GetNbinsX(); i++) {
+		for (int i = 1; i <= his->GetNbinsX(); i++) {
 			if (his->GetBinContent(i) < 2) his->SetBinError(i, 1);
 			else his->SetBinError(i, sqrt(his->GetBinContent(i)));
 		}
@@ -2565,7 +2580,7 @@ double* ReadRun::gety(int waveform_index) {
 	TH1F* his = (TH1F*)rundata->At(waveform_index);
 	double* yvals = new double[binNumber];
 	for (int i = 0; i < his->GetNbinsX(); i++) {
-		yvals[i] = his->GetBinContent(i);
+		yvals[i] = his->GetBinContent(i + 1);
 	}
 	return yvals;
 }
@@ -2578,7 +2593,7 @@ double* ReadRun::gety(int channelnr, int eventnr) {
 	TH1F* his = Getwf(channelnr, eventnr);
 	double* yvals = new double[binNumber];
 	for (int i = 0; i < his->GetNbinsX(); i++) {
-		yvals[i] = his->GetBinContent(i);
+		yvals[i] = his->GetBinContent(i + 1);
 	}
 	return yvals;
 }
@@ -2589,7 +2604,7 @@ double* ReadRun::gety(int channelnr, int eventnr) {
 double* ReadRun::gety(TH1F* his) {
 	double* yvals = new double[binNumber];
 	for (int i = 0; i < his->GetNbinsX(); i++) {
-		yvals[i] = his->GetBinContent(i);
+		yvals[i] = his->GetBinContent(i + 1);
 	}
 	return yvals;
 }
@@ -2607,7 +2622,7 @@ double* ReadRun::gety(TH1F* his, int start_at, int end_at) {
 	const int n_bins_new = end_at - start_at;
 	double* yvals = new double[n_bins_new];
 	for (int i = start_at; i < end_at; i++) {
-		yvals[i - start_at] = his->GetBinContent(i);
+		yvals[i - start_at] = his->GetBinContent(i + 1);
 	}
 	return yvals;
 }
@@ -2733,7 +2748,10 @@ void ReadRun::Convolute(double*& result, double* first, double* second, int size
 /// 
 /// Use with care. Method=2 is preferred. \n \n
 ///
-/// Please note that if you want to use gaussian smoothing for data with a binning different from 0.3125 ns/bin you need to set the variable bin_size to the new bin size.
+/// Please note that if you want to use gaussian smoothing for data with a binning different from 0.3125 ns/bin 
+/// you need to set the variable bin_size to the new bin size.
+/// 
+/// \image html use_functions_wo_measurement.png "Gaussian smoothing of a simple array with 15 entries. See example." width=50%
 /// 
 /// @param[in,out] ar Array to be smoothed.
 /// @param nbins Number of bins of input.

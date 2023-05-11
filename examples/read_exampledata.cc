@@ -22,7 +22,7 @@ void read_exampledata(int which = 0)
 	ReadRun mymeas(0);
 
 	// read data
-	mymeas.ReadFile(path, true, 8, "examples/exampleresults.root");
+	mymeas.ReadFile(path, true, 8, "examples/exampledata_results.root");
 
 	// uncomment lines below to only plot trigger channels
 	//mymeas.plot_active_channels.push_back(14);

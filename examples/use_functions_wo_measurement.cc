@@ -8,14 +8,14 @@ void use_functions_wo_measurement() {
 	int n_entries = 15;
 	double bin_size = 1.8;
 
-	// for this example an array is filled with 10/(1+(x-x0)^2):
+	// for this example an array is filled with 10/(1+(x-x0)^2) + noise:
 	double* test_arr = new double[n_entries];
 	double* x = new double[n_entries];
 	int x0 = static_cast<int>(n_entries / 2);
 	cout << "\noriginal: ";
 	for (int i = 0; i < n_entries; i++) {
 		x[i] = static_cast<double>(i) * bin_size;
-		test_arr[i] = 10. / (1. + static_cast<double>((i - x0) * (i - x0)) * (bin_size * bin_size));
+		test_arr[i] = gRandom->Gaus(0, .5) + 10. / (1. + static_cast<double>((i - x0) * (i - x0)) * (bin_size * bin_size));
 		cout << setprecision(2) << test_arr[i] << "\t";
 	}
 
@@ -50,7 +50,7 @@ void use_functions_wo_measurement() {
 	smoothed->Draw("C same");
 	more_smoothed->Draw("C same");
 	gPad->BuildLegend(.5,.7,.9,.9); // draw legend to coordinates
-
+	gPad->SaveAs("examples/use_functions_wo_measurement.png");
 	// clean up
 	delete[] test_arr;
 	delete[] x;

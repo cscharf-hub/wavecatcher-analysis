@@ -143,7 +143,7 @@ public:
 	void FractionEventsAboveThreshold(float = 4, bool = true, bool = true, double = 0., double = 0., bool = false);
 
 	// average all waveforms to simplify peak ID
-	void SmoothAll(double = 5, int = 0);
+	void SmoothAll(double = 5, int = 2);
 	void FilterAll(double = .3, double = .9, double = .2);
 	void DerivativeAll();
 	void ShiftAllToAverageCF();
@@ -204,8 +204,10 @@ public:
 	static void SmoothArray(double*&, int, double = 1., int = 0, double = .3125);		// smoothing
 	static void FilterArray(double*&, int, double = .4, double = 1.2, double = .25, double = .3125);	// filtering
 
-
-	ReadRun(int = 0);
+	/// @brief Constructor of the class
+	/// @param no_of_bin_files_to_read Set to >1 in order to constrain the number of .bin files read from the target folder. 
+	/// Intended for quick tests on a fraction of the full dataset.
+	ReadRun(int no_of_bin_files_to_read = 0);
 	
 	void ReadFile(string, bool = false, int = 9, string = "out.root", bool = false);
 
@@ -216,10 +218,16 @@ public:
 	/// Can be used to save analysis results in the data folder
 	string data_path;
 
-	/// <summary>
-	/// Number of bin files to be read in. Can be used to test analysis on a small sample of the data.
-	/// </summary>
+	/// @brief Number of bin files to be read in. 
+	///
+	/// Can be used to test analysis on a small sample of the data.
 	int NoOfBinFilesToRead;
+
+	/// @brief Can be used to discard the original event numbering of the data
+	/// 
+	/// Set to true if you want to read several runs at once. The events will be numbered in the order they are read in. 
+	/// The original event numbers of the different runs will be lost.
+	bool discard_original_eventnr = false;
 
 	/// @brief Do analysis only for limited range of channels to reduce memory usage
 	/// 
