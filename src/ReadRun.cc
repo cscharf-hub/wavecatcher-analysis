@@ -363,7 +363,7 @@ ReadRun::~ReadRun() {
 /// 
 /// To plot the average waveforms after baseline correction etc. use PlotChannelAverages().
 /// 
-/// \image html PlotChannelSums.png "This function plots the sum of all waveforms for each channel, without any corrections. Channel 9 was measured with an offset as visible here. See example." width=50%
+/// \image html PlotChannelSums.png "This function plots the sum of all waveforms for each channel, without any corrections. Channel 9 was measured with an offset as visible here. Code in example." width=75%
 /// 
 /// @param smooth If true it will apply smoothing to plots. \n 
 /// Do not use without very good reason as it biases the results.
@@ -425,7 +425,7 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 /// Can be used to inspect average waveforms after baseline correction etc. has been applied. 
 /// To do so, call function after calling correction and event filter functions.
 /// 
-/// \image html PlotChannelAverages.png "This function plots the sum of all non-skipped waveforms for each channel, with corrections. See example." width=50%
+/// \image html PlotChannelAverages.png "This function plots the sum of all non-skipped waveforms for each channel, with corrections. Compare with the result for PlotChannelSums(). Code in example." width=75%
 /// 
 /// @param normalize If true will normalize the maximum to 1.
 void ReadRun::PlotChannelAverages(bool normalize) {
@@ -1264,7 +1264,7 @@ float ReadRun::GetPeakIntegral(TH1F* his, float windowlow, float windowhi, float
 /// See GetIntWindow() for explanation of parameters. \n
 /// Will also add CFD timing if GetTimingCFD() was called before. 
 /// 
-/// image html PrintChargeSpectrumWF.png "Waveforms in all channels for a single event. See example."
+/// image html PrintChargeSpectrumWF.png "Waveforms in all channels for a single event. Code in example."
 /// 
 /// @param windowlow Integrate from "windowlow" ns from max...
 /// @param windowhi ...to "windowhi" ns from max.
@@ -1413,7 +1413,7 @@ void ReadRun::SaveChargeLists(float windowlow, float windowhi, float start, floa
 /// 
 /// See GetIntWindow() and PrintChargeSpectrum() for parameters.
 /// 
-/// \image html ChargeCorrelation.png "Plots the integrals of two channels against each other. See example." width=50% 
+/// \image html ChargeCorrelation.png "Plots the integrals of two channels against each other. A clear correlation is visible. Around (0,0) the correlation of the pedestals can be seen (no signal in both channels). Code in example." width=75% 
 /// 
 /// @param windowlow Integrate from "windowlow" ns from max...
 /// @param windowhi ...to "windowhi" ns from max.
@@ -1486,7 +1486,9 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 /// It is not really charge, but either amplitude (mV) or integral (mV x ns).
 /// See ChargeSpectrum() and GetIntWindow().
 /// 
-/// \image html PrintChargeSpectrum.png "Simple example of the integrated signals for a single channel. The resulting integrated signals are fitted with a Landau-Gauss convolution (-> energy deposition of a minimum ionizing particle in a thin absorber). See example." width=50%
+/// \image html PrintChargeSpectrum.png "Simple example of the integrated signals for a single channel. The resulting integrated signals are fitted with a Landau-Gauss convolution (-> energy deposition of a minimum ionizing particle in a thin absorber). Code in example." width=75%
+/// 
+/// \image html cosmics-fit-example.png "Integrated signals for a SiPM in blue and a fit with the fit function Fitf for SiPMs missing after-pulses and dark counts in red. The spectrum is not well fit by the simplified model. You can try different fit models in the example cosmics-fit.ipynb." width=50%
 /// 
 /// @param windowlow Integrate from "windowlow" ns from max...
 /// @param windowhi ...to "windowhi" ns from max.
@@ -1926,10 +1928,15 @@ void ReadRun::PrintDCR(float windowlow, float windowhi, float rangestart, float 
 	}
 }
 
-/// @brief Plot distribution of the event-dependent angle phi_ew in a histogram. \n 
+/// @brief Angular distribution of passing particles in the cosmics setup 
+/// 
+/// Plots distribution of the event-dependent angle phi_ew in a histogram. \n 
 /// The angle is calculated using vectorial addition and the lightyield of each channel in each event. \n
 /// For more info, see master thesis of Alexander Vagts. \n
-/// Currently uses the uncorrected formulas
+/// Currently uses the uncorrected formulas.
+/// 
+/// \image html phi-ew.png "Example fit of the reconstructed angles for a certain event selection in one corner of the cosmics box. Code in example phi-ew.ipynb." width=50%
+/// 
 /// @param phi_chx Vector of the associated angles of each channel. Order is important. Angle of the first channel first. \n
 /// E.g. if channel 0 is used, the first angle would be from channel 0
 /// @param ly_C0 Vector of the lightyield of all channels at C0 position for the correction. Order must be the same as in phi_chx
@@ -2208,7 +2215,7 @@ TH1F* ReadRun::His_GetTimingCFD(int channel_index, float rangestart, float range
 
 /// @brief Plot results of GetTimingCFD()
 /// 
-/// \image html Print_GetTimingCFD.png "Beginning of the signals for all good events determined with constant fraction discrimination. See example." width=50%
+/// \image html Print_GetTimingCFD.png "Beginning of the signals for all good events determined with constant fraction discrimination. The red lines are gauss functions fitted to the distrutions. Code in example." width=75%
 /// 
 /// @param rangestart Start of x range for plot in ns.
 /// @param rangeend End of x range for plot in ns.
@@ -2268,8 +2275,6 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, i
 /// @brief Plot timing difference between the mean timings of two channel ranges
 /// 
 /// See Print_GetTimingCFD_diff() for parameters.
-/// 
-/// \image html Print_GetTimingCFD_diff.png "Time differences of the start of the signals of two groups of channels. See example." width=50%
 /// 
 /// @return Histogram with event-wise timing differences between two channel ranges
 TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels2, float rangestart, float rangeend, int nbins) {
@@ -2331,9 +2336,11 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 /// Plots the difference between the peak times between the mean times of two ranges of channels for each event. \n
 /// It calculates \f$ \Delta t = <t_{second,i}> - <t_{first,i}> \f$ . \n \n \n
 /// 
-/// Example:
+/// The vectors of channels to compare are added with curly brackets:
 /// > mymeas.Print_GetTimingCFD_diff({ 26, 14 }, { 19 }, 0, 20, 2, 200); \n
 /// Plots \f$ \Delta t = t_{ch19} - (t_{ch26} + t_{ch14})/2 \f$ from 0 ns to 20 ns with 200 bins (100 ps bin width).
+/// 
+/// \image html Print_GetTimingCFD_diff.png "Event-wise time differences of the start of the signals of two channels. Code in example." width=75%
 /// 
 /// @param channels1 Vector of first channel numbers (wavecatcher channel numbers). 
 /// @param channels2 Vector of second channel numbers to compare. 
@@ -2677,6 +2684,22 @@ int ReadRun::GetCurrentEvent(int waveform_index) {
 /// @brief Helper to split canvas according to the number of channels to be plotted
 /// @param c Canvas to be split
 void ReadRun::SplitCanvas(TCanvas*& c) {
+	// cross check if user input exists in data
+	vector<int> rmv;
+	for (int i = 0; i < static_cast<int>(plot_active_channels.size()); i++) {
+		if (find(active_channels.begin(), active_channels.end(), plot_active_channels[i]) == active_channels.end()) {
+			cout << "\n\n\n ------------ WARNING ------------\n";
+			cout << "YOUR SELECTED CHANNEL " << plot_active_channels[i] << " DOES NOT EXIST IN DATA\n";
+			cout << "PLEASE CHANGE plot_active_channels\n\n\n";
+			rmv.push_back(plot_active_channels[i]);
+		}
+	}
+
+	for (int i = 0; i < static_cast<int>(rmv.size()); i++) {
+		auto it = find(plot_active_channels.begin(), plot_active_channels.end(), rmv[i]);
+		if (it != plot_active_channels.end()) plot_active_channels.erase(it);
+	}
+
 	if (plot_active_channels.empty()) c->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
 	else if (static_cast<int>(plot_active_channels.size()) > 1) c->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
 }
@@ -2751,7 +2774,7 @@ void ReadRun::Convolute(double*& result, double* first, double* second, int size
 /// Please note that if you want to use gaussian smoothing for data with a binning different from 0.3125 ns/bin 
 /// you need to set the variable bin_size to the new bin size.
 /// 
-/// \image html use_functions_wo_measurement.png "Gaussian smoothing of a simple array with 15 entries. See example." width=50%
+/// \image html use_functions_wo_measurement.png "Gaussian smoothing of a simple array with 15 entries. Code in example." width=75%
 /// 
 /// @param[in,out] ar Array to be smoothed.
 /// @param nbins Number of bins of input.
