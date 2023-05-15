@@ -488,7 +488,7 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 /// @example timing_example.cc
 /// @example read_exampledata.cc
 
-/// @brief Smoothing all waveforms which are not skipped (for testing, do not use for analysis!)
+/// @brief Smoothing all waveforms which are not skipped (for testing, careful when using for analysis!)
 /// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution.
 /// @param method If 0 use running average (box kernel smoothing). Simple, very fast. \n 
 /// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
@@ -497,7 +497,7 @@ void ReadRun::SmoothAll(double sigma, int method) {
 	// just for testing, not very efficient
 	cout << "\nsmoothing wfs";
 	for (int j = 0; j < nwf; j++) {
-		if (!skip_event[j]) {
+		if (!skip_event[GetCurrentEvent(j)]) {
 			TH1F* his = ((TH1F*)rundata->At(j));
 			double* yvals = gety(his);
 			SmoothArray(yvals, binNumber, sigma, method);
@@ -2774,7 +2774,7 @@ void ReadRun::Convolute(double*& result, double* first, double* second, int size
 /// Please note that if you want to use gaussian smoothing for data with a binning different from 0.3125 ns/bin 
 /// you need to set the variable bin_size to the new bin size.
 /// 
-/// \image html use_functions_wo_measurement.png "Gaussian smoothing of a simple array with 15 entries. Code in example." width=75%
+/// \image html use_functions_wo_measurement.png "Gaussian smoothing of a simple array with 15 entries. Code in example." width=50%
 /// 
 /// @param[in,out] ar Array to be smoothed.
 /// @param nbins Number of bins of input.
