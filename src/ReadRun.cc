@@ -2347,9 +2347,10 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 /// @param rangestart Start of x range for plot in ns.
 /// @param rangeend End of x range for plot in ns.
 /// @param do_fit If 1: fits a gaussian. \n
-/// If 2: Fits a gaussian and exponential convolution to account for different arrival times of photons due to different possible light paths in the scintillator/light guide 
+/// If 2: Fits a gaussian and exponential convolution to account for different arrival times of photons due to different possible light paths in the scintillator/light guide \n
 /// and/or delay due to self-absorption and reemission of photons in the scintillator. \n
 /// To be used for long light paths in the scintillator. See https://doi.org/10.1016/S0029-554X(79)90170-8 . \n
+/// This option only works for sufficient asymmetry. Otherwise, the exponential decay time becomes too small. If this is the case please fit a gauss.\n
 /// If 3: Fits the sum of two gaussians where the second gauss serves as a rough background estimate. Background means events that should have been filtered out. \n
 /// Else: Do not fit. \n 
 /// @param nbins Number of bins for histogram.
@@ -2388,31 +2389,35 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 
 	his->Draw();
 
-	if (do_fit == 1) {
+	double skewness = his->GetSkewness();
+
+	if (do_fit == 1 || (do_fit == 2 && abs(skewness) < .15)) {
 		// gauss (default)
 		TFitResultPtr fresults = his->Fit("gaus", fitoption.c_str(), "same", fitrangestart, fitrangeend);
 		timing_fit_results.push_back(fresults);
+		if (do_fit == 2) cout << "\nWARNING: Print_GetTimingCFD_diff\nFITTING GAUSS INSTEAD OF GAUSS x EXP CONVOLUTION BC SYMMETRY\n";
 	}
 	else if (do_fit == 2) {
 		// gauss x exp convolution (effective delay from random light path and/or self-absorption and reemission)
-		string gxe = "[3]/(2*[0])*TMath::Exp(([1]*[1]+2*[2]*[0]-2*[0]*x)/(2*[0]*[0]))*TMath::Erfc(([1]*[1]+[0]*([2]-x))/(1.4142*[0]*[1]))";
+		string gxe = "[3]/(2*TMath::Abs([0]))*TMath::Exp(([1]*[1]+2*[2]*[0]-2*[0]*x)/(2*[0]*[0]))*TMath::Erfc(([1]*[1]+[0]*([2]-x))/(1.4142*TMath::Abs([0])*[1]))";
 		auto expgconv = new TF1("exp x gauss convolution", gxe.c_str(), fitrangestart, fitrangeend);
 		expgconv->SetNpx(5000);
 
 		// this parameter describes the sigma from different light paths 
 		// and/or the effective decay time constant for self-absorption and reemission
-		expgconv->SetParName(0, "#tau_{eff}");		expgconv->SetParameter(0, .5);
-		expgconv->SetParLimits(0, 1e-3, 5.);	//expgconv->FixParameter(0, 1.55);
+		expgconv->SetParName(0, "#tau_{eff}");		expgconv->SetParameter(0, skewness);
+		if (skewness>0) expgconv->SetParLimits(0, .15, 5.);
+		else expgconv->SetParLimits(0, -5., -.15);
+		//expgconv->FixParameter(0, 1.55);
 
-		expgconv->SetParName(1, "#sigma_{gaus}");		expgconv->SetParameter(1, .5);
-		expgconv->SetParLimits(1, 1e-1, 5.);	//expgconv->FixParameter(1, .7);
+		expgconv->SetParName(1, "#sigma_{gaus}");		expgconv->SetParameter(1, his->GetStdDev());
+		expgconv->SetParLimits(1, 1e-1, 7.);	//expgconv->FixParameter(1, .7);
 
-		float posmax = his->GetXaxis()->GetBinCenter(his->GetMaximumBin());
-		expgconv->SetParName(2, "t_{0}");		expgconv->SetParameter(2, posmax);
+		expgconv->SetParName(2, "t_{0}");		expgconv->SetParameter(2, his->GetMean());
 		expgconv->SetParLimits(2, fitrangestart, fitrangeend);	//expgconv->FixParameter(2, 6.6);
 
 		expgconv->SetParName(3, "norm");		expgconv->SetParameter(3, his->Integral("width"));
-		expgconv->SetParLimits(3, 0.1, 1e7);		//expgconv->FixParameter(3, 105.5);
+		expgconv->SetParLimits(3, 1., 1e8);		//expgconv->FixParameter(3, 105.5);
 
 		TFitResultPtr fresults = his->Fit(expgconv, "SR", "same");
 		timing_fit_results.push_back(fresults);
