@@ -2338,7 +2338,7 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 /// 
 /// The vectors of channels to compare are added with curly brackets:
 /// > mymeas.Print_GetTimingCFD_diff({ 26, 14 }, { 19 }, 0, 20, 2, 200); \n
-/// Plots \f$ \Delta t = t_{ch19} - (t_{ch26} + t_{ch14})/2 \f$ from 0 ns to 20 ns with 200 bins (100 ps bin width).
+/// would plot \f$ \Delta t = t_{ch19} - (t_{ch26} + t_{ch14})/2 \f$ from 0 ns to 20 ns with 200 bins (100 ps bin width). Another example is given in the plot below.
 /// 
 /// \image html Print_GetTimingCFD_diff.png "Event-wise time differences of the start of the signals of two channels. Code in example." width=75%
 /// 
@@ -2346,11 +2346,11 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 /// @param channels2 Vector of second channel numbers to compare. 
 /// @param rangestart Start of x range for plot in ns.
 /// @param rangeend End of x range for plot in ns.
-/// @param do_fit If 1: fits a gaussian. \n
-/// If 2: Fits a gaussian and exponential convolution to account for different arrival times of photons due to different possible light paths in the scintillator/light guide \n
+/// @param do_fit If 1: Fit a gaussian. \n
+/// If 2: Fit a gaussian-exponential convolution to account for different arrival times of photons due to different possible light paths in the scintillator/light guide \n
 /// and/or delay due to self-absorption and reemission of photons in the scintillator. \n
 /// To be used for long light paths in the scintillator. See https://doi.org/10.1016/S0029-554X(79)90170-8 . \n
-/// This option only works for sufficient asymmetry. Otherwise, the exponential decay time becomes too small. If this is the case please fit a gauss.\n
+/// This option only works for sufficient asymmetry \f$\tau > \sigma/2\f$. Otherwise, the exponential decay time becomes too small to be fitted. In this case please use option 1.\n
 /// If 3: Fits the sum of two gaussians where the second gauss serves as a rough background estimate. Background means events that should have been filtered out. \n
 /// Else: Do not fit. \n 
 /// @param nbins Number of bins for histogram.
