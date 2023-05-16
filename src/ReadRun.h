@@ -285,6 +285,7 @@ public:
 	void SkipEventsPerChannel(vector<double>, double = 0, double = 0, bool = false);  // in case you want to have indiviual thresholds in individual channels
 	void IntegralFilter(vector<double>, vector<bool>, float, float, float = 50, float = 250, bool = false, bool = false); // Same as SkipEventsPerChannel() but filtering all events with integrals <(>) threshold
 	void PrintSkippedEvents();
+	void UnskipAll();
 
 	/// @brief Stores baseline correction results for CorrectBaseline() and related functions
 	vector<vector<float>> baseline_correction_result;

@@ -1180,6 +1180,12 @@ void ReadRun::PrintSkippedEvents() {
 	cout << "\n\ntotal number of skipped events:\t" << counter << "\tout of:\t" << nevents << endl;
 }
 
+/// @brief Sets skip_event flag to false for all events, removing any previous cuts
+void ReadRun::UnskipAll() {
+	for (int j = 0; j < static_cast<int>(skip_event.size()); j++) skip_event[j] = false;
+	cout << "\n\nAll event cuts were removed" << endl;
+}
+
 /// @brief Number of good events that are not skipped
 int ReadRun::Nevents_good() {
 	int nevents_good = 0;
