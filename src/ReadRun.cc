@@ -2716,6 +2716,9 @@ void ReadRun::SplitCanvas(TCanvas*& c) {
 }
 
 /// @brief Simple linear interpolation for x
+/// 
+/// Will return the mean of x1 and x2 if y1=y2.
+/// 
 /// @param ym Y value for evaluation
 /// @param x1 X1 
 /// @param x2 X2
@@ -2723,7 +2726,8 @@ void ReadRun::SplitCanvas(TCanvas*& c) {
 /// @param y2 Y2
 /// @return x value at "ym"
 float ReadRun::LinearInterpolation(float ym, float x1, float x2, float y1, float y2) {
-	return x1 + (ym - y1) * (x2 - x1) / (y2 - y1);
+	if (y1 == y2) return (x1 + x2) / 2.;
+	else return x1 + (ym - y1) * (x2 - x1) / (y2 - y1);
 }
 
 /// @brief Helper to perform convolution of two 1D arrays
