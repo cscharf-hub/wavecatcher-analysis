@@ -64,7 +64,7 @@ to run the timing example macro and close root once it has finished. The results
  root -b -x "examples/read_exampledata.cc+(0)" -q
 ```
 
-## On HU EE computing infrastructure
+## On HU EE / DESY NAF computing infrastructure
 
 The library can be used efficiently on our computing infrastructure, and the setup takes only a minute since ROOT is already installed there. 
 This has the additional benefit that you do not need to download measurements and can do the analysis of large data on more powerful machines. 
@@ -73,22 +73,30 @@ Log into the computing cluster via ssh:
 ```
 ssh -X <your-username>@eelg05.physik.hu-berlin.de
 ```
+or ```@naf-atlas.desy.de``` for DESY NAF.
+
 Clone the repository and navigate to the downloaded folder:
 ```
 git clone https://github.com/cscharf-hub/wavecatcher-analysis && cd wavecatcher-analysis
 ```
-Now source ROOT[^4]:
+Now source ROOT[^4] with either
 ```
 source etc/scripts/root_init_ee.sh
 ```
-And finally, compile the library:
+at HU or 
+```
+source /cvmfs/grid.desy.de/etc/profile.d/grid-ui-env.sh
+```
+on DESY NAF.
+
+Finally, compile the library:
 ```
 make
 ```
 
 # Documentation
 
-You can find the documentation for all functions and variables here: 
+You can find the documentation for all classes, functions, and variables here: 
 <https://wavecatcher-analysis.web.cern.ch/>   
 <https://wavecatcher-analysis.web.cern.ch/classReadRun.html>
 
@@ -97,6 +105,15 @@ You can find the documentation for ROOT here:
 
 And the link to the repository here:   
 <https://github.com/cscharf-hub/wavecatcher-analysis>
+
+# Adding custom functions and contribute
+
+The easiest way to add new and/or modified functions for your analysis is to add a derived class which contains your analysis and inherits all functions and parameters from the ```ReadRun``` class. Please note that you will need to add the header file to ```Makefile``` and your new class to ```misc/LinkDef.h```. 
+
+If you find bugs or have developed new, thoroughly tested functionality please make a merge request. 
+
+One example how to structure a derived class can be found here:
+<https://wavecatcher-analysis.web.cern.ch/classExperimental.html>
 
 # Additional remarks
 

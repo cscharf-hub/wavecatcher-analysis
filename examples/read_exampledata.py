@@ -5,13 +5,13 @@ ROOT.gSystem.Load('ReadRunLib.sl')
 
 ### Example how to perform full analysis in Python
 ###
-### To execute, type ```python read_exampledate.py 0```
+### To execute, type ```python read_exampledata.py 0```.
 ###
 ### Since the library is compiled the analysis should be fast also in Python. 
 ### However, at the moment of writing, there are some constraints with using Python:
-### - Functions can only be called once within a script (should be fixable)
-### - Some functions rely on C++ vectors which are similar to list and numpy array, but not exactly the same. 
-### Vectors can hold only one type and the interpreter sometimes converts to the wrong types. There are examples how to handle this in the code below.
+### Some functions rely on C++ vectors which are similar to list and numpy array, but not exactly the same. 
+### Vectors can hold only one type and the interpreter sometimes converts to the wrong types. 
+### There are examples how to handle this in the code below.
 
 def read_exampledata(which):
     path = 'examples/'
@@ -19,7 +19,7 @@ def read_exampledata(which):
         path += 'exampledata/'
     else:
         print('error: path to data not specified')
-        exit()
+        return
 
     # Initialize class
     mymeas = ROOT.ReadRun(0)
@@ -80,18 +80,19 @@ def read_exampledata(which):
     # Fit and plot the fit results for channel 9
     mymeas.PrintChargeSpectrum(intwindowminus, intwindowplus, findmaxfrom, findmaxto, 6e3, 1.35e4, 200, 7e3, 1.3e4, 9, 1)
 
+    # Keep plots open until script is closed manually
+    _ = input("Press enter to exit")
 
 def main(argv):
+    # Default value of which if no argument is given, i. e. ```python read_exampledata.py```
+    which = 0
     try:
-        if len(argv) == 1:
-            which = 0
-        else:
+        if len(argv) > 1:
             which = int(argv[1])
         print('reading measurement: ', which)
         read_exampledata(which)
     except:
         print('error, check input')
-
 
 if __name__ == "__main__":
     main(sys.argv)
