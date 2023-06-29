@@ -62,12 +62,11 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 	printf("+++ saving analysis results in '%s' ...\n\n", out_file_name.c_str());
 	root_out = TFile::Open(out_file_name.c_str(), "recreate");
 
-	// Wavecatcher hardware/software properties
-	const int nChannelsWC = 64;		// max number of channels (reduce if not using the 64 channel crate)
-
+	/// Wavecatcher hardware max. number of channels (reduce if not using the 64 channel crate)
+	const int nChannelsWC = 64;
 
 	rundata = new TClonesArray("TH1F", maxNWF); //raw data will be stored here as TH1F
-	rundata->BypassStreamer(kFALSE);		//Doramas: I don't know why is it used, but it's better to use when working with TClonesArray
+	rundata->BypassStreamer(kFALSE);			//Doramas: I don't know why is it used, but it's better to use when working with TClonesArray
 	TClonesArray& testrundata = *rundata;
 
 	// verbosity
@@ -868,8 +867,8 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_b
 /// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
 /// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 /// @param use_spline If false will use linear interpolation between the two bins closest to cf_r. \n
-/// If true will use a 5th order spline for interpolation. Performs a bit better in terms of chi^2. 
-/// However, the fit parameters do not seem to depend much on the interpolation method.
+/// If true will use a 5th order spline and bisection method for interpolation. 
+/// Performs a bit better in most cases compared to only linear interpolation. 
 void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double sigma, bool find_CF_from_start, int smooth_method, bool use_spline) {
 
 	int start_at = static_cast<int>(floor(start_at_t / SP));
@@ -906,39 +905,49 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 		}
 		else {
 			i = 0;
-			while (yvals[i] < cf && i <= n_max) i++;
+			while (yvals[i] < cf && i < n_max) i++;
 			i--;
 		}
 
 		// do interpolation for cf
 		float interpol_bin = .0;
 		interpol_bin = LinearInterpolation(cf, static_cast<float>(i), static_cast<float>(i + 1), yvals[i], yvals[i + 1]);
+		// go to center of bin
+		interpol_bin += .5;
 
-		if (use_spline) { // steps of 3.125 ps
+		if (use_spline) { // use spline interpolation with tolerance epsilon*bin_size
+			double epsilon = 1e-4;
+			double x_low = interpol_bin - .5;
+			double x_high = interpol_bin + .5;
+
 			double* xvals = new double[n_range];
-			for (int k = 0; k < n_range; k++) xvals[k] = static_cast<double>(k);
+			for (int k = 0; k < n_range; k++) xvals[k] = static_cast<double>(k) + .5;
 
 			TSpline5* wfspl = 0;
 			wfspl = new TSpline5("wf_spline", xvals, yvals, n_range, "b1e1b2e2", 0., 0., 0., 0.);
-
-			float fbin = 0.;
-			for (fbin = xvals[i - 1]; fbin <= xvals[i + 1]; fbin += .01) {
-				if (wfspl->Eval(fbin) > cf) {
-					interpol_bin = fbin - .01;
-					break;
-				}
-			}
-			delete wfspl;
 			delete[] xvals;
+			
+			// using bisection method: halving search window until cf is less than epsilon bins from spline value
+			while (x_high - x_low > epsilon) {
+				double x_mid = (x_low + x_high) / 2;
+				double f_mid = wfspl->Eval(x_mid);
+				if (f_mid == cf) break;
+
+				if (f_mid > cf) x_high = x_mid;
+				else x_low = x_mid;
+			}
+			interpol_bin = (x_low + x_high) / 2;
+			delete wfspl;
 		}
 
 		timing_results.push_back(vector<float>());
-		timing_results[j].push_back(interpol_bin); // return the bin we looked for
-		timing_results[j].push_back((interpol_bin + static_cast<float>(start_at)) * SP); // return the cfd-time we looked for
-		timing_results[j].push_back(max); // return maximum value
-		timing_results[j].push_back(n_max); // return bin of maximum
-		timing_results[j].push_back(static_cast<float>(start_at) * SP); // return starting time
-		timing_results[j].push_back(static_cast<float>(end_at) * SP); // return the end time
+		timing_results[j].push_back(interpol_bin);											// the bin we looked for
+		timing_results[j].push_back((interpol_bin + static_cast<float>(start_at)) * SP);	// cfd-time we looked for
+		timing_results[j].push_back(max);													// maximum value
+		timing_results[j].push_back(n_max);													// bin of maximum
+		timing_results[j].push_back(cf);													// constant fraction
+		timing_results[j].push_back(static_cast<float>(start_at) * SP);						// starting time
+		timing_results[j].push_back(static_cast<float>(end_at) * SP);						// end time
 		delete[] yvals;
 		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
 	}
@@ -1060,11 +1069,14 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 /// Needs to be called before the charge spectrum etc functions. \n 
 /// Baseline correction should be called before this function.
 /// 
-/// @param thresholds Vector should contain a threshold for each active channel saved in the data, in ascending order (ch0, ch1 ...). Negative thresholds mean events below threshold will be cut.
+/// @param thresholds Vector should contain a threshold for each active channel saved in the data, in ascending order (ch0, ch1 ...). Negative thresholds mean events below threshold will be cut. If only one value is given this value will be used for all active channels.
 /// @param rangestart Range start in ns
 /// @param rangeend Range end in ns
 /// @param verbose Set true for extra verbosity.
 void ReadRun::SkipEventsPerChannel(vector<double> thresholds, double rangestart, double rangeend, bool verbose) { // merge with IntegralFilter()?
+
+	if (thresholds.empty()) cout << "\nError: thresholds is empty";
+	while (thresholds.size() <= plot_active_channels.size()) thresholds.push_back(thresholds[0]);
 
 	cout << "\n\n Removing events with individual amplitude threshold per channel!!!\n\n";
 	int counter = 0;
@@ -1099,8 +1111,8 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, double rangestart,
 /// 
 /// Please note that the old version was missing start and end, so please add these parameters to older scripts if they throw errors.
 /// 
-/// @param thresholds Vector should contain a threshold for each active channel saved in the data, in ascending order (ch0, ch1 ...). Negative thresholds mean events below threshold will be cut. A threshold of 0 means the channel will not be evaluated.
-/// @param highlow  Vector should contain a bool for each active channel. True means events with integrals above threshold will be cut, false means below threshold.
+/// @param thresholds Vector should contain a threshold for each active channel saved in the data, in ascending order (ch0, ch1 ...). Negative thresholds mean events below threshold will be cut. A threshold of 0 means the channel will not be evaluated. If only one value is given this value will be used for all active channels.
+/// @param highlow  Vector should contain a bool for each active channel. True means events with integrals above threshold will be cut, false means below threshold. If only one value is given this value will be used for all active channels.
 /// @param windowlow Integration time left to the maximum of the peak.
 /// @param windowhi Integration time right to the maximum of the peak.
 /// @param start Range for finding maximum.
@@ -1108,6 +1120,12 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, double rangestart,
 /// @param use_AND_condition If set true it will overrule previously applied cuts and un-skip events that pass integral criterium.
 /// @param verbose Set true for extra verbosity.
 void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, float windowlow, float windowhi, float start, float end, bool use_AND_condition, bool verbose) {
+
+	if (thresholds.empty() || highlow.empty()) cout << "\nError: thresholds or highlow are empty";
+	while (thresholds.size() <= plot_active_channels.size()) { 
+		thresholds.push_back(thresholds[0]);
+		highlow.push_back(highlow[0]);
+	}
 
 	cout << "\n\nRemoving events with individual integral threshold per channel :: ";
 	int counter = 0;
@@ -1120,7 +1138,7 @@ void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, fl
 		currevent_counter = GetCurrentEvent(j);
 
 		if (use_AND_condition || !skip_event[currevent_counter]) {
-			currchannel = j - nchannels * currevent_counter;
+			currchannel = GetCurrentChannel(j);// -nchannels * GetCurrentEvent(j);
 
 			if (currchannel < static_cast<int>(thresholds.size())) {
 				auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
@@ -1129,7 +1147,7 @@ void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, fl
 				if (thresholds[currchannel] != 0 && !skip_event[currevent_counter] && 
 					((highlow[currchannel] && integral > thresholds[currchannel]) || (!highlow[currchannel] && integral < thresholds[currchannel]))) {
 					currevent = eventnr_storage[currevent_counter];
-					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
+					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel] << "\tintegral:\t" << integral;
 					skip_event[currevent_counter] = true;
 					while (floor((j + 1) / nchannels) == currevent_counter) j++;
 					counter++;
@@ -1137,7 +1155,7 @@ void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, fl
 				else if (use_AND_condition && thresholds[currchannel] != 0 && skip_event[currevent_counter] && !highlow[currchannel]) {
 					currevent = eventnr_storage[currevent_counter];
 					skip_event[currevent_counter] = false;
-					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\thas been flagged good by integral";
+					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\thas been flagged good by integral:\t" << integral;
 				}
 				delete his;
 			}
@@ -1266,7 +1284,9 @@ float ReadRun::GetPeakIntegral(TH1F* his, float windowlow, float windowhi, float
 /// @param eventnr Event number
 /// @param ymin Y axis minimum
 /// @param ymax Y axis maximum
-void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start, float end, int eventnr, float ymin, float ymax) {
+/// @param xmin X axis maximum
+/// @param xmax X axis maximum
+void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start, float end, int eventnr, float ymin, float ymax, float xmin, float xmax) {
 
 	gStyle->SetOptStat(0);
 
@@ -1302,7 +1322,8 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 			his->Draw("HIST");
 			his->SetStats(0); 
 
-			if (ymin != 0. && ymax != 0.) his->GetYaxis()->SetRangeUser(ymin, ymax); //for better comparison fix y range
+			if (ymin != 0. && ymax != 0.) his->GetYaxis()->SetRangeUser(ymin, ymax); // fix y range for better comparison 
+			if (xmin != 0. && xmax != 0.) his->GetXaxis()->SetRangeUser(xmin, xmax); 
 			low->Draw("same");
 			hi->Draw("same");
 			zero->Draw("same");
@@ -2205,6 +2226,13 @@ string ReadRun::ListFiles(const char* dirname, const char* ext) {
 	return ss.str();
 }
 
+/// @brief Helper that returns the waveform histogram for a certain waveform number number 
+/// @param wf_nr Waveform number
+/// @return Waveform histogram 
+TH1F* ReadRun::Getwf(int wf_nr) {
+	return (TH1F*)rundata->At(wf_nr);
+}
+
 /// @brief Helper that returns the waveform histogram for a certain channel number and a certain event number
 /// @param channelnr Channel number index (not the actual channel number)
 /// @param eventnr Event number
@@ -2412,6 +2440,10 @@ void ReadRun::SetRangeCanvas(TCanvas*& c, double x_range_min, double x_range_max
 /// @return x value at "ym"
 float ReadRun::LinearInterpolation(float ym, float x1, float x2, float y1, float y2) {
 	if (y1 == y2) return (x1 + x2) / 2.;
+	else if (y1 > ym) { 
+		cout << "\nError in LinearInterpolation:\value ym=" << ym << " out of range" << endl;
+		return 1;
+	}
 	else return x1 + (ym - y1) * (x2 - x1) / (y2 - y1);
 }
 

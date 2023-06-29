@@ -9,8 +9,6 @@
 /// CorrectBaselineMinSlopeRMS() and bin size e. g. in SmoothArray(). 
 /// Know to be incompatible is PlotChannelSums() but PlotChannelAverages() works.
 /// 
-/// See example timing_example_rebin.cc
-/// 
 /// @param ngroup Integer number of bins to combine.
 void Experimental::RebinAll(int ngroup) {
 

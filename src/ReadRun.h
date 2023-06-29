@@ -143,7 +143,7 @@ public:
 	// functions for charge spectrum
 	int* GetIntWindow(TH1F*, float, float, float, float, int);
 	float GetPeakIntegral(TH1F*, float, float, float, float, int = 0);
-	void PrintChargeSpectrumWF(float, float, float = 0, float = 300, int = 1, float = 0., float = 0.);
+	void PrintChargeSpectrumWF(float, float, float = 0, float = 300, int = 1, float = 0., float = 0., float = 0., float = 0.);
 	TH1F* ChargeSpectrum(int, float, float, float = 0, float = 300, float = -50, float = 600, int = 750);
 	void PrintChargeSpectrum(float, float, float = 0, float = 300, float = -50, float = 600, int = 750, float = 0., float = 0., int = 99, int = 0);
 	/// @brief Starting values of the fit parameters for PrintChargeSpectrum()
@@ -171,22 +171,26 @@ public:
 	
 	// helper functions
 	string ListFiles(const char*, const char*);	// find data files
-	TH1F* Getwf(int, int, int = 1);					// channel, eventnr, color
-	double* getx(double = 0.);						// x values
+	TH1F* Getwf(int);							// waveform number
+	TH1F* Getwf(int, int, int = 1);				// channel, eventnr, color
+	double* getx(double = 0.);					// x values
 	double* gety(int);							// y values for waveform index
-	double* gety(int, int);							// y values for waveform(ch, event)
-	double* gety(TH1F*);							// y values for histogram
-	double* gety(TH1F*, int, int);					// y values for dedicated y range of a histogram 
-	static int rcolor(unsigned int);				// useful root colors
+	double* gety(int, int);						// y values for waveform(ch, event)
+	double* gety(TH1F*);						// y values for histogram
+	double* gety(TH1F*, int, int);				// y values for dedicated y range of a histogram 
+
+	static int rcolor(unsigned int);			// useful root colors
 	static float LinearInterpolation(float, float, float, float, float); // linear interpolation
+	
 	int GetEventIndex(int);			// get index of a triggered event (finds the correct event if files are not read sequentially)
 	int GetChannelIndex(int);		// get index of a certain channel
 	int GetCurrentChannel(int);		// get index of channel for a certain waveform
 	int GetCurrentEvent(int);		// get index of event for a certain waveform
+	
 	void SplitCanvas(TCanvas*&);	// split canvas into pads to display all active channels on one canvas
-	static void SetRangeCanvas(TCanvas*&, double, double, double = -999, double = -999); // set consistent ranges
-	static void Convolute(double*&, double*, double*, int);	// convolution for filtering waveforms
-	static void SmoothArray(double*&, int, double = 1., int = 0, double = .3125);		// smoothing
+	static void SetRangeCanvas(TCanvas*&, double, double, double = -999, double = -999);			// set consistent ranges
+	static void Convolute(double*&, double*, double*, int);											// convolution for filtering waveforms
+	static void SmoothArray(double*&, int, double = 1., int = 0, double = .3125);					// smoothing
 	static void FilterArray(double*&, int, double = .4, double = 1.2, double = .25, double = -1.);	// filtering
 
 	/// @brief Constructor of the class
@@ -288,8 +292,9 @@ public:
 	/// 1: CFD time
 	/// 2: Y-value of the maximum
 	/// 3: Bin number of the maximum
-	/// 4: Start of search window
-	/// 5: End of search window
+	/// 4: Constant fraction (maximum * cf_r)
+	/// 5: Start of search window
+	/// 6: End of search window
 	vector<vector<float>> timing_results;
 	/// @brief Stores the fit results of Print_GetTimingCFD() for all channels
 	vector<TFitResultPtr> timing_fit_results;
