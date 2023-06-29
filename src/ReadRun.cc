@@ -493,7 +493,7 @@ void ReadRun::SmoothAll(double sigma, int method) {
 	cout << "\nsmoothing wfs";
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[GetCurrentEvent(j)]) {
-			TH1F* his = ((TH1F*)rundata->At(j));
+			TH1F* his = Getwf(j);
 			double* yvals = gety(his);
 			SmoothArray(yvals, binNumber, sigma, method, SP);
 			for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i - 1]);
@@ -513,7 +513,7 @@ void ReadRun::SmoothAll(double sigma, int method) {
 void ReadRun::FilterAll(double sigma1, double sigma2, double factor) {
 	cout << "\nfiltering wfs";
 	for (int j = 0; j < nwf; j++) {
-		TH1F* his = ((TH1F*)rundata->At(j));
+		TH1F* his = Getwf(j);
 		double* yvals = gety(his);
 		FilterArray(yvals, binNumber, sigma1, sigma2, factor);
 		for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i - 1]);
@@ -551,7 +551,7 @@ void ReadRun::ShiftAllToAverageCF() {
 
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[GetCurrentEvent(j)]) {
-			TH1F* his = ((TH1F*)rundata->At(j));
+			TH1F* his = Getwf(j);
 			double* yvals = gety(his);
 			int shift = static_cast<int>(timing_results[j][0]) - timing_mean_n[GetCurrentChannel(j)];
 
@@ -594,8 +594,7 @@ void ReadRun::CorrectBaseline(float tCut, float tCutEnd) {
 	else {
 		printf("Baseline correction (%d waveforms) :: ", nwf);
 		for (int j = 0; j < nwf; j++) {
-			//TH1F* his = ((TH1F*)rundata->At(j));
-			CorrectBaseline_function((TH1F*)rundata->At(j), tCut, tCutEnd, j);
+			CorrectBaseline_function(Getwf(j), tCut, tCutEnd, j);
 
 			if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
 		}
@@ -697,7 +696,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 		search_before = 0;
 
 		if (j == 0 || j != skip_channel - 1 || j % skip_channel != 0) { //eventnr * nchannels + i
-			TH1F* his = ((TH1F*)rundata->At(j));
+			TH1F* his = Getwf(j);
 			double* yvals = gety(his); //find faster way
 			if (sigma > 0) SmoothArray(yvals, binNumber, sigma, smooth_method); // smoothing important to suppress variations in slope due to noise so the method is more sensitive to excluding peaks
 
@@ -804,7 +803,7 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_b
 		iintwindowstart = 0;
 
 		if (j == 0 || j != skip_channel - 1 || j % skip_channel != 0) { //eventnr * nchannels + i
-			TH1F* his = ((TH1F*)rundata->At(j));
+			TH1F* his = Getwf(j);
 			double* yvals = gety(his); //find faster way
 			if (sigma > 0) SmoothArray(yvals, binNumber, sigma, smooth_method); // smoothing
 
@@ -880,7 +879,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 
 	for (int j = 0; j < nwf; j++) {
 
-		TH1F* his = ((TH1F*)rundata->At(j));
+		TH1F* his = Getwf(j);
 		double* yvals = gety(his, start_at, end_at); // get range where to search for CFD for timing
 
 		if (sigma > 0.) SmoothArray(yvals, n_range, sigma, smooth_method); // smoothing to suppress noise, will also change timing so use with care!
@@ -1025,7 +1024,7 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 	cout << threshold << " mV:\n";
 
 	for (int j = 0; j < nwf; j++) {
-		auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
+		auto his = (TH1F*)(Getwf(j))->Clone(); // use Clone() to not change ranges of original histogram
 
 		// set range where to search for amplitudes above threshold
 		if (from >= 0 && to > 0) {
@@ -1085,7 +1084,7 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, double rangestart,
 		if (!skip_event[GetCurrentEvent(j)]) {
 			int currchannel = j - nchannels * GetCurrentEvent(j);
 			if (currchannel < static_cast<int>(thresholds.size())) {
-				auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
+				auto his = (TH1F*)(Getwf(j))->Clone(); // use Clone() to not change ranges of original histogram
 				if (rangestart != 0 && rangeend != 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(rangeend));
 
 				if (thresholds[currchannel] != 0. && !skip_event[GetCurrentEvent(j)] && ((thresholds[currchannel] > 0 && his->GetMaximum() > thresholds[currchannel]) || (thresholds[currchannel] < 0 && his->GetMinimum() < thresholds[currchannel]))) {
@@ -1141,7 +1140,7 @@ void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, fl
 			currchannel = GetCurrentChannel(j);// -nchannels * GetCurrentEvent(j);
 
 			if (currchannel < static_cast<int>(thresholds.size())) {
-				auto his = (TH1F*)((TH1F*)rundata->At(j))->Clone(); // use Clone() to not change ranges of original histogram
+				auto his = (TH1F*)(Getwf(j))->Clone(); // use Clone() to not change ranges of original histogram
 				integral = GetPeakIntegral(his, windowlow, windowhi, start, end, currchannel);
 
 				if (thresholds[currchannel] != 0 && !skip_event[currevent_counter] && 
@@ -1322,8 +1321,6 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 			his->Draw("HIST");
 			his->SetStats(0); 
 
-			if (ymin != 0. && ymax != 0.) his->GetYaxis()->SetRangeUser(ymin, ymax); // fix y range for better comparison 
-			if (xmin != 0. && xmax != 0.) his->GetXaxis()->SetRangeUser(xmin, xmax); 
 			low->Draw("same");
 			hi->Draw("same");
 			zero->Draw("same");
@@ -1353,6 +1350,9 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 				timing->SetLineWidth(2);
 				timing->Draw("same");
 			}
+
+			if (ymin != 0. && ymax != 0.) his->GetYaxis()->SetRangeUser(ymin, ymax); // fix y range for better comparison 
+			if (xmin != 0. && xmax != 0.) his->GetXaxis()->SetRangeUser(xmin, xmax);
 		}
 	}
 	intwinc->Update();
@@ -1374,7 +1374,7 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 float* ReadRun::ChargeList(int channel_index, float windowlow, float windowhi, float start, float end, bool negative_vals) {
 	float* charge_list = new float[nevents];
 	for (int j = 0; j < nevents; j++) {
-		TH1F* his = ((TH1F*)rundata->At(j * nchannels + channel_index));
+		TH1F* his = Getwf(j * nchannels + channel_index);
 		charge_list[j] = GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index);
 		if (!negative_vals && charge_list[j] < 0.) charge_list[j] = 0.;
 	}
@@ -1488,7 +1488,7 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 
 	for (int j = 0; j < nevents; j++) {
 		if (!skip_event[j]) {
-			TH1F* his = ((TH1F*)rundata->At(j * nchannels + channel_index));
+			TH1F* his = Getwf(j * nchannels + channel_index);
 			h1->Fill(GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index)); // fill charge spectrum
 		}
 	}
@@ -1793,7 +1793,7 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 
 	for (int j = 0; j < nevents; j++) {
 		if (!skip_event[j]) {
-			auto his = (TH1F*)((TH1F*)rundata->At(j * nchannels + channel_index))->Clone();
+			auto his = (TH1F*)(Getwf(j * nchannels + channel_index))->Clone();
 			if (from >= 0 && to > 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
 
 			int from_n = his->GetXaxis()->FindBin(from);
@@ -1904,7 +1904,7 @@ TGraph2D* ReadRun::MaxDist(int channel_index, float from, float to) {
 
 	for (int j = 0; j < nevents; j++) {
 		if (!skip_event[j]) {
-			auto his = (TH1F*)((TH1F*)rundata->At(j * nchannels + channel_index))->Clone();
+			auto his = (TH1F*)(Getwf(j * nchannels + channel_index))->Clone();
 			if (from >= 0 && to > 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
 			double max = his->GetMaximum();
 			for (int i = 0; i < binNumber; i++) g3d->SetPoint(j * binNumber + i, his->GetXaxis()->GetBinCenter(i), max, his->GetBinContent(i));
@@ -2261,7 +2261,7 @@ double* ReadRun::getx(double shift) {
 /// @param waveform_index Waveform index
 /// @return Y values of waveform
 double* ReadRun::gety(int waveform_index) {
-	TH1F* his = (TH1F*)rundata->At(waveform_index);
+	TH1F* his = Getwf(waveform_index);
 	double* yvals = new double[binNumber];
 	for (int i = 0; i < his->GetNbinsX(); i++) {
 		yvals[i] = his->GetBinContent(i + 1);

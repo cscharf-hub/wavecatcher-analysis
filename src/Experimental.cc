@@ -18,14 +18,15 @@ void Experimental::RebinAll(int ngroup, float noise_level) {
 			<< " GS/s which corresponds to a bin size of " << SP << " ns and the data now has " << binNumber << " bins\n";
 
 	for (int j = 0; j < nwf; j++) {
-		TH1F* his = (TH1F*)rundata->At(j);
+		TH1F* his = Getwf(j);
 		his->Rebin(ngroup);
+		
+		his->Scale(1. / static_cast<float>(ngroup));
 
 		if (noise_level != 0.) {
 			auto noise = new TRandom3();
 			for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, his->GetBinContent(i) + noise->Gaus(0, noise_level));
 		}
-		his->Scale(1. / static_cast<float>(ngroup));
 	}
 }
 /// @example timing_example_rebin.cc
@@ -37,7 +38,7 @@ void Experimental::DerivativeAll() {
 	// just for testing
 	cout << "\nderivative of wfs";
 	for (int j = 0; j < nwf; j++) {
-		TH1F* his = ((TH1F*)rundata->At(j));
+		TH1F* his = Getwf(j);
 		double* yvals = gety(his);
 		for (int i = 1; i <= his->GetNbinsX() - 1; i++) his->SetBinContent(i, yvals[i + 1] - yvals[i]);
 		delete[] yvals;
