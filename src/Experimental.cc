@@ -1,6 +1,5 @@
 #include "Experimental.h"
 
-
 /// @brief Rebin the data to test bandwidth effects. Will combine an integer number of bins into a new, 
 /// wider bin and divide the new bin content by the integer number to preserve the shape and integral. 
 /// See [ROOT::TH1::Rebin()](https://root.cern.ch/doc/master/classTH1.html).
@@ -10,14 +9,22 @@
 /// Know to be incompatible is PlotChannelSums() but PlotChannelAverages() works.
 /// 
 /// @param ngroup Integer number of bins to combine.
-void Experimental::RebinAll(int ngroup) {
+/// @param noise_level Add gaussian noise with ```sigma = noise_level``` to rebinned data.
+void Experimental::RebinAll(int ngroup, float noise_level) {
 
 	SP *= static_cast<float>(ngroup);
 	binNumber /= ngroup;
-	cout << "\nRebinning the data to a new sampling rate of " << 1. / SP << " GS/s which corresponds to a bin size of " << SP << " ns and the data now has " << binNumber << " bins\n";
+	cout	<< "\nRebinning the data to a new sampling rate of " << 1. / SP 
+			<< " GS/s which corresponds to a bin size of " << SP << " ns and the data now has " << binNumber << " bins\n";
+
 	for (int j = 0; j < nwf; j++) {
 		TH1F* his = (TH1F*)rundata->At(j);
 		his->Rebin(ngroup);
+
+		if (noise_level != 0.) {
+			auto noise = new TRandom3();
+			for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, his->GetBinContent(i) + noise->Gaus(0, noise_level));
+		}
 		his->Scale(1. / static_cast<float>(ngroup));
 	}
 }
