@@ -6,14 +6,18 @@
 /// 
 /// CAUTION: Not tested with all functions. Make sure to adjust bin numbers e. g. in 
 /// CorrectBaselineMinSlopeRMS() and bin size e. g. in SmoothArray(). 
-/// Know to be incompatible is PlotChannelSums() but PlotChannelAverages() works.
+/// 
+/// Please note that PlotChannelSums() is calculated while parsing the data - **before** rebinning. 
+/// Use PlotChannelAverages() instead.
 /// 
 /// @param ngroup Integer number of bins to combine.
 /// @param noise_level Add gaussian noise with ```sigma = noise_level``` to rebinned data.
-void Experimental::RebinAll(int ngroup, float noise_level) {
+/// @param seed Seed for the random number generator.
+void Experimental::RebinAll(int ngroup, float noise_level, unsigned long seed) {
 
 	SP *= static_cast<float>(ngroup);
 	binNumber /= ngroup;
+	float norm = 1. / static_cast<float>(ngroup);
 	cout	<< "\nRebinning the data to a new sampling rate of " << 1. / SP 
 			<< " GS/s which corresponds to a bin size of " << SP << " ns and the data now has " << binNumber << " bins\n";
 
@@ -21,10 +25,11 @@ void Experimental::RebinAll(int ngroup, float noise_level) {
 		TH1F* his = Getwf(j);
 		his->Rebin(ngroup);
 		
-		his->Scale(1. / static_cast<float>(ngroup));
+		his->Scale(norm);
 
 		if (noise_level != 0.) {
 			auto noise = new TRandom3();
+			noise->SetSeed(seed);
 			for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, his->GetBinContent(i) + noise->Gaus(0, noise_level));
 		}
 	}

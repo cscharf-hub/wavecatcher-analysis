@@ -2457,6 +2457,15 @@ float ReadRun::LinearInterpolation(float ym, float x1, float x2, float y1, float
 /// @param size Size of arrays
 void ReadRun::Convolute(double*& result, double* first, double* second, int size) {
 
+	// FFT real -> im
+	auto fftfirst = [&size](double*& orig, double*& re, double*& im) {
+		TVirtualFFT* fft = TVirtualFFT::FFT(1, &size, "R2C ES");
+		fft->SetPoints(orig);
+		fft->Transform();
+		fft->GetPointsComplex(re, im);
+		delete fft;
+	};
+
 	double* refirst = new double[size];
 	double* imfirst = new double[size];
 	double* resecond = new double[size];
@@ -2464,17 +2473,8 @@ void ReadRun::Convolute(double*& result, double* first, double* second, int size
 	double* reres = new double[size];
 	double* imres = new double[size];
 
-	TVirtualFFT* fftfirst = TVirtualFFT::FFT(1, &size, "R2C ES");
-	fftfirst->SetPoints(first);
-	fftfirst->Transform();
-	fftfirst->GetPointsComplex(refirst, imfirst);
-	delete fftfirst;
-
-	TVirtualFFT* fftsecond = TVirtualFFT::FFT(1, &size, "R2C ES");
-	fftsecond->SetPoints(second);
-	fftsecond->Transform();
-	fftsecond->GetPointsComplex(resecond, imsecond);
-	delete fftsecond;
+	fftfirst(first, refirst, imfirst);
+	fftfirst(second, resecond, imsecond);
 
 	TComplex cofirst;
 	TComplex cosecond;
@@ -2489,6 +2489,7 @@ void ReadRun::Convolute(double*& result, double* first, double* second, int size
 		reres[i] = cores.Re();
 		imres[i] = cores.Im();
 	}
+
 
 	//cout << "performing IFFT ... ";
 	TVirtualFFT* fft_back = TVirtualFFT::FFT(1, &size, "C2R ES");

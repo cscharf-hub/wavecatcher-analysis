@@ -175,7 +175,7 @@ public:
 	TH1F* Getwf(int, int, int = 1);				// channel, eventnr, color
 	double* getx(double = 0.);					// x values
 	double* gety(int);							// y values for waveform index
-	double* gety(int, int);						// y values for waveform(ch, event)
+	double* gety(int, int);						// y values for waveform(channel, event)
 	double* gety(TH1F*);						// y values for histogram
 	double* gety(TH1F*, int, int);				// y values for dedicated y range of a histogram 
 
