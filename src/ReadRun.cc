@@ -515,7 +515,7 @@ void ReadRun::FilterAll(double sigma1, double sigma2, double factor) {
 	for (int j = 0; j < nwf; j++) {
 		TH1F* his = Getwf(j);
 		double* yvals = gety(his);
-		FilterArray(yvals, binNumber, sigma1, sigma2, factor);
+		FilterArray(yvals, his->GetNbinsX(), sigma1, sigma2, factor, SP);
 		for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i - 1]);
 		delete[] yvals;
 		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;
@@ -651,16 +651,16 @@ void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int
 /// 
 /// @param nIntegrationWindow Number of bins of integration window
 /// @param smooth If true will use averaging for more reliable slope. Use with care!
-/// @param sigma NNumber of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution. Use with care!
+/// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution. 
+/// Use with care!
 /// @param max_bin_for_baseline Maximum bin for search window.
 /// @param start_at Minimum bin for search window.
 /// @param search_min Experimental, use with care.
 /// @param smooth_method If 0 use running average (box kernel smoothing). Simple, very fast. \n 
 /// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
 /// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
-/// @param skip_channel Skip a channel
-/// @todo Work on "skip_channel" and remove "search_min"
-void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, double sigma, int max_bin_for_baseline, int start_at, bool search_min, int smooth_method, int skip_channel) {
+/// @todo Remove "search_min"
+void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, double sigma, int max_bin_for_baseline, int start_at, bool search_min, int smooth_method) {
 
 	const int binNumberSlope = binNumber - 1;
 	double* slope = new double[binNumberSlope];
@@ -695,62 +695,61 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 		imax = 0;
 		search_before = 0;
 
-		if (j == 0 || j != skip_channel - 1 || j % skip_channel != 0) { //eventnr * nchannels + i
-			TH1F* his = Getwf(j);
-			double* yvals = gety(his); //find faster way
-			if (sigma > 0) SmoothArray(yvals, binNumber, sigma, smooth_method); // smoothing important to suppress variations in slope due to noise so the method is more sensitive to excluding peaks
+		TH1F* his = Getwf(j);
+		double* yvals = gety(his); //find faster way
+		if (sigma > 0) SmoothArray(yvals, binNumber, sigma, smooth_method);
+		// smoothing can be used to suppress variations in slope due to noise so the method is more sensitive to excluding peaks
 
-			//calculate slope
-			for (int i = 0; i < binNumberSlope; i++) slope[i] = yvals[i + 1] - yvals[i];
+		//calculate slope
+		for (int i = 0; i < binNumberSlope; i++) slope[i] = yvals[i + 1] - yvals[i];
 
-			if (max_bin_for_baseline != 0 && max_bin_for_baseline > nIntegrationWindow) {
-				search_before = max_bin_for_baseline - nIntegrationWindow - 1;
-			}
-			else {
-				imax = his->GetMaximumBin();
-				search_before = imax - min_distance_from_max;
-			}
-
-			for (int i = start_at; i < search_before; i += 3) { // currently in steps of 3 bins (~1 ns) to make it faster
-				sum = 0.;
-				sum0 = 0.;
-				sqsum = 0.;
-				change = 0.;
-				sign = 1.;
-				for (int k = i; k < nIntegrationWindow + i; k += 3) {
-					sum += slope[k];
-					sum0 += yvals[k] / 100; // completely random choice
-					sqsum += (slope[k] * slope[k]);
-				}
-				if (sum0 < 0) sign = -1.;
-
-				if (search_min) change = sqsum + sum * sum + sum0 * sign;
-				else change = sqsum + sum * sum;
-
-				if (change < minchange) {
-					minchange = change;
-					iintwindowstart = i;
-					minsum = sum * sum;
-					minsqsum = sqsum;
-					minsum0 = sum0 * sign;
-				}
-			}
-
-			corr = 0.;
-			if (!smooth) {
-				corr = his->Integral(iintwindowstart, iintwindowstart + nIntegrationWindow) / static_cast<float>(nIntegrationWindow + 1);
-			}
-			else {
-				for (int i = iintwindowstart; i < iintwindowstart + nIntegrationWindow; i++) corr += yvals[i];
-				corr /= static_cast<float>(nIntegrationWindow);
-			}
-
-			for (int i = 0; i < binNumber; i++) {
-				if (!smooth) his->SetBinContent(i + 1, his->GetBinContent(i + 1) - corr);
-				else his->SetBinContent(i + 1, yvals[i] - corr);
-			}
-			delete[] yvals;
+		if (max_bin_for_baseline != 0 && max_bin_for_baseline > nIntegrationWindow) {
+			search_before = max_bin_for_baseline - nIntegrationWindow - 1;
 		}
+		else {
+			imax = his->GetMaximumBin();
+			search_before = imax - min_distance_from_max;
+		}
+
+		for (int i = start_at; i < search_before; i += 3) { // currently in steps of 3 bins (~1 ns) to make it faster
+			sum = 0.;
+			sum0 = 0.;
+			sqsum = 0.;
+			change = 0.;
+			sign = 1.;
+			for (int k = i; k < nIntegrationWindow + i; k += 3) {
+				sum += slope[k];
+				sum0 += yvals[k] / 100; // completely random choice
+				sqsum += (slope[k] * slope[k]);
+			}
+			if (sum0 < 0) sign = -1.;
+
+			if (search_min) change = sqsum + sum * sum + sum0 * sign;
+			else change = sqsum + sum * sum;
+
+			if (change < minchange) {
+				minchange = change;
+				iintwindowstart = i;
+				minsum = sum * sum;
+				minsqsum = sqsum;
+				minsum0 = sum0 * sign;
+			}
+		}
+
+		corr = 0.;
+		if (!smooth) {
+			corr = his->Integral(iintwindowstart, iintwindowstart + nIntegrationWindow) / static_cast<float>(nIntegrationWindow + 1);
+		}
+		else {
+			for (int i = iintwindowstart; i < iintwindowstart + nIntegrationWindow; i++) corr += yvals[i];
+			corr /= static_cast<float>(nIntegrationWindow);
+		}
+
+		for (int i = 0; i < binNumber; i++) {
+			if (!smooth) his->SetBinContent(i + 1, his->GetBinContent(i + 1) - corr);
+			else his->SetBinContent(i + 1, yvals[i] - corr);
+		}
+		delete[] yvals;
 
 		baseline_correction_result.push_back(vector<float>());
 		baseline_correction_result[j].push_back(corr);
@@ -782,9 +781,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 /// Results will be visualized for each event in PrintChargeSpectrumWF(). \n 
 /// For parameters see CorrectBaselineMinSlopeRMS() 
 /// 
-void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_bin_for_baseline, int start_at, int smooth_method, int skip_channel) {
-	skip_channel += 1;
-
+void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_bin_for_baseline, int start_at, int smooth_method) {
 	if (start_at > max_bin_for_baseline - nIntegrationWindow) start_at = 0;
 
 	int min_distance_from_max = 25 + nIntegrationWindow;
@@ -802,38 +799,37 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_b
 		minchange = 1.e9;
 		iintwindowstart = 0;
 
-		if (j == 0 || j != skip_channel - 1 || j % skip_channel != 0) { //eventnr * nchannels + i
-			TH1F* his = Getwf(j);
-			double* yvals = gety(his); //find faster way
-			if (sigma > 0) SmoothArray(yvals, binNumber, sigma, smooth_method); // smoothing
+		TH1F* his = Getwf(j);
+		double* yvals = gety(his); //find faster way
+		if (sigma > 0) SmoothArray(yvals, binNumber, sigma, smooth_method); // smoothing
 
-			if (max_bin_for_baseline != 0 && max_bin_for_baseline > nIntegrationWindow) {
-				search_before = max_bin_for_baseline - nIntegrationWindow - 1;
-			}
-			else {
-				imax = his->GetMaximumBin();
-				search_before = imax - min_distance_from_max;
-			}
-
-			for (int i = start_at; i < search_before; i++) { // can also be done in coarser steps
-				sum0 = 0.;
-				for (int k = i; k < nIntegrationWindow + i; k += 2) { // can also be done in coarser steps
-					sum0 += yvals[k];
-				}
-
-				if (sum0 < minchange) {
-					minchange = sum0;
-					iintwindowstart = i;
-				}
-			}
-
-			corr = his->Integral(iintwindowstart, iintwindowstart + nIntegrationWindow) / static_cast<float>(nIntegrationWindow + 1);
-
-			for (int i = 0; i < binNumber; i++) {
-				his->SetBinContent(i + 1, his->GetBinContent(i + 1) - corr);
-			}
-			delete[] yvals; //delete slow
+		if (max_bin_for_baseline != 0 && max_bin_for_baseline > nIntegrationWindow) {
+			search_before = max_bin_for_baseline - nIntegrationWindow - 1;
 		}
+		else {
+			imax = his->GetMaximumBin();
+			search_before = imax - min_distance_from_max;
+		}
+
+		for (int i = start_at; i < search_before; i++) { // can also be done in coarser steps
+			sum0 = 0.;
+			for (int k = i; k < nIntegrationWindow + i; k += 2) { // can also be done in coarser steps
+				sum0 += yvals[k];
+			}
+
+			if (sum0 < minchange) {
+				minchange = sum0;
+				iintwindowstart = i;
+			}
+		}
+
+		corr = his->Integral(iintwindowstart, iintwindowstart + nIntegrationWindow) / static_cast<float>(nIntegrationWindow + 1);
+
+		for (int i = 0; i < binNumber; i++) {
+			his->SetBinContent(i + 1, his->GetBinContent(i + 1) - corr);
+		}
+		delete[] yvals; //delete slow
+
 
 		baseline_correction_result.push_back(vector<float>());
 		baseline_correction_result[j].push_back(corr);
@@ -1544,6 +1540,9 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 
 	float default_rangestart = -2000;
 	float default_rangeend = 30000;
+	if (default_rangestart > rangestart) default_rangestart = rangestart;
+	if (default_rangeend < rangeend) default_rangeend = rangeend;
+
 	int default_nbins = static_cast<int>((default_rangeend - default_rangestart) * nbins / (rangeend - rangestart));
 
 	TH1F* his;

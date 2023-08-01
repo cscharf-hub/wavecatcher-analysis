@@ -125,9 +125,9 @@ public:
 	void CorrectBaseline(float, float = -999);
 	void CorrectBaseline_function(TH1F*, float, float, int);
 
-	void CorrectBaselineMinSlopeRMS(int = 100, bool = false, double = 0.5, int = 0, int = 0, bool = false, int = 2, int = 8);
+	void CorrectBaselineMinSlopeRMS(int = 100, bool = false, double = 0.5, int = 0, int = 0, bool = false, int = 2);
 
-	void CorrectBaselineMin(int = 100, double = 0.5, int = 0, int = 0, int = 2, int = 8);
+	void CorrectBaselineMin(int = 100, double = 0.5, int = 0, int = 0, int = 2);
 
 	// get timing of peaks
 	void GetTimingCFD(float = .3, float = 100, float = 140, double = 0., bool = true, int = 2, bool = false);
@@ -191,7 +191,7 @@ public:
 	static void SetRangeCanvas(TCanvas*&, double, double, double = -999, double = -999);			// set consistent ranges
 	static void Convolute(double*&, double*, double*, int);											// convolution for filtering waveforms
 	static void SmoothArray(double*&, int, double = 1., int = 0, double = .3125);					// smoothing
-	static void FilterArray(double*&, int, double = .4, double = 1.2, double = .25, double = -1.);	// filtering
+	static void FilterArray(double*&, int, double = .4, double = 1.2, double = .25, double = .3125);	// filtering
 
 	/// @brief Constructor of the class
 	/// @param no_of_bin_files_to_read Set to >1 in order to constrain the number of .bin files read from the target folder. 
