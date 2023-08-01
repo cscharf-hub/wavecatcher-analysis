@@ -80,7 +80,7 @@ void CosmicsBox::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<i
 	}
 
 	//make histogram fancy + printing
-	his->GetXaxis()->SetTitle("#phi_ew (deg.)"); his->GetYaxis()->SetTitle("#Entries"); //titling of axes
+	his->GetXaxis()->SetTitle("#phi_{ew} (°)"); his->GetYaxis()->SetTitle("#Entries"); //titling of axes
 	his->Draw();
 
 	if (periodic) {

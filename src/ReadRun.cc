@@ -1,6 +1,6 @@
 /// \mainpage Introduction
 /// This page serves as documentation of the waveform analysis framework ```wavecatcher-analysis``` for WaveCatcher setups 
-/// in the Experimental Elementary Particle Physics Group at the Institute of Physics at Humboldt University of Berlin. \n \n \n
+/// in the experimental elementary particle physics group at the Institute of Physics at Humboldt University of Berlin. \n \n \n
 /// 
 /// You can find the documentation of the functions and variables at <a href="classReadRun.html"> ReadRun Class Reference</a>
 /// 
@@ -664,7 +664,6 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 
 	const int binNumberSlope = binNumber - 1;
 	double* slope = new double[binNumberSlope];
-	skip_channel += 1;
 
 	if (start_at > max_bin_for_baseline - nIntegrationWindow) start_at = 0;
 
