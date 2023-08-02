@@ -141,7 +141,7 @@ public:
 	void ShiftAllToAverageCF();
 
 	// functions for charge spectrum
-	int* GetIntWindow(TH1F*, float, float, float, float, int);
+	int* GetIntWindow(TH1F*, float, float, float, float, int = 0);
 	float GetPeakIntegral(TH1F*, float, float, float, float, int = 0);
 	void PrintChargeSpectrumWF(float, float, float = 0, float = 300, int = 1, float = 0., float = 0., float = 0., float = 0.);
 	TH1F* ChargeSpectrum(int, float, float, float = 0, float = 300, float = -50, float = 600, int = 750);

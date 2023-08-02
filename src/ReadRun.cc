@@ -49,7 +49,8 @@ ReadRun::ReadRun(int no_of_bin_files_to_read) {
 /// 
 /// @param path Path to the data. All files in this folder containing ```.bin``` in the file name will be read in.
 /// @param change_polarity Set ```true``` to change polarity (sign) of certain channels (see ```change_sign_from_to_ch_num``` below).
-/// @param change_sign_from_to_ch_num All channels \f$ \geq \f$ ```change_sign_from_to_ch_num``` will be inverted if ```change_polarity``` is ```true```. \n 
+/// @param change_sign_from_to_ch_num All channels \f$ \geq \f$ ```change_sign_from_to_ch_num``` 
+/// will be inverted if ```change_polarity``` is ```true```. \n 
 /// If negative number all channels \f$ \leq \f$ ```abs(change_sign_from_to_ch_num)``` will be inverted if ```change_polarity``` is ```true```.
 /// @param out_file_name Name of the ```.root``` file which stores the results, e. g. ```results.root```.
 /// @param debug Set ```true``` to increase the verbosity.
@@ -526,7 +527,8 @@ void ReadRun::FilterAll(double sigma1, double sigma2, double factor) {
 /// 
 /// The signal starting times are determined with constant fraction discrimination. 
 /// **Before** calling this function, please call GetTimingCFD() with suitable parameters for your data. \n
-/// Additionally, PrintChargeSpectrumWF() should be called **before** calling this function since the timing reference (blue line) won't be shifted.
+/// Additionally, PrintChargeSpectrumWF() should be called **before** calling this function since the 
+/// timing reference (blue line) won't be shifted.
 /// 
 void ReadRun::ShiftAllToAverageCF() {
 	cout << "\nshifting all WFs to the average CF time for each channel.\n";
@@ -637,10 +639,12 @@ void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int
 /// @brief Baseline correction method searching for non-monotonic, rather constant regions
 /// 
 /// Corrects the baseline (DC offset) of all waveforms. \n 
-/// Determines the region of "nIntegrationWindow" bins where the squared sum plus the square of the sum of the slope of the smoothed waveform reaches its minimum: \n \n
+/// Determines the region of "nIntegrationWindow" bins where the squared sum plus the square of the sum of 
+/// the slope of the smoothed waveform reaches its minimum: \n \n
 /// \f$\mathbf{min}\left( \sum \left(\Delta y_i \right)^2 + \left(\sum \Delta y_i \right)^2 \right) \f$ \n \n
 /// 
-/// Here, \f$\sum \left(\Delta y_i \right)^2 \to 0\f$ if the region is constant and \f$\left( \sum \Delta y_i \right)^2 \to 0\f$ if the region is constant or 
+/// Here, \f$\sum \left(\Delta y_i \right)^2 \to 0\f$ if the region is constant and 
+/// \f$\left( \sum \Delta y_i \right)^2 \to 0\f$ if the region is constant or 
 /// oscillating around a constant value. The second term penalizes regions with a small monotonic slope (e. g. tails). \n \n 
 /// 
 /// Slow but most versatile since it searches for the optimal baseline candidate region in a defined range. \n 
@@ -772,7 +776,8 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 /// Uses \f$\mathbf{min}\left( \sum y_i \right) \f$ over "nIntegrationWindow" in range {"start_at", "max_bin_for_baseline"}. \n
 /// Make sure the search range is shortly before the triggered signal is expected to arrive. \n \n 
 /// 
-/// Helpful for (groups of/irradiated) SiPMs with very high dark count rate where the signal voltage rarely relaxes back to the baseline before the next signal arrives: \n
+/// Helpful for (groups of/irradiated) SiPMs with very high dark count rate where the signal voltage rarely relaxes 
+/// back to the baseline before the next signal arrives: \n
 /// \f$ \Rightarrow DCR \sim 1/t_{signal} \f$ \n \n
 /// 
 /// Estimates a baseline as the minimum level before the main peak. \n 
@@ -1063,7 +1068,8 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 /// Needs to be called before the charge spectrum etc functions. \n 
 /// Baseline correction should be called before this function.
 /// 
-/// @param thresholds Vector should contain a threshold for each active channel saved in the data, in ascending order (ch0, ch1 ...). Negative thresholds mean events below threshold will be cut. If only one value is given this value will be used for all active channels.
+/// @param thresholds Vector should contain a threshold for each active channel saved in the data, in ascending order (ch0, ch1 ...). 
+/// Negative thresholds mean events below threshold will be cut. If only one value is given this value will be used for all active channels.
 /// @param rangestart Range start in ns
 /// @param rangeend Range end in ns
 /// @param verbose Set true for extra verbosity.
@@ -1105,8 +1111,11 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, double rangestart,
 /// 
 /// Please note that the old version was missing start and end, so please add these parameters to older scripts if they throw errors.
 /// 
-/// @param thresholds Vector should contain a threshold for each active channel saved in the data, in ascending order (ch0, ch1 ...). Negative thresholds mean events below threshold will be cut. A threshold of 0 means the channel will not be evaluated. If only one value is given this value will be used for all active channels.
-/// @param highlow  Vector should contain a bool for each active channel. True means events with integrals above threshold will be cut, false means below threshold. If only one value is given this value will be used for all active channels.
+/// @param thresholds Vector should contain a threshold for each active channel saved in the data, in ascending order (ch0, ch1 ...). 
+/// Negative thresholds mean events below threshold will be cut. A threshold of 0 means the channel will not be evaluated. 
+/// If only one value is given this value will be used for all active channels.
+/// @param highlow  Vector should contain a bool for each active channel. True means events with integrals above threshold will be cut, 
+/// false means below threshold. If only one value is given this value will be used for all active channels.
 /// @param windowlow Integration time left to the maximum of the peak.
 /// @param windowhi Integration time right to the maximum of the peak.
 /// @param start Range for finding maximum.
@@ -1193,9 +1202,11 @@ int ReadRun::Nevents_good() {
 
 /// @brief Determine indices for integration window for peaks
 /// 
-/// Default usage: Find maximum in range ("start", "end") and return bin numbers for [0] the max, [1] t_max - "windowlow", and [2] t_max + "windowhi" \n 
+/// Default usage: Find maximum in range ("start", "end") and return bin numbers for [0] the max, 
+/// [1] t_max - "windowlow", and [2] t_max + "windowhi" \n 
 /// If ("start" < 0 || "end" < 0) doesn't return max and integration window is fixed t(max(sum_spectrum[channel])) +/- "windowhi"/"windowlow" \n 
-/// If ("windowlow" == "start" && "windowhi" == "end") doesn't return max and sets fixed integration window from "start" until "end" for all channels.
+/// If ("windowlow" == "start" && "windowhi" == "end") doesn't return max and sets fixed integration 
+/// window from "start" until "end" for all channels.
 /// 
 /// @param his Histogram to integrate.
 /// @param windowlow Integration time left to the maximum of the peak.
@@ -1791,19 +1802,17 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 
 	for (int j = 0; j < nevents; j++) {
 		if (!skip_event[j]) {
-			auto his = (TH1F*)(Getwf(j * nchannels + channel_index))->Clone();
-			if (from >= 0 && to > 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
-
+			auto his = (TH1F*)(Getwf(j * nchannels + channel_index));
+			
 			int from_n = his->GetXaxis()->FindBin(from);
-			int to_n = his->GetXaxis()->FindBin(to);
 
+			int max_n = GetIntWindow(his, 0, 0, from, to)[0];
+			float max = his->GetBinContent(max_n);
+			
 			if (which == 0) { // time of maximum 
-				h1->Fill(his->GetXaxis()->GetBinCenter(his->GetMaximumBin()));
+				h1->Fill(max);
 			}
 			else if (which == 1) { // time of 50% CFD
-				float max = his->GetMaximum();
-				int max_n = his->GetMaximumBin();
-
 				do {
 					max_n--;
 				} while (his->GetBinContent(max_n) >= cf_r * max && max_n > from_n);
@@ -1812,22 +1821,20 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 				h1->Fill(LinearInterpolation(cf_r * max, his->GetXaxis()->GetBinCenter(max_n - 1), his->GetXaxis()->GetBinCenter(max_n), his->GetBinContent(max_n - 1), his->GetBinContent(max_n)));
 			}
 			else { // 10%-90% rise time
-				// todo -> search backwards from maximum
-				double max = his->GetMaximum();
+				// search backwards from maximum
 				int n10 = -1;
 				int n90 = -1;
 				do {
-					from_n++;
-					if (n10 == -1 && his->GetBinContent(from_n) >= .1 * max && his->GetBinContent(from_n - 1) <= .1 * max) n10 = from_n;
-					if (n90 == -1 && his->GetBinContent(from_n) >= .9 * max && his->GetBinContent(from_n - 1) <= .9 * max) n90 = from_n;
-				} while (his->GetBinContent(from_n) <= max && from_n < to_n);
+					max_n--;
+					if (n10 == -1 && his->GetBinContent(max_n) >= .1 * max && his->GetBinContent(max_n - 1) <= .1 * max) n10 = max_n;
+					if (n90 == -1 && his->GetBinContent(max_n) >= .9 * max && his->GetBinContent(max_n - 1) <= .9 * max) n90 = max_n;
+				} while (his->GetBinContent(max_n) <= max && max_n > from_n);
 
 				float t10 = LinearInterpolation(.1 * max, his->GetXaxis()->GetBinCenter(n10 - 1), his->GetXaxis()->GetBinCenter(n10), his->GetBinContent(n10 - 1), his->GetBinContent(n10));
 				float t90 = LinearInterpolation(.9 * max, his->GetXaxis()->GetBinCenter(n90 - 1), his->GetXaxis()->GetBinCenter(n90), his->GetBinContent(n90 - 1), his->GetBinContent(n90));
 
 				h1->Fill(t90 - t10);
 			}
-			delete his;
 		}
 	}
 	if (which == 1) h1->Fit("gaus", "L", "same");
@@ -1853,9 +1860,6 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 /// else - gives the 10% - 90% rise time.
 /// @param cf_r Fraction of max for CFD.
 void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangeend, int nbins, int which, float cf_r) {
-	// print ReadRun::TimeDist for all channels
-	// see TimeDist for parameter explanations
-
 	gStyle->SetOptStat(1111); // 11 is title + entries
 
 	TCanvas* time_dist_c = new TCanvas("timing of maximum", "timing of maximum", 600, 400);
@@ -2079,7 +2083,8 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 /// 
 /// The vectors of channels to compare are added with curly brackets:
 /// > mymeas.Print_GetTimingCFD_diff({ 26, 14 }, { 19 }, 0, 20, 2, 200); \n
-/// would plot \f$ \Delta t = t_{ch19} - (t_{ch26} + t_{ch14})/2 \f$ from 0 ns to 20 ns with 200 bins (100 ps bin width). Another example is given in the plot below.
+/// would plot \f$ \Delta t = t_{ch19} - (t_{ch26} + t_{ch14})/2 \f$ from 0 ns to 20 ns with 200 bins (100 ps bin width). 
+/// Another example is given in the plot below.
 /// 
 /// \image html Print_GetTimingCFD_diff.png "Event-wise time differences of the start of the signals of two channels. Code in example." width=75%
 /// 
@@ -2088,11 +2093,15 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 /// @param rangestart Start of x range for plot in ns.
 /// @param rangeend End of x range for plot in ns.
 /// @param do_fit If 1: Fit a gaussian. \n
-/// If 2: Fit a gaussian-exponential convolution to account for different arrival times of photons due to different possible light paths in the scintillator/light guide \n
+/// If 2: Fit a gaussian-exponential convolution to account for different arrival times of photons due to different 
+/// possible light paths in the scintillator/light guide \n
 /// and/or delay due to self-absorption and reemission of photons in the scintillator. \n
 /// To be used for long light paths in the scintillator. See https://doi.org/10.1016/S0029-554X(79)90170-8 . \n
-/// This option only works for sufficient asymmetry \f$\tau > \sigma/2\f$. Otherwise, the exponential decay time becomes too small to be fitted. In this case please use option 1.\n
-/// If 3: Fits the sum of two gaussians where the second gauss serves as a rough background estimate. Background means events that should have been filtered out. \n
+/// This option only works for sufficient asymmetry \f$\tau > \sigma/2\f$. 
+/// Otherwise, the exponential decay time becomes too small to be fitted. \n 
+/// If the asymmetry is too small (skewness<0.15) option 1 will be used by default.\n
+/// If 3: Fits the sum of two gaussians where the second gauss serves as a rough background estimate. 
+/// Background means events that should have been filtered out. \n
 /// Else: Do not fit. \n 
 /// @param nbins Number of bins for histogram.
 /// @param fitrangestart Start of fitting range.
@@ -2140,7 +2149,9 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 	}
 	else if (do_fit == 2) {
 		// gauss x exp convolution (effective delay from random light path and/or self-absorption and reemission)
-		string gxe = "[3]/(2*TMath::Abs([0]))*TMath::Exp(([1]*[1]+2*[2]*[0]-2*[0]*x)/(2*[0]*[0]))*TMath::Erfc(([1]*[1]+[0]*([2]-x))/(1.4142*TMath::Abs([0])*[1]))";
+		string gxe =	"[3]/(2*TMath::Abs([0]))*"
+						"TMath::Exp(([1]*[1]+2*[2]*[0]-2*[0]*x)/(2*[0]*[0]))*"
+						"TMath::Erfc(([1]*[1]+[0]*([2]-x))/(1.4142*TMath::Abs([0])*[1]))";
 		auto expgconv = new TF1("exp x gauss convolution", gxe.c_str(), fitrangestart, fitrangeend);
 		expgconv->SetNpx(5000);
 
@@ -2439,8 +2450,9 @@ void ReadRun::SetRangeCanvas(TCanvas*& c, double x_range_min, double x_range_max
 float ReadRun::LinearInterpolation(float ym, float x1, float x2, float y1, float y2) {
 	if (y1 == y2) return (x1 + x2) / 2.;
 	else if (y1 > ym) { 
-		cout << "\nError in LinearInterpolation:\value ym=" << ym << " out of range" << endl;
-		return 1;
+		cout << "\nError in LinearInterpolation: Value ym=" << ym << " out of range (" << y1 << "|" << y2 << ").\n"
+				<< "Will return x1. Increase window for search.\n";
+		return x1;
 	}
 	else return x1 + (ym - y1) * (x2 - x1) / (y2 - y1);
 }
@@ -2509,7 +2521,8 @@ void ReadRun::Convolute(double*& result, double* first, double* second, int size
 /// 
 /// @param[in,out] ar Array to be smoothed.
 /// @param nbins Number of bins of input.
-/// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution (see parameter bin_size).
+/// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and 
+/// convolution (see parameter bin_size).
 /// @param method If 0 use running average (box kernel smoothing). Simple, very fast. \n 
 /// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
 /// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
@@ -2588,7 +2601,8 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method, doub
 
 /// @brief Apply filter for array of double with length nbins
 /// 
-/// Experimental, can be used to highlight peaks and suppress long tails (suppresses low and high frequencies). Use Filter_test.ipynb to test parameters.
+/// Experimental, can be used to highlight peaks and suppress long tails (suppresses low and high frequencies). 
+/// Use Filter_test.ipynb to test parameters.
 /// 
 /// @param[in,out] ar Array to be filtered.
 /// @param nbins Number of bins of input.

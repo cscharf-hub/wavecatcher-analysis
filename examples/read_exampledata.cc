@@ -42,15 +42,15 @@ void read_exampledata(int which = 0)
 	float findmaxfrom = 80.;	// assume pulse after trigger arrives between here ...
 	float findmaxto = 140.;		// ... and here (depends on trigger delay setting etc., for dark counts the signal is random so we look at the whole recorded time range)
 
-	// get a rough estimate of the timing of the main peaks to make sure the choice of the time window makes sense
-	mymeas.PrintTimeDist(findmaxfrom, findmaxto, findmaxfrom - 5, findmaxto + 5, 60, 1, .5);
-
 	// plot charge spectra (histogram of signal integrals)
 	mymeas.PrintChargeSpectrum(intwindowminus, intwindowplus, findmaxfrom, findmaxto, -100, 2.5e3, 200);
 
 	// cut out pedestal events by setting a threshold of 200 mV*ns of the integrals of the last two trigger channels
 	// note that this removes about 70% of all events for this example data!!
 	mymeas.IntegralFilter({ 0, 200, 200 }, { false, false, false }, intwindowminus, intwindowplus, findmaxfrom, findmaxto);
+
+	// get a rough estimate of the timing of the main peaks to make sure the choice of the time window makes sense
+	mymeas.PrintTimeDist(50, 170, findmaxfrom, findmaxto, 60, 1, .5);
 
 	// plot the average corrected waveforms per channel not taking into account events cut out by IntegralFilter()
 	mymeas.PlotChannelAverages();
