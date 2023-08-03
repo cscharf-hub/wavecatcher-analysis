@@ -659,12 +659,10 @@ void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int
 /// Use with care!
 /// @param max_bin_for_baseline Maximum bin for search window.
 /// @param start_at Minimum bin for search window.
-/// @param search_min Experimental, use with care.
 /// @param smooth_method If 0 use running average (box kernel smoothing). Simple, very fast. \n 
 /// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
 /// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
-/// @todo Remove "search_min"
-void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, double sigma, int max_bin_for_baseline, int start_at, bool search_min, int smooth_method) {
+void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, double sigma, int max_bin_for_baseline, int start_at, int smooth_method) {
 
 	const int binNumberSlope = binNumber - 1;
 	double* slope = new double[binNumberSlope];
@@ -675,15 +673,12 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 	float corr = 0;
 	float minchange = 1.e9;
 	float minsum = 0;
-	float minsum0 = 0;
 	float minsqsum = 0;
 	int iintwindowstart = 0;
 
 	float sum = 0.;
-	float sum0 = 0.;
 	float sqsum = 0.;
 	float change = 0.;
-	float sign = 1.;
 
 	int imax = 0;
 	int search_before = 0;
@@ -716,26 +711,19 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 
 		for (int i = start_at; i < search_before; i += 3) { // currently in steps of 3 bins (~1 ns) to make it faster
 			sum = 0.;
-			sum0 = 0.;
 			sqsum = 0.;
 			change = 0.;
-			sign = 1.;
 			for (int k = i; k < nIntegrationWindow + i; k += 3) {
 				sum += slope[k];
-				sum0 += yvals[k] / 100; // completely random choice
 				sqsum += (slope[k] * slope[k]);
 			}
-			if (sum0 < 0) sign = -1.;
-
-			if (search_min) change = sqsum + sum * sum + sum0 * sign;
-			else change = sqsum + sum * sum;
+			change = sqsum + sum * sum;
 
 			if (change < minchange) {
 				minchange = change;
 				iintwindowstart = i;
 				minsum = sum * sum;
 				minsqsum = sqsum;
-				minsum0 = sum0 * sign;
 			}
 		}
 
@@ -760,7 +748,6 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart) * SP);
 		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart + nIntegrationWindow) * SP);
 		baseline_correction_result[j].push_back(minsum);
-		baseline_correction_result[j].push_back(minsum0);
 		baseline_correction_result[j].push_back(minsqsum);
 
 		if ((j + 1) % (nwf / 10) == 0) cout << " " << 100. * static_cast<float>(j + 1) / static_cast<float>(nwf) << "% -" << flush;

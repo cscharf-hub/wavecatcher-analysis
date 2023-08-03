@@ -13,7 +13,7 @@ ROOT.gSystem.Load('ReadRunLib.sl')
 ### Vectors can hold only one type and the interpreter sometimes converts to the wrong types. 
 ### There are examples how to handle this in the code below.
 
-def read_exampledata(which):
+def read_exampledata(which, autoclose):
     path = 'examples/'
     if int(which) == 0:
         path += 'exampledata/'
@@ -41,14 +41,14 @@ def read_exampledata(which):
     findmaxfrom = 80.	    # assume pulse after trigger arrives between here ...
     findmaxto = 140.		# ... and here (depends on trigger delay setting etc., for dark counts the signal is random so we look at the whole recorded time range)
 
-    # Get a rough estimate of the timing of the main peaks to make sure the choice of the time window makes sense
-    mymeas.PrintTimeDist(findmaxfrom, findmaxto, findmaxfrom - 5, findmaxto + 5, 60, 1, .5)
-
     # Cut out pedestal events by setting a threshold of 200 mV*ns of the integrals of the last two trigger channels
     # Note that this removes about 70% of all events for this example data!!
     # The interpreter has problems converting python list objects into c++ vector objects
     # Usually it works with numpy arrays like here
     mymeas.IntegralFilter(np.array([0., 200., 200.]), np.array([False, False, False]), intwindowminus, intwindowplus, findmaxfrom, findmaxto)
+
+    # Get a rough estimate of the timing of the main peaks to make sure the choice of the time window makes sense
+    mymeas.PrintTimeDist(50, 170, findmaxfrom, findmaxto, 60, 1, .5)
 
     # Plot the average corrected waveforms per channel not taking into account events cut out by IntegralFilter()
     mymeas.PlotChannelAverages()
@@ -81,7 +81,8 @@ def read_exampledata(which):
     mymeas.PrintChargeSpectrum(intwindowminus, intwindowplus, findmaxfrom, findmaxto, 6e3, 1.35e4, 200, 7e3, 1.3e4, 9, 1)
 
     # Keep plots open until script is closed manually
-    _ = input("Press enter to exit")
+    if not autoclose:
+        _ = input("Press enter to exit")
 
 def main(argv):
     # Default value of which if no argument is given, i. e. ```python read_exampledata.py```
@@ -89,8 +90,13 @@ def main(argv):
     try:
         if len(argv) > 1:
             which = int(argv[1])
+        
+        autoclose = False
+        if len(argv) > 2:
+            autoclose = True
+
         print('reading measurement: ', which)
-        read_exampledata(which)
+        read_exampledata(which, autoclose)
     except:
         print('error, check input')
 
