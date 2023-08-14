@@ -28,7 +28,7 @@ def read_exampledata(which, autoclose):
     mymeas.ReadFile(path, True, 8, "examples/exampledata_results.root")
 
     # Apply baseline correction to ALL waveforms
-    # Searches for the minimum of sum(y_i^2)+sum(y_i)^2 over 100 bins, starting at bin 50 going until bin 250 without smoothing
+    # Searches for the minimum of sum((y_{i+1} - y_{i})^2)+sum(y_{i+1} - y_{i})^2 over 100 bins, starting at bin 50 going until bin 250 without smoothing
     mymeas.CorrectBaselineMinSlopeRMS(100, False, 0, 250, 50)
 
     ##Plotting

@@ -136,7 +136,7 @@ public:
 	void FractionEventsAboveThreshold(float = 4, bool = true, bool = true, double = 0., double = 0., bool = false);
 
 	// average all waveforms to simplify peak ID
-	void SmoothAll(double = 5, int = 2);
+	void SmoothAll(double = 1., int = 2);
 	void FilterAll(double = .3, double = .9, double = .2);
 	void ShiftAllToAverageCF();
 
@@ -179,7 +179,8 @@ public:
 	double* gety(TH1F*);						// y values for histogram
 	double* gety(TH1F*, int, int);				// y values for dedicated y range of a histogram 
 
-	static int rcolor(unsigned int);			// useful root colors
+	static void PrintProgressBar(int, int);			// progress bar
+	static int rcolor(unsigned int);			// use in loop, skips some poorly visible root colors (like white on white)
 	static float LinearInterpolation(float, float, float, float, float); // linear interpolation
 	
 	int GetEventIndex(int);			// get index of a triggered event (finds the correct event if files are not read sequentially)
@@ -190,7 +191,7 @@ public:
 	void SplitCanvas(TCanvas*&);	// split canvas into pads to display all active channels on one canvas
 	static void SetRangeCanvas(TCanvas*&, double, double, double = -999, double = -999);			// set consistent ranges
 	static void Convolute(double*&, double*, double*, int);											// convolution for filtering waveforms
-	static void SmoothArray(double*&, int, double = 1., int = 0, double = .3125);					// smoothing
+	static void SmoothArray(double*&, int, double = .625, int = 2, double = .3125);					// smoothing
 	static void FilterArray(double*&, int, double = .4, double = 1.2, double = .25, double = .3125);	// filtering
 
 	/// @brief Constructor of the class
