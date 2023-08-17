@@ -125,8 +125,10 @@ public:
 	void CorrectBaseline(float, float = -999);
 	void CorrectBaseline_function(TH1F*, float, float, int);
 
+	void CorrectBaselineMinSlopeRMS(vector<float>, double = 0, int = 2, int = 3);
 	void CorrectBaselineMinSlopeRMS(int = 100, bool = false, double = 0.5, int = 0, int = 0, int = 2);
 
+	void CorrectBaselineMin(vector<float>, double = 0, int = 2, int = 2);
 	void CorrectBaselineMin(int = 100, double = 0.5, int = 0, int = 0, int = 2);
 
 	// get timing of peaks

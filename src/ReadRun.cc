@@ -492,6 +492,7 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 /// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::SmoothAll(double sigma, int method) {
 	cout << "\nSmoothing all non-skipped waveforms:" << endl;
+
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[GetCurrentEvent(j)]) {
 			TH1F* his = Getwf(j);
@@ -638,6 +639,116 @@ void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int
 /// @brief Baseline correction method searching for non-monotonic, rather constant regions
 /// 
 /// Corrects the baseline (DC offset) of all waveforms. \n 
+/// Determines the region of window[0] ns between window[1] ns and window[2] ns where the squared sum plus 
+/// the square of the sum of the slope of the (smoothed) waveform reaches its minimum: \n \n
+/// \f$\mathbf{min}\left( \sum \left(\Delta y_i \right)^2 + \left(\sum \Delta y_i \right)^2 \right) \f$ \n \n
+/// 
+/// Here, \f$\sum \left(\Delta y_i \right)^2 \to 0\f$ if the region is constant and 
+/// \f$\left( \sum \Delta y_i \right)^2 \to 0\f$ if the region is constant or oscillating around a constant value. 
+/// The second term penalizes monotonic regions with a small, but rather constant slope (e. g. tails). \n \n 
+/// 
+/// Slow, but versatile since it searches for the optimal baseline candidate region in a defined range. \n 
+/// Will prefer constant sections of the waveform for the estimation of the baseline. \n
+/// Not well suited if there is not constant baseline in the signal, which can happen if the dark count rate 
+/// is so high that dark counts overlap (e. g. an array of SiPMs) or if the baseline level fluctuates. 
+/// In such a case use CorrectBaselineMin() \n \n 
+/// 
+/// Stores results for all channels and all events in ReadRun::baseline_correction_result. \n 
+/// Results will be visualized for each event in PrintChargeSpectrumWF(). \n \n 
+/// 
+/// @param window Vector containing {length for averaging, search start, search end} in ns. 
+/// Example: {20, 10, 90} would search for the best baseline candidate from 10 ns to 90 ns, averaging over 20 ns.
+/// @param start_at Minimum bin for search window.
+/// @param smooth_method If 0: Use running average (box kernel smoothing). Simple, very fast. \n 
+/// If 1: Use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
+/// Else: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
+/// @param increment Increment for search in bins per step. Default value is 3 (=0.9375 ns).
+void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int smooth_method, int increment) {
+	cout << "\nBaseline correction (minimum slope variation method, " << nwf << " waveforms):" << endl;
+	if (window.empty()) cout << "\nWarning: Window not set in CorrectBaselineMinSlopeRMS. Will use default values." << endl;
+	if (sigma != 0.) cout << "\nNotification: Using smoothing in CorrectBaselineMinSlopeRMS." << endl;
+	if (increment < 1) increment = 1;
+
+	int nbins_average = !window.empty() ? static_cast<int>(round(abs(window[0]) / SP)) : 160;
+	int start_search_at = static_cast<int>(window.size()) > 1 ? static_cast<int>(round(abs(window[1]) / SP)) : 0;
+	int end_search_at = static_cast<int>(window.size()) > 2 ? static_cast<int>(round(abs(window[2]) / SP)) : binNumber - 1;
+
+	if (end_search_at >= binNumber) end_search_at = binNumber - 1;
+	int end_search_loop_at = end_search_at - start_search_at - nbins_average;
+
+	// if no valid static search window is specified, it will be dynamic from 0 up to 25 bins before the global maximum
+	bool search_relative_to_local_max = false;
+	int min_distance_from_max = 25;
+	if (start_search_at < 0 || end_search_loop_at < increment) {
+		search_relative_to_local_max = true;
+		start_search_at = 0;
+		cout << "\nNotification: Using dynamic search window in CorrectBaselineMinSlopeRMS." << endl;
+	}
+
+	int nbins_search = end_search_at - start_search_at;
+
+	float minchange = 1.e9;
+	float sum = 0, change = 0, minsumsq = 0, sqsum = 0, minsqsum = 0, corr = 0;
+	int iintwindowstart = 0, imax = 0;
+
+	for (int j = 0; j < nwf; j++) {
+		minchange = 1.e9;
+		minsumsq = 0, sqsum = 0, minsqsum = 0, corr = 0;
+		iintwindowstart = 0;
+
+		TH1F* his = Getwf(j);
+		if (search_relative_to_local_max) {
+			imax = GetIntWindow(his, 0, 0, (float)(nbins_search + min_distance_from_max) * SP, (float)(end_search_at)*SP)[1];
+			end_search_at = imax - min_distance_from_max;
+			nbins_search = end_search_at;
+			end_search_loop_at = nbins_search - nbins_average;
+		}
+
+		double* yvals = gety(his, start_search_at, end_search_at);
+		// smoothing suppresses variations in slope due to noise, so the method is potentially more sensitive to excluding peaks
+		if (sigma > 0) SmoothArray(yvals, nbins_search, sigma, smooth_method);
+		//calculate slope
+		double slope[nbins_search - 1];
+		for (int i = 0; i < nbins_search - 1; i++) slope[i] = yvals[i + 1] - yvals[i];
+		delete[] yvals;
+
+		//find window for correction
+		for (int i = 0; i < end_search_loop_at; i += increment) { // recommendend max. 3 bins (~1 ns) 
+			sum = 0., change = 0.;
+
+			for (int k = i; k < nbins_average + i; k += increment) { // recommendend max. 3 bins (~1 ns)
+				sum += slope[k];
+				sqsum += (slope[k] * slope[k]);
+			}
+			change = sqsum + sum * sum;
+
+			if (change < minchange) {
+				minchange = change;
+				iintwindowstart = i + start_search_at;
+				minsumsq = sum * sum;
+				minsqsum = sqsum;
+			}
+		}
+		// do correction
+		corr = his->Integral(iintwindowstart, iintwindowstart + nbins_average) / static_cast<float>(nbins_average + 1);
+		for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, his->GetBinContent(i) - corr);
+
+		baseline_correction_result.push_back(vector<float>());
+		baseline_correction_result[j].push_back(corr);
+		baseline_correction_result[j].push_back(minchange);
+		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart) * SP);
+		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart + nbins_average) * SP);
+		baseline_correction_result[j].push_back(minsumsq);
+		baseline_correction_result[j].push_back(minsqsum);
+		PrintProgressBar(j, nwf);
+	}
+}
+/// @example read_exampledata.cc
+/// @example read_exampledata.py
+
+/// @brief Baseline correction method searching for non-monotonic, rather constant regions
+/// 
+/// Corrects the baseline (DC offset) of all waveforms. \n 
 /// Determines the region of "nIntegrationWindow" bins where the squared sum plus the square of the sum of 
 /// the slope of the (smoothed) waveform reaches its minimum: \n \n
 /// \f$\mathbf{min}\left( \sum \left(\Delta y_i \right)^2 + \left(\sum \Delta y_i \right)^2 \right) \f$ \n \n
@@ -667,81 +778,13 @@ void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int
 /// If 1: Use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
 /// Else: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, double sigma, int max_bin_for_baseline, int start_at, int smooth_method) {
-
-	const int binNumberSlope = binNumber - 1;
-	double* slope = new double[binNumberSlope];
-
-	if (start_at > max_bin_for_baseline - nIntegrationWindow) start_at = 0;
-	int min_distance_from_max = 25 + nIntegrationWindow;
-	float minchange = 1.e9;
-	float sum = 0, minsum = 0, sqsum = 0, minsqsum = 0, change = 0, corr = 0;
-	int imax = 0, search_before = 0, iintwindowstart = 0;
-
-	cout << "\nBaseline correction (minimum slope variation method, " << nwf << " waveforms):" << endl;
-
-	for (int j = 0; j < nwf; j++) {
-		minchange = 1.e9;
-		corr = 0; 
-		iintwindowstart = 0; imax = 0; search_before = 0;
-
-		TH1F* his = Getwf(j);
-		double* yvals = gety(his); //find faster way
-		if (sigma > 0) SmoothArray(yvals, binNumber, sigma, smooth_method);
-		// smoothing can be used to suppress variations in slope due to noise so the method is more sensitive to excluding peaks
-
-		//calculate slope
-		for (int i = 0; i < binNumberSlope; i++) slope[i] = yvals[i + 1] - yvals[i];
-
-		if (max_bin_for_baseline > 0 && max_bin_for_baseline > nIntegrationWindow) {
-			search_before = max_bin_for_baseline - nIntegrationWindow - 1;
-		}
-		else {
-			imax = his->GetMaximumBin(); // uses full x range
-			search_before = imax - min_distance_from_max;
-		}
-
-		for (int i = start_at; i < search_before; i += 3) { // currently in steps of 3 bins (~1 ns) to make it faster
-			sum = 0.; sqsum = 0.; change = 0.;
-
-			for (int k = i; k < nIntegrationWindow + i; k += 3) {
-				sum += slope[k];
-				sqsum += (slope[k] * slope[k]);
-			}
-			change = sqsum + sum * sum;
-
-			if (change < minchange) {
-				minchange = change;
-				iintwindowstart = i;
-				minsum = sum * sum;
-				minsqsum = sqsum;
-			}
-		}
-
-		if (!smooth) {
-			corr = his->Integral(iintwindowstart, iintwindowstart + nIntegrationWindow) / static_cast<float>(nIntegrationWindow + 1);
-		}
-		else {
-			for (int i = iintwindowstart; i < iintwindowstart + nIntegrationWindow; i++) corr += yvals[i];
-			corr /= static_cast<float>(nIntegrationWindow);
-		}
-
-		for (int i = 1; i <= binNumber; i++) {
-			if (!smooth) his->SetBinContent(i, his->GetBinContent(i) - corr);
-			else his->SetBinContent(i, yvals[i - 1] - corr);
-		}
-		delete[] yvals;
-
-		baseline_correction_result.push_back(vector<float>());
-		baseline_correction_result[j].push_back(corr);
-		baseline_correction_result[j].push_back(minchange);
-		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart) * SP);
-		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart + nIntegrationWindow) * SP);
-		baseline_correction_result[j].push_back(minsum);
-		baseline_correction_result[j].push_back(minsqsum);
-
-		PrintProgressBar(j, nwf);
-	}
-	delete[] slope;
+	cout << "Notification: This is a deprecated version of CorrectBaselineMinSlopeRMS. "
+		<< "It will be removed in future releases. Parameter bool smooth=" << smooth << " will be ignored." << endl;
+	vector<float> window;
+	window.push_back(static_cast<float>(nIntegrationWindow) * SP);
+	window.push_back(static_cast<float>(start_at) * SP);
+	window.push_back(static_cast<float>(max_bin_for_baseline) * SP);
+	CorrectBaselineMinSlopeRMS(window, sigma, smooth_method, 3);
 }
 /// @example read_exampledata.cc
 /// @example read_exampledata.py
@@ -749,6 +792,98 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 /// @brief Baseline correction using minimum sum (\f$\propto\f$ mean) in range for correction 
 /// 
 /// Corrects the baseline (DC offset) of all waveforms. \n 
+/// Searches for \f$\mathbf{min}\left( \sum y_i \right) \f$ in range {window[1], window[2]}, 
+/// summing over window[0] ns. \n
+/// Make sure the search range is shortly before the triggered signal is expected to arrive. \n \n 
+/// 
+/// Helpful for (groups of/irradiated) SiPMs with very high dark count rate (DCR) where the voltage rarely relaxes 
+/// back to the constant baseline before the next dark count/signal arrives: \n
+/// \f$ \Rightarrow DCR \sim 1/t_{signal} \f$ \n \n
+/// 
+/// Stores results for all channels and all events in ReadRun::baseline_correction_result. \n 
+/// Results will be visualized for each event in PrintChargeSpectrumWF().
+/// 
+/// @param window Vector containing {length for averaging, search start, search end} in ns. 
+/// Example: {20, 10, 90} would search for the best baseline candidate from 10 ns to 90 ns, averaging over 20 ns.
+/// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss 
+/// kernel and convolution. Set to 0 for no smoothing. Use with care!
+/// @param smooth_method If 0: Use running average (box kernel smoothing). Simple, very fast. \n 
+/// If 1: Use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
+/// Else: Use 3 sigma gaussian kernel smoothing. Preferred method, fast. 
+/// @param increment Increment for search in bins per step. Default value is 3 (=0.9375 ns).
+void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_method, int increment) {
+	cout << "\nBaseline correction (minimal sum method, " << nwf << " waveforms):" << endl;
+	if (window.empty()) cout << "\nWarning: Window not set in CorrectBaselineMin. Will use default values." << endl;
+	if (sigma != 0.) cout << "\nNotification: Using smoothing in CorrectBaselineMin." << endl;
+	if (increment < 1) increment = 1;
+
+	int nbins_average = !window.empty() ? static_cast<int>(round(abs(window[0]) / SP)) : 160;
+	int start_search_at = static_cast<int>(window.size()) > 1 ? static_cast<int>(round(abs(window[1]) / SP)) : 0;
+	int end_search_at = static_cast<int>(window.size()) > 2 ? static_cast<int>(round(abs(window[2]) / SP)) : binNumber - 1;
+
+	if (end_search_at >= binNumber) end_search_at = binNumber - 1;
+	int end_search_loop_at = end_search_at - start_search_at - nbins_average;
+
+	// if no valid static search window is specified, it will be dynamic from 0 up to 25 bins before the global maximum
+	bool search_relative_to_local_max = false;
+	int min_distance_from_max = 25;
+	if (start_search_at < 0 || end_search_loop_at < increment) {
+		search_relative_to_local_max = true;
+		start_search_at = 0;
+		cout << "\nNotification: Using dynamic search window in CorrectBaselineMin." << endl;
+	}
+
+	int nbins_search = end_search_at - start_search_at;
+
+	float minchange = 1e9;
+	float sum = 0, corr = 0;
+	int iintwindowstart = 0, imax = 0;
+
+	for (int j = 0; j < nwf; j++) {
+		minchange = 1.e9;
+		corr = 0;
+		iintwindowstart = 0;
+
+		TH1F* his = Getwf(j);
+		if (search_relative_to_local_max) {
+			imax = GetIntWindow(his, 0, 0, (float)(nbins_search + min_distance_from_max) * SP, (float)(end_search_at)*SP)[1];
+			end_search_at = imax - min_distance_from_max;
+			nbins_search = end_search_at;
+			end_search_loop_at = nbins_search - nbins_average;
+		}
+
+		double* yvals = gety(his, start_search_at, end_search_at);
+		// smoothing suppresses variations in slope due to noise, so the method is potentially more sensitive to excluding peaks
+		if (sigma > 0) SmoothArray(yvals, nbins_search, sigma, smooth_method);
+		//find window for correction
+		for (int i = 0; i < end_search_loop_at; i += increment) { // recommendend max. 2 bins or min. method
+			sum = 0;
+			for (int k = i; k < nbins_average + i; k += increment) { // recommendend max. 2 bins
+				sum += yvals[k];
+			}
+
+			if (sum < minchange) {
+				minchange = sum;
+				iintwindowstart = i + start_search_at;
+			}
+		}
+		// do correction
+		corr = his->Integral(iintwindowstart, iintwindowstart + nbins_average) / static_cast<float>(nbins_average + 1);
+		for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, his->GetBinContent(i) - corr);
+		delete[] yvals;
+
+		baseline_correction_result.push_back(vector<float>());
+		baseline_correction_result[j].push_back(corr);
+		baseline_correction_result[j].push_back(minchange);
+		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart) * SP);
+		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart + nbins_average) * SP);
+		PrintProgressBar(j, nwf);
+	}
+}
+
+/// @brief Baseline correction using minimum sum (\f$\propto\f$ mean) in range for correction 
+/// 
+/// /// Corrects the baseline (DC offset) of all waveforms. \n 
 /// Searches for \f$\mathbf{min}\left( \sum y_i \right) \f$ in range {"start_at", "max_bin_for_baseline"}, 
 /// summing over "nIntegrationWindow"  bins. \n
 /// Make sure the search range is shortly before the triggered signal is expected to arrive. \n \n 
@@ -758,7 +893,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 /// \f$ \Rightarrow DCR \sim 1/t_{signal} \f$ \n \n
 /// 
 /// Stores results for all channels and all events in ReadRun::baseline_correction_result. \n 
-/// Results will be visualized for each event in PrintChargeSpectrumWF(). \n 
+/// Results will be visualized for each event in PrintChargeSpectrumWF().
 /// 
 /// @param nIntegrationWindow Number of bins used for baseline correction. The correction factor will be the 
 /// signal averaged over this number bins.
@@ -770,60 +905,12 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 /// If 1: Use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
 /// Else: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_bin_for_baseline, int start_at, int smooth_method) {
-	if (start_at > max_bin_for_baseline - nIntegrationWindow) start_at = 0;
-
-	int min_distance_from_max = 25 + nIntegrationWindow;
-	float minchange = 1e9;
-	int iintwindowstart = 0;
-	float sum0 = 0, corr = 0;
-	int imax = 0, search_before = 0;
-
-	cout << "\nBaseline correction (minimal sum method, " << nwf << " waveforms):" << endl;
-
-	for (int j = 0; j < nwf; j++) {
-		minchange = 1.e9;
-		iintwindowstart = 0;
-
-		TH1F* his = Getwf(j);
-		double* yvals = gety(his); //find faster way
-		if (sigma > 0) SmoothArray(yvals, binNumber, sigma, smooth_method); // smoothing
-
-		if (max_bin_for_baseline != 0 && max_bin_for_baseline > nIntegrationWindow) {
-			search_before = max_bin_for_baseline - nIntegrationWindow - 1;
-		}
-		else {
-			imax = his->GetMaximumBin();
-			search_before = imax - min_distance_from_max;
-		}
-
-		for (int i = start_at; i < search_before; i++) { // can also be done in coarser steps
-			sum0 = 0;
-			for (int k = i; k < nIntegrationWindow + i; k += 2) { // can also be done in coarser steps
-				sum0 += yvals[k];
-			}
-
-			if (sum0 < minchange) {
-				minchange = sum0;
-				iintwindowstart = i;
-			}
-		}
-
-		corr = his->Integral(iintwindowstart, iintwindowstart + nIntegrationWindow) / static_cast<float>(nIntegrationWindow + 1);
-
-		for (int i = 1; i <= binNumber; i++) {
-			his->SetBinContent(i, his->GetBinContent(i) - corr);
-		}
-		delete[] yvals; //delete slow
-
-
-		baseline_correction_result.push_back(vector<float>());
-		baseline_correction_result[j].push_back(corr);
-		baseline_correction_result[j].push_back(minchange);
-		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart) * SP);
-		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart + nIntegrationWindow) * SP);
-
-		PrintProgressBar(j, nwf);
-	}
+	cout << "Notification: This is a deprecated version of CorrectBaselineMin. It will be removed in future releases." << endl;
+	vector<float> window;
+	window.push_back(static_cast<float>(nIntegrationWindow) * SP);
+	window.push_back(static_cast<float>(start_at) * SP);
+	window.push_back(static_cast<float>(max_bin_for_baseline) * SP);
+	CorrectBaselineMin(window, sigma, smooth_method, 2);
 }
 /// @example timing_example.cc
 
@@ -1475,7 +1562,7 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 
 	for (int j = 0; j < nevents; j++) {
 		if (!skip_event[j]) {
-			TH1F* his = Getwf(j * nchannels + channel_index);
+			TH1F* his = Getwf(channel_index, j);
 			h1->Fill(GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index)); // fill charge spectrum
 		}
 	}
@@ -2520,12 +2607,12 @@ void ReadRun::Convolute(double*& result, double* first, double* second, int size
 /// convolution (see parameter bin_size).
 /// @param method If 0: Use running average (box kernel smoothing). Simple, very fast. \n 
 /// If 1: Use 5 sigma FFT gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
-/// Else: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
+/// Else: Use 3 sigma gaussian kernel smoothing. Preferred method, fast. 
 /// @param bin_size Bin width of the array to smooth for gauss sigma. Default is .3125 for wavecatcher sampling rate. 
 /// Set to 1 to change sigma unit to number of bins.
 void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method, double bin_size) {
 
-	double artmp[nbins];
+	double* artmp = new double[nbins];
 	for (int i = 0; i < nbins; i++) artmp[i] = ar[i];
 
 	if (method == 0) {
@@ -2533,11 +2620,12 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method, doub
 		for (int i = 0; i < nbins; i++) {
 			double mean = 0.;
 			int nmean = 0;
-			for (int k = -1 * static_cast<int>(floor(sigma)); k <= static_cast<int>(ceil(sigma)); k++) {
-				if (i + k >= 0 && i + k < nbins) {
-					mean += artmp[i + k];
-					nmean++;
-				}
+			int start = max(0, i - static_cast<int>(floor(sigma)));
+			int end = min(i + static_cast<int>(ceil(sigma)), nbins - 1);
+
+			for (int k = start; k <= end; k++) {
+				mean += artmp[k];
+				nmean++;
 			}
 			if (nmean != 0) {
 				ar[i] = mean / static_cast<double>(nmean);
@@ -2549,10 +2637,14 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method, doub
 		double* gauss = new double[nbins];
 
 		double sum = 0.;
+		double five_sigma = 5 * sigma;
+		double denom1 = -2. * sigma * sigma;
+		double denom2 = sigma * 2.506628;
 
 		for (int i = 0; i < nbins; i++) {
-			if (static_cast<double>(i) * bin_size < 5 * sigma) gauss[i] = 
-				TMath::Exp(-1. * TMath::Power((static_cast<double>(i) * bin_size - 5 * sigma), 2.) / (2. * sigma * sigma)) / (sigma * 2.506628);
+			double position = static_cast<double>(i) * bin_size;
+			if (position < five_sigma) gauss[i] =
+				exp(pow((position - five_sigma), 2) / denom1) / denom2;
 			else gauss[i] = 0.;
 			sum += gauss[i];
 		}
@@ -2572,16 +2664,20 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method, doub
 			double gauss[nbins_3sigma];
 			double gauss_offset = floor(static_cast<double>(nbins_3sigma) / 2.) * bin_size;
 			double denom = -2. * sigma * sigma;
+
 			for (int i = 0; i < nbins_3sigma; i++) {
-				gauss[i] = TMath::Exp(TMath::Power((static_cast<double>(i)) * bin_size - gauss_offset, 2.) / denom);
+				double position = static_cast<double>(i) * bin_size;
+				gauss[i] = exp(pow(position - gauss_offset, 2) / denom);
 			}
 
-			double res = 0;
-			double norm = 0;
+			double res = 0, norm = 0;
+
 			for (int i = 0; i < nbins; i++) {
-				res = 0.;
-				norm = 0.;
-				for (int j = max(0, nbins_3sigma / 2 - i); j < min(nbins - i + nbins_3sigma / 2, nbins_3sigma); j++) {
+				res = 0., norm = 0.;
+				int start = max(0, nbins_3sigma / 2 - i);
+				int end = min(nbins - i + nbins_3sigma / 2, nbins_3sigma);
+
+				for (int j = start; j < end; j++) {
 					res += gauss[j] * artmp[i + j - nbins_3sigma / 2];
 					norm += gauss[j];
 				}
@@ -2589,6 +2685,7 @@ void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method, doub
 			}
 		}
 	}
+	delete[] artmp;
 }
 /// @example use_functions_wo_measurement.cc
 
