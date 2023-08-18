@@ -137,6 +137,9 @@ public:
 	TH1F* WFProjectionChannel(int, int = 0, int = 1024, float = -50, float = 50, int = 200);
 	void PrintWFProjection(float = 0, float = 320, float = -50, float = 50, int = 200);
 
+	TH1F* BaselineCorrectionResults(int, int, float = -5, float = 5, int = 200);
+	void PrintBaselineCorrectionResults(float = -5, float = 5, int = 200);
+
 	// get timing of peaks
 	void GetTimingCFD(float = .3, float = 100, float = 140, double = 0., bool = true, int = 2, bool = false);
 	void SkipEventsTimeDiffCut(int, int, double, double, bool = false);
@@ -195,6 +198,8 @@ public:
 	int GetChannelIndex(int);		// get index of a certain channel
 	int GetCurrentChannel(int);		// get index of channel for a certain waveform
 	int GetCurrentEvent(int);		// get index of event for a certain waveform
+	
+	bool PlotChannel(int);		// check if channel should be plotted
 	
 	void SplitCanvas(TCanvas*&);	// split canvas into pads to display all active channels on one canvas
 	static void SetRangeCanvas(TCanvas*&, double, double, double = -999, double = -999);			// set consistent ranges

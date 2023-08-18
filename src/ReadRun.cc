@@ -379,7 +379,7 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 	double max = 0., min = 0.;
 
 	for (int i = 0; i < nchannels; i++) {
-		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+		if (PlotChannel(i)) {
 			double* yv = amplValuessum[i];
 			if (smooth) SmoothArray(yv, binNumber, sigma, smooth_method);
 
@@ -435,7 +435,7 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 	double max = 0., min = 0.;
 		
 	for (int i = 0; i < nchannels; i++) {
-		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+		if (PlotChannel(i)) {
 			
 			double* yv = new double[binNumber];
 			for (int k = 0; k < binNumber; k++) yv[k] = 0.;
@@ -558,10 +558,10 @@ void ReadRun::ShiftAllToAverageCF() {
 			double* yvals = gety(his);
 			int shift = static_cast<int>(timing_results[j][0]) - timing_mean_n[GetCurrentChannel(j)];
 
-			for (int i = 0; i < his->GetNbinsX(); i++) {
+			for (int i = 0; i < binNumber; i++) {
 				int icycle = 0;
-				if (i + shift >= his->GetNbinsX()) icycle = -1 * his->GetNbinsX();
-				else if (i + shift < 0) icycle = his->GetNbinsX();
+				if (i + shift >= binNumber) icycle = -1 * binNumber;
+				else if (i + shift < 0) icycle = binNumber;
 				his->SetBinContent(i + 1, yvals[i + shift + icycle]);
 			}
 			delete[] yvals;
@@ -954,6 +954,7 @@ TH1F* ReadRun::WFProjectionChannel(int channel_index, int from_n, int to_n, floa
 /// @param nbins Number of bins in range.
 void ReadRun::PrintWFProjection(float from, float to, float rangestart, float rangeend, int nbins) {
 	gStyle->SetOptFit(111);
+	gStyle->SetOptStat(1111);
 
 	string ctitle("WFProjection" + to_string(PrintWFProjection_cnt++));
 	TCanvas* wf_projection_c = new TCanvas(ctitle.c_str(), ctitle.c_str(), 600, 400);
@@ -971,7 +972,7 @@ void ReadRun::PrintWFProjection(float from, float to, float rangestart, float ra
 
 	TH1F* his;
 	for (int i = 0; i < nchannels; i++) {
-		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+		if (PlotChannel(i)) {
 			current_canvas++;
 
 			his = WFProjectionChannel(i, from_n, to_n, default_rangestart, default_rangeend, default_nbins);
@@ -989,6 +990,62 @@ void ReadRun::PrintWFProjection(float from, float to, float rangestart, float ra
 
 	SetRangeCanvas(wf_projection_c, rangestart, rangeend);
 	root_out->WriteObject(wf_projection_c, ("WFProjections" + to_string(PrintWFProjection_cnt)).c_str());
+}
+
+/// @brief Histograms of the contents of baseline_correction_result
+/// 
+/// See PrintBaselineCorrectionResults() for parameters.
+/// 
+/// @return Histogram for one channel.
+TH1F* ReadRun::BaselineCorrectionResults(int channel_index, int which, float rangestart, float rangeend, int nbins) {
+	if (baseline_correction_result.empty() || static_cast<int>(baseline_correction_result[0].size()) < which - 1) {
+		cout << "\nError: baseline_correction_result empty. Call baseline correction first." << endl;
+	}
+	TString name(Form("channel__%02d", active_channels[channel_index]));
+	TH1F* h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
+
+	for (int j = 0; j < nevents; j++) {
+		if (!skip_event[j]) h1->Fill(baseline_correction_result[j * nchannels + channel_index][which]);
+	}
+	return h1;
+}
+
+/// @brief Print histogram of the baseline correction values for all channels
+/// 
+/// @param rangestart Plot x range start.
+/// @param rangeend Plot x range end.
+/// @param nbins Number of bins in range.
+void ReadRun::PrintBaselineCorrectionResults(float rangestart, float rangeend, int nbins) {
+	float default_rangestart = -10;
+	float default_rangeend = 20;
+	if (default_rangestart > rangestart) default_rangestart = rangestart;
+	if (default_rangeend < rangeend) default_rangeend = rangeend;
+	int default_nbins = static_cast<int>((default_rangeend - default_rangestart) * nbins / (rangeend - rangestart));
+
+	for (auto which : baseline_correction_result[0]) {
+		if (static_cast<int>(which) < 1) { //currently only optimized for the correction value
+			string ctitle;
+			if (static_cast<int>(which) == 0) ctitle = "Correction values in mV";
+			else if (static_cast<int>(which) == 1) ctitle = "Minimum change";
+			TCanvas* blc_res_c = new TCanvas(ctitle.c_str(), ctitle.c_str(), 600, 400);
+			SplitCanvas(blc_res_c);
+			int current_canvas = 0;
+
+			for (int i = 0; i < nchannels; i++) {
+				if (PlotChannel(i)) {
+					current_canvas++;
+					TH1F* his = BaselineCorrectionResults(i, static_cast<int>(which), default_rangestart, default_rangeend, default_nbins);
+					his->GetYaxis()->SetTitle("#Entries");
+					his->GetXaxis()->SetTitle(ctitle.c_str());
+					blc_res_c->cd(current_canvas);
+					his->Draw();
+					his->Fit("gaus", "L", "same");
+				}
+			}
+			SetRangeCanvas(blc_res_c, rangestart, rangeend);
+			root_out->WriteObject(blc_res_c, ctitle.c_str());
+		}
+	}
 }
 
 /// @brief Determine the timing of the maximum peak with constant fraction discrimination
@@ -1447,7 +1504,7 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 
 	int current_canvas = 0;
 	for (int i = 0; i < nchannels; i++) {
-		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+		if (PlotChannel(i)) {
 			current_canvas++;
 
 			TH1F* his = Getwf(i, event_index);
@@ -1551,7 +1608,7 @@ void ReadRun::SaveChargeLists(float windowlow, float windowhi, float start, floa
 	else charge_list_mg->SetTitle("event-wise amplitudes; Event number; amplitude [mV]");
 
 	for (int i = 0; i < nchannels; i++) {
-		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+		if (PlotChannel(i)) {
 			TString name(Form("charge_list_ch_%02d", active_channels[i]));
 			float* charge_list = ChargeList(i, windowlow, windowhi, start, end, negative_vals);
 			TGraph* charge_list_graph = new TGraph(nevents, event_list, charge_list);
@@ -1702,7 +1759,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 
 	TH1F* his;
 	for (int i = 0; i < nchannels; i++) {
-		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+		if (PlotChannel(i)) {
 			current_canvas++;
 			
 			his = ChargeSpectrum(i, windowlow, windowhi, start, end, default_rangestart, default_rangeend, default_nbins);
@@ -1920,7 +1977,7 @@ void ReadRun::PrintDCR(float windowlow, float windowhi, float rangestart, float 
 	if (windowlow + windowhi > 0.) unit = " mV*ns";
 
 	for (int i = 0; i < nchannels; i++) {
-		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+		if (PlotChannel(i)) {
 
 			TH1F* his;
 			his = ChargeSpectrum(i, windowlow, windowhi, rangestart, rangeend, rangestart, rangeend, 500);
@@ -2013,7 +2070,7 @@ void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangee
 	int current_canvas = 0;
 
 	for (int i = 0; i < nchannels; i++) {
-		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+		if (PlotChannel(i)) {
 			current_canvas++;
 			time_dist_c->cd(current_canvas);
 
@@ -2077,7 +2134,7 @@ void ReadRun::PrintMaxDist(float from, float to) {
 	int current_canvas = 0;
 
 	for (int i = 0; i < nchannels; i++) {
-		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+		if (PlotChannel(i)) {
 			current_canvas++;
 			auto g3d = MaxDist(i, from, to);
 			max_dist_c->cd(current_canvas);
@@ -2129,7 +2186,7 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, i
 	int current_canvas = 0;
 
 	for (int i = 0; i < nchannels; i++) {
-		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+		if (PlotChannel(i)) {
 			current_canvas++;
 			timing_cfd_c->cd(current_canvas);
 
@@ -2139,7 +2196,8 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, i
 			his->GetXaxis()->SetTitle("time [ns]");
 
 			if (set_errors) {
-				for (int i = 1; i <= his->GetNbinsX(); i++) {
+				int end = his->GetNbinsX();
+				for (int i = 1; i <= end; i++) {
 					if (his->GetBinContent(i) < 2) his->SetBinError(i, 1);
 					else his->SetBinError(i, sqrt(his->GetBinContent(i)));
 				}
@@ -2276,7 +2334,8 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 	his->GetXaxis()->SetTitle("time [ns]");
 
 	if (set_errors) {
-		for (int i = 1; i <= his->GetNbinsX(); i++) {
+		int end = his->GetNbinsX();
+		for (int i = 1; i <= end; i++) {
 			if (his->GetBinContent(i) < 2) his->SetBinError(i, 1);
 			else his->SetBinError(i, sqrt(his->GetBinContent(i)));
 		}
@@ -2526,6 +2585,13 @@ int ReadRun::GetCurrentEvent(int waveform_index) {
 	return floor(waveform_index / nchannels);
 }
 
+/// @brief Check if a channel index should be plotted according to plot_active_channels
+/// @param i Channel index.
+bool ReadRun::PlotChannel(int i) {
+	if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) return true;
+	else return false;
+}
+
 /// @brief Helper to split canvas according to the number of channels to be plotted
 /// @param c Canvas to be split
 void ReadRun::SplitCanvas(TCanvas*& c) {
@@ -2545,8 +2611,12 @@ void ReadRun::SplitCanvas(TCanvas*& c) {
 		if (it != plot_active_channels.end()) plot_active_channels.erase(it);
 	}
 
-	if (plot_active_channels.empty()) c->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
-	else if (static_cast<int>(plot_active_channels.size()) > 1) c->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
+	if (plot_active_channels.empty()) {
+		c->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
+	}
+	else if (static_cast<int>(plot_active_channels.size()) > 1) {
+		c->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
+	}
 }
 
 /// @brief Set consistent x-axis and y-axis range for all TH1 histograms on a canvas. 
@@ -2573,7 +2643,6 @@ void ReadRun::SetRangeCanvas(TCanvas*& c, double x_range_min, double x_range_max
 	while ((object = nextPad())) {
 		if (object->InheritsFrom(TPad::Class())) {
 			TPad* pad = static_cast<TPad*>(object);
-
 			// Set the axis ranges for all plots on the current pad
 			pad->cd();
 			TList* primitives = pad->GetListOfPrimitives();
@@ -2581,17 +2650,14 @@ void ReadRun::SetRangeCanvas(TCanvas*& c, double x_range_min, double x_range_max
 			TObject* primitive;
 			while ((primitive = nextPrimitive())) {
 				if (primitive->InheritsFrom(TH1::Class())) {
-					//TH1* his = static_cast<TH1*>(primitive);
 					setAxisRanges(static_cast<TH1*>(primitive));
 				}
 			}
 		}
 		else if (object->InheritsFrom(TH1::Class())) {
-			//TH1* his = static_cast<TH1*>(object);
 			setAxisRanges(static_cast<TH1*>(object));
 		}
 	}
-
 	c->Modified();
 	c->Update();
 }
