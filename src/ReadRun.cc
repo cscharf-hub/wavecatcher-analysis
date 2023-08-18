@@ -31,6 +31,7 @@ ReadRun::ReadRun(int no_of_bin_files_to_read) {
 	nwf = 0;
 	PrintChargeSpectrum_cnt = 0;
 	PlotChannelAverages_cnt = 0;
+	PrintWFProjection_cnt = 0;
 	NoOfBinFilesToRead = no_of_bin_files_to_read;
 
 	root_out = new TFile();	// init results file
@@ -492,7 +493,6 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 /// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::SmoothAll(double sigma, int method) {
 	cout << "\nSmoothing all non-skipped waveforms:" << endl;
-
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[GetCurrentEvent(j)]) {
 			TH1F* his = Getwf(j);
@@ -669,16 +669,16 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 	if (sigma != 0.) cout << "\nNotification: Using smoothing in CorrectBaselineMinSlopeRMS." << endl;
 	if (increment < 1) increment = 1;
 
-	int nbins_average = !window.empty() ? static_cast<int>(round(abs(window[0]) / SP)) : 160;
+	int nbins_average = !window.empty() ? static_cast<int>(round(abs(window[0]) / SP)) : static_cast<int>(50. / SP);
 	int start_search_at = static_cast<int>(window.size()) > 1 ? static_cast<int>(round(abs(window[1]) / SP)) : 0;
 	int end_search_at = static_cast<int>(window.size()) > 2 ? static_cast<int>(round(abs(window[2]) / SP)) : binNumber - 1;
 
 	if (end_search_at >= binNumber) end_search_at = binNumber - 1;
 	int end_search_loop_at = end_search_at - start_search_at - nbins_average;
 
-	// if no valid static search window is specified, it will be dynamic from 0 up to 25 bins before the global maximum
+	// if no valid static search window is specified, it will be dynamic from 0 ns up to 8 ns before the global maximum
 	bool search_relative_to_local_max = false;
-	int min_distance_from_max = 25;
+	int min_distance_from_max = static_cast<int>(8. / SP);
 	if (start_search_at < 0 || end_search_loop_at < increment) {
 		search_relative_to_local_max = true;
 		start_search_at = 0;
@@ -748,6 +748,8 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 
 /// @brief Baseline correction method searching for non-monotonic, rather constant regions
 /// 
+/// This is a deprecated version of CorrectBaselineMinSlopeRMS. It will be removed in future releases.
+/// 
 /// Corrects the baseline (DC offset) of all waveforms. \n 
 /// Determines the region of "nIntegrationWindow" bins where the squared sum plus the square of the sum of 
 /// the slope of the (smoothed) waveform reaches its minimum: \n \n
@@ -792,8 +794,9 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 /// @brief Baseline correction using minimum sum (\f$\propto\f$ mean) in range for correction 
 /// 
 /// Corrects the baseline (DC offset) of all waveforms. \n 
-/// Searches for \f$\mathbf{min}\left( \sum y_i \right) \f$ in range {window[1], window[2]}, 
-/// summing over window[0] ns. \n
+/// Searches for \n \n
+/// \f$\mathbf{min}\left( \sum y_i \right) \f$ \n \n
+/// in range {window[1], window[2]}, summing over window[0] ns. \n
 /// Make sure the search range is shortly before the triggered signal is expected to arrive. \n \n 
 /// 
 /// Helpful for (groups of/irradiated) SiPMs with very high dark count rate (DCR) where the voltage rarely relaxes 
@@ -817,16 +820,16 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 	if (sigma != 0.) cout << "\nNotification: Using smoothing in CorrectBaselineMin." << endl;
 	if (increment < 1) increment = 1;
 
-	int nbins_average = !window.empty() ? static_cast<int>(round(abs(window[0]) / SP)) : 160;
+	int nbins_average = !window.empty() ? static_cast<int>(round(abs(window[0]) / SP)) : static_cast<int>(50. / SP);
 	int start_search_at = static_cast<int>(window.size()) > 1 ? static_cast<int>(round(abs(window[1]) / SP)) : 0;
 	int end_search_at = static_cast<int>(window.size()) > 2 ? static_cast<int>(round(abs(window[2]) / SP)) : binNumber - 1;
 
 	if (end_search_at >= binNumber) end_search_at = binNumber - 1;
 	int end_search_loop_at = end_search_at - start_search_at - nbins_average;
 
-	// if no valid static search window is specified, it will be dynamic from 0 up to 25 bins before the global maximum
+	// if no valid static search window is specified, it will be dynamic from 0 ns up to 8 ns before the global maximum
 	bool search_relative_to_local_max = false;
-	int min_distance_from_max = 25;
+	int min_distance_from_max = static_cast<int>(8. / SP);
 	if (start_search_at < 0 || end_search_loop_at < increment) {
 		search_relative_to_local_max = true;
 		start_search_at = 0;
@@ -883,9 +886,12 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 
 /// @brief Baseline correction using minimum sum (\f$\propto\f$ mean) in range for correction 
 /// 
-/// /// Corrects the baseline (DC offset) of all waveforms. \n 
-/// Searches for \f$\mathbf{min}\left( \sum y_i \right) \f$ in range {"start_at", "max_bin_for_baseline"}, 
-/// summing over "nIntegrationWindow"  bins. \n
+/// This is a deprecated version of CorrectBaselineMin. It will be removed in future releases.\n
+/// 
+/// Corrects the baseline (DC offset) of all waveforms. \n 
+/// Searches for \n \n
+/// \f$\mathbf{min}\left( \sum y_i \right) \f$ \n \n
+/// in range {"start_at", "max_bin_for_baseline"}, summing over "nIntegrationWindow"  bins. \n
 /// Make sure the search range is shortly before the triggered signal is expected to arrive. \n \n 
 /// 
 /// Helpful for (groups of/irradiated) SiPMs with very high dark count rate (DCR) where the voltage rarely relaxes 
@@ -913,6 +919,71 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_b
 	CorrectBaselineMin(window, sigma, smooth_method, 2);
 }
 /// @example timing_example.cc
+
+/// @brief Waveform projections for one channel
+/// 
+/// See PrintWFProjection() for parameters.
+/// 
+/// @return Histogram of the projections of non-skipped waveforms for one channel.
+TH1F* ReadRun::WFProjectionChannel(int channel_index, int from_n, int to_n, float rangestart, float rangeend, int nbins) {
+
+	TString name(Form("channel__%02d", active_channels[channel_index]));
+	TH1F* h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
+
+	for (int j = 0; j < nevents; j++) {
+		if (!skip_event[j]) {
+			TH1F* his = Getwf(channel_index, j);
+			for (int i = from_n; i <= to_n; i++) h1->Fill(his->GetBinContent(i));
+		}
+	}
+	return h1;
+}
+
+/// @brief Plots waveform projection histograms of all channels
+/// 
+/// Useful to check baseline correction.
+/// 
+/// @param rangestart Plot x range start in mV
+/// @param rangeend Plot x range end in mV
+/// @param nbins Number of bins in range
+void ReadRun::PrintWFProjection(float from, float to, float rangestart, float rangeend, int nbins) {
+	gStyle->SetOptFit(111);
+
+	string ctitle("WFProjection" + to_string(PrintWFProjection_cnt++));
+	TCanvas* wf_projection_c = new TCanvas(ctitle.c_str(), ctitle.c_str(), 600, 400);
+	SplitCanvas(wf_projection_c);
+	int current_canvas = 0;
+
+	float default_rangestart = -100;
+	float default_rangeend = 500;
+	if (default_rangestart > rangestart) default_rangestart = rangestart;
+	if (default_rangeend < rangeend) default_rangeend = rangeend;
+	int default_nbins = static_cast<int>((default_rangeend - default_rangestart) * nbins / (rangeend - rangestart));
+
+	int from_n =	(from > 0 && from < binNumber * SP)	? static_cast<int>(round(abs(from) / SP)) + 1	: 0;
+	int to_n =		(to > 0 && to < binNumber * SP)		? static_cast<int>(round(abs(to) / SP)) + 1		: binNumber;
+
+	TH1F* his;
+	for (int i = 0; i < nchannels; i++) {
+		if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) {
+			current_canvas++;
+
+			his = WFProjectionChannel(i, from_n, to_n, default_rangestart, default_rangeend, default_nbins);
+			his->GetYaxis()->SetTitle("#Entries");
+			his->GetXaxis()->SetTitle("amplitude in mV");
+
+			wf_projection_c->cd(current_canvas);
+
+			TString name(Form("WFProjection channel_%02d_%d", active_channels[i], PrintWFProjection_cnt));
+			root_out->WriteObject(his, name.Data());
+			his->Draw();
+			his->Fit("gaus", "L", "same");
+		}
+	}
+
+	SetRangeCanvas(wf_projection_c, rangestart, rangeend);
+	root_out->WriteObject(wf_projection_c, ("WFProjections" + to_string(PrintWFProjection_cnt)).c_str());
+}
 
 /// @brief Determine the timing of the maximum peak with constant fraction discrimination
 /// 

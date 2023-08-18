@@ -66,6 +66,8 @@ private:
 	int PrintChargeSpectrum_cnt;
 	/// @brief Index for multiple executions of the same plotting function
 	int PlotChannelAverages_cnt;
+	/// @brief Index for multiple executions of the same plotting function
+	int PrintWFProjection_cnt;
 
 
 #pragma pack(1) // padding suppression
@@ -130,6 +132,10 @@ public:
 
 	void CorrectBaselineMin(vector<float>, double = 0, int = 2, int = 2);
 	void CorrectBaselineMin(int = 100, double = 0.5, int = 0, int = 0, int = 2);
+
+	// functions to check baseline correction results
+	TH1F* WFProjectionChannel(int, int = 0, int = 1024, float = -50, float = 50, int = 200);
+	void PrintWFProjection(float = 0, float = 320, float = -50, float = 50, int = 200);
 
 	// get timing of peaks
 	void GetTimingCFD(float = .3, float = 100, float = 140, double = 0., bool = true, int = 2, bool = false);
