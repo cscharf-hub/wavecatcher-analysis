@@ -658,7 +658,7 @@ void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int
 /// 
 /// @param window Vector containing {length for averaging, search start, search end} in ns. 
 /// Example: {20, 10, 90} would search for the best baseline candidate from 10 ns to 90 ns, averaging over 20 ns.
-/// @param start_at Minimum bin for search window.
+/// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss
 /// @param smooth_method If 0: Use running average (box kernel smoothing). Simple, very fast. \n 
 /// If 1: Use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
 /// Else: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
@@ -941,11 +941,17 @@ TH1F* ReadRun::WFProjectionChannel(int channel_index, int from_n, int to_n, floa
 
 /// @brief Plots waveform projection histograms of all channels
 /// 
-/// Useful to check baseline correction.
+/// Useful to check baseline correction. Will show if the baseline correction works as intended (gaussian shape) or 
+/// if the standard deviation of the baseline is too large. \n \n
 /// 
-/// @param rangestart Plot x range start in mV
-/// @param rangeend Plot x range end in mV
-/// @param nbins Number of bins in range
+/// **An asymmetry** in the distribution **might point to** many dark counts in the window or a **bad choice of parameters 
+/// for the baseline correction**. In that case the baseline correction should be revisited.
+/// 
+/// @param from Do projection in time window (from...
+/// @param to ...to) in ns. This window should reflect the search window used for baseline correction.
+/// @param rangestart Plot x range start in mV.
+/// @param rangeend Plot x range end in mV.
+/// @param nbins Number of bins in range.
 void ReadRun::PrintWFProjection(float from, float to, float rangestart, float rangeend, int nbins) {
 	gStyle->SetOptFit(111);
 
