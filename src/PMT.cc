@@ -12,7 +12,7 @@ void PMT::PrintChargeSpectrumPMT(float windowlow, float windowhi, float start, f
 
 	string ctitle("charge spectra PMT" + to_string(PrintChargeSpectrumPMT_cnt));
 	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 600, 400);
-	SplitCanvas(chargec);
+	Helpers::SplitCanvas(chargec, active_channels, plot_active_channels);
 
 	int current_canvas = 0;
 
@@ -107,7 +107,7 @@ void PMT::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, float
 	}
 	string ctitle("charge spectra PMT threshold" + to_string(PrintChargeSpectrumPMTthreshold_cnt));
 	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 600, 400);
-	SplitCanvas(chargec);
+	Helpers::SplitCanvas(chargec, active_channels, plot_active_channels);
 
 	int current_canvas = 0;
 	double threshold_bin_center = 0;

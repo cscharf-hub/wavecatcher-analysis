@@ -1,6 +1,16 @@
 # wavecatcher-analysis
 
-This repository contains the main analysis framework used by the experimental elementary (EE) particle physics group at Humboldt University of Berlin for SiPM/PMT setups that use WaveCatcher devices for digitization.
+This is the main analysis framework used by the experimental elementary (EE) particle physics group at Humboldt University of Berlin for SiPM/PMT setups that use WaveCatcher devices for digitization.
+
+# Table of contents
+- [Table of contents](#Table-of-contents)
+- [Requirements](#Requirements)
+- [Getting started](#Getting-started)
+  - [Doing a custom setup](#Doing-a-custom-setup)
+  - [On HU EE / DESY NAF computing infrastructure](#On-HU-EE--DESY-NAF-computing-infrastructure)
+- [Documentation](#Documentation)
+- [Adding custom functions and contribute](#Adding-custom-functions-and-contribute)
+- [Additional remarks](#Additional-remarks)
 
 # Requirements
 We recommend using CERN ROOT Release 6.24/02 or later[^1].

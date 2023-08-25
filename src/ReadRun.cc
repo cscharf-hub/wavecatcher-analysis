@@ -90,7 +90,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 	//Start reading the raw data from .bin files.
 	stringstream inFileList;
-	inFileList << ListFiles(path.c_str(), ".bin"); //all *.bin* files in folder path
+	inFileList << Helpers::ListFiles(path.c_str(), ".bin"); //all *.bin* files in folder path
 	string fileName;
 	int file_counter = 0;
 	int wfcounter = 0;
@@ -381,7 +381,7 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
 			double* yv = amplValuessum[i];
-			if (smooth) SmoothArray(yv, binNumber, sigma, smooth_method);
+			if (smooth) Filters::SmoothArray(yv, binNumber, sigma, smooth_method);
 
 			TGraph* gr = new TGraph(binNumber, xv, yv);
 			delete[] yv;
@@ -398,8 +398,8 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 			TString title(Form("Channel %d", active_channels[i]));
 			gr->SetName(name.Data());
 			gr->SetTitle(title.Data());
-			gr->SetLineColor(rcolor(i));
-			gr->SetMarkerColor(rcolor(i));
+			gr->SetLineColor(Helpers::rcolor(i));
+			gr->SetMarkerColor(Helpers::rcolor(i));
 			mgsums->Add(gr);
 		}
 	}
@@ -427,7 +427,7 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 /// @param normalize If true will normalize the maximum to 1.
 void ReadRun::PlotChannelAverages(bool normalize) {
 	
-	double* xv = getx();
+	double* xv = getx(0);
 	TMultiGraph* mgav = new TMultiGraph();
 	mgav->SetTitle("channel averages; t [ns]; amplitude [mV]");
 	if (normalize) mgav->SetTitle("channel averages; t[ns]; amplitude[arb.]");
@@ -466,8 +466,8 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 			TString title(Form("Channel %d", active_channels[i]));
 			gr->SetName(name.Data());
 			gr->SetTitle(title.Data());
-			gr->SetLineColor(rcolor(i));
-			gr->SetMarkerColor(rcolor(i));
+			gr->SetLineColor(Helpers::rcolor(i));
+			gr->SetMarkerColor(Helpers::rcolor(i));
 			mgav->Add(gr);
 		}
 	}
@@ -496,18 +496,36 @@ void ReadRun::SmoothAll(double sigma, int method) {
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[GetCurrentEvent(j)]) {
 			TH1F* his = Getwf(j);
-			double* yvals = gety(his);
-			SmoothArray(yvals, binNumber, sigma, method, SP);
+			double* yvals = Helpers::gety(his);
+			Filters::SmoothArray(yvals, binNumber, sigma, method, SP);
 			for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i - 1]);
 			delete[] yvals;
 		}
-		PrintProgressBar(j, nwf);
+		Helpers::PrintProgressBar(j, nwf);
+	}
+}
+
+/// @brief Smoothing all waveforms which are not skipped 
+/// 
+/// For testing, careful when using for analysis! \n
+/// For parameters see Filters::SmoothArray().
+void ReadRun::SmoothAll(double sigma, string method) {
+	cout << "\nSmoothing all non-skipped waveforms:" << endl;
+	for (int j = 0; j < nwf; j++) {
+		if (!skip_event[GetCurrentEvent(j)]) {
+			TH1F* his = Getwf(j);
+			double* yvals = Helpers::gety(his);
+			Filters::SmoothArray(yvals, binNumber, sigma, method, SP);
+			for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i - 1]);
+			delete[] yvals;
+		}
+		Helpers::PrintProgressBar(j, nwf);
 	}
 }
 
 /// @brief Filter all waveforms
 /// 
-/// Experimental. See FilterArray().
+/// Experimental. See Filters::ResponseFilter().
 /// 
 /// @param sigma1 First.
 /// @param sigma2 Second.
@@ -516,11 +534,11 @@ void ReadRun::FilterAll(double sigma1, double sigma2, double factor) {
 	cout << "\nFiltering all waveforms" << endl;
 	for (int j = 0; j < nwf; j++) {
 		TH1F* his = Getwf(j);
-		double* yvals = gety(his);
-		FilterArray(yvals, his->GetNbinsX(), sigma1, sigma2, factor, SP);
+		double* yvals = Helpers::gety(his);
+		Filters::ResponseFilter(yvals, his->GetNbinsX(), sigma1, sigma2, factor, SP);
 		for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i - 1]);
 		delete[] yvals;
-		PrintProgressBar(j, nwf);
+		Helpers::PrintProgressBar(j, nwf);
 	}
 }
 
@@ -555,7 +573,7 @@ void ReadRun::ShiftAllToAverageCF() {
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[GetCurrentEvent(j)]) {
 			TH1F* his = Getwf(j);
-			double* yvals = gety(his);
+			double* yvals = Helpers::gety(his);
 			int shift = static_cast<int>(timing_results[j][0]) - timing_mean_n[GetCurrentChannel(j)];
 
 			for (int i = 0; i < binNumber; i++) {
@@ -566,7 +584,7 @@ void ReadRun::ShiftAllToAverageCF() {
 			}
 			delete[] yvals;
 		}
-		PrintProgressBar(j, nwf);
+		Helpers::PrintProgressBar(j, nwf);
 	}
 	delete[] timing_mean_n;
 }
@@ -599,7 +617,7 @@ void ReadRun::CorrectBaseline(float tCut, float tCutEnd) {
 		cout << "Baseline correction (" << nwf << " waveforms):" << endl;
 		for (int j = 0; j < nwf; j++) {
 			CorrectBaseline_function(Getwf(j), tCut, tCutEnd, j);
-			PrintProgressBar(j, nwf);
+			Helpers::PrintProgressBar(j, nwf);
 		}
 	}
 }
@@ -704,9 +722,9 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 			end_search_loop_at = nbins_search - nbins_average;
 		}
 
-		double* yvals = gety(his, start_search_at, end_search_at);
+		double* yvals = Helpers::gety(his, start_search_at, end_search_at);
 		// smoothing suppresses variations in slope due to noise, so the method is potentially more sensitive to excluding peaks
-		if (sigma > 0) SmoothArray(yvals, nbins_search, sigma, smooth_method);
+		if (sigma > 0) Filters::SmoothArray(yvals, nbins_search, sigma, smooth_method);
 		//calculate slope
 		double slope[nbins_search - 1];
 		for (int i = 0; i < nbins_search - 1; i++) slope[i] = yvals[i + 1] - yvals[i];
@@ -740,7 +758,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart + nbins_average) * SP);
 		baseline_correction_result[j].push_back(minsumsq);
 		baseline_correction_result[j].push_back(minsqsum);
-		PrintProgressBar(j, nwf);
+		Helpers::PrintProgressBar(j, nwf);
 	}
 }
 /// @example read_exampledata.cc
@@ -855,9 +873,9 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 			end_search_loop_at = nbins_search - nbins_average;
 		}
 
-		double* yvals = gety(his, start_search_at, end_search_at);
+		double* yvals = Helpers::gety(his, start_search_at, end_search_at);
 		// smoothing suppresses variations in slope due to noise, so the method is potentially more sensitive to excluding peaks
-		if (sigma > 0) SmoothArray(yvals, nbins_search, sigma, smooth_method);
+		if (sigma > 0) Filters::SmoothArray(yvals, nbins_search, sigma, smooth_method);
 		//find window for correction
 		for (int i = 0; i < end_search_loop_at; i += increment) { // recommendend max. 2 bins or min. method
 			sum = 0;
@@ -880,7 +898,7 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 		baseline_correction_result[j].push_back(minchange);
 		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart) * SP);
 		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart + nbins_average) * SP);
-		PrintProgressBar(j, nwf);
+		Helpers::PrintProgressBar(j, nwf);
 	}
 }
 
@@ -958,7 +976,7 @@ void ReadRun::PrintWFProjection(float from, float to, float rangestart, float ra
 
 	string ctitle("WFProjection" + to_string(PrintWFProjection_cnt++));
 	TCanvas* wf_projection_c = new TCanvas(ctitle.c_str(), ctitle.c_str(), 600, 400);
-	SplitCanvas(wf_projection_c);
+	Helpers::SplitCanvas(wf_projection_c, active_channels, plot_active_channels);
 	int current_canvas = 0;
 
 	float default_rangestart = -100;
@@ -988,7 +1006,7 @@ void ReadRun::PrintWFProjection(float from, float to, float rangestart, float ra
 		}
 	}
 
-	SetRangeCanvas(wf_projection_c, rangestart, rangeend);
+	Helpers::SetRangeCanvas(wf_projection_c, rangestart, rangeend);
 	root_out->WriteObject(wf_projection_c, ("WFProjections" + to_string(PrintWFProjection_cnt)).c_str());
 }
 
@@ -1028,7 +1046,7 @@ void ReadRun::PrintBaselineCorrectionResults(float rangestart, float rangeend, i
 			if (static_cast<int>(which) == 0) ctitle = "Correction values in mV";
 			else if (static_cast<int>(which) == 1) ctitle = "Minimum change";
 			TCanvas* blc_res_c = new TCanvas(ctitle.c_str(), ctitle.c_str(), 600, 400);
-			SplitCanvas(blc_res_c);
+			Helpers::SplitCanvas(blc_res_c, active_channels, plot_active_channels);
 			int current_canvas = 0;
 
 			for (int i = 0; i < nchannels; i++) {
@@ -1042,7 +1060,7 @@ void ReadRun::PrintBaselineCorrectionResults(float rangestart, float rangeend, i
 					his->Fit("gaus", "L", "same");
 				}
 			}
-			SetRangeCanvas(blc_res_c, rangestart, rangeend);
+			Helpers::SetRangeCanvas(blc_res_c, rangestart, rangeend);
 			root_out->WriteObject(blc_res_c, ctitle.c_str());
 		}
 	}
@@ -1082,9 +1100,9 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 	for (int j = 0; j < nwf; j++) {
 
 		TH1F* his = Getwf(j);
-		double* yvals = gety(his, start_at, end_at); // get range where to search for CFD for timing
+		double* yvals = Helpers::gety(his, start_at, end_at); // get range where to search for CFD for timing
 
-		if (sigma > 0.) SmoothArray(yvals, n_range, sigma, smooth_method); // smoothing to suppress noise, will also change timing so use with care!
+		if (sigma > 0.) Filters::SmoothArray(yvals, n_range, sigma, smooth_method); // smoothing to suppress noise, will also change timing so use with care!
 
 		float max = 0.;
 		int n_max = 0;
@@ -1151,7 +1169,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 		timing_results[j].push_back(static_cast<float>(end_at) * SP);						// end time
 		delete[] yvals;
 		
-		PrintProgressBar(j, nwf);
+		Helpers::PrintProgressBar(j, nwf);
 	}
 }
 /// @example timing_example.cc
@@ -1177,6 +1195,7 @@ void ReadRun::SkipEventsTimeDiffCut(int first_channel_abs, int second_channel_ab
 	int counter = 0;
 	int first_channel = GetChannelIndex(first_channel_abs);
 	int second_channel = GetChannelIndex(second_channel_abs);
+	int timing_results_size = static_cast<int>(timing_results.size());
 
 	// call GetTimingCFD() in case it was not initialized
 	if (static_cast<int>(timing_results.size()) == 0) GetTimingCFD();
@@ -1186,14 +1205,14 @@ void ReadRun::SkipEventsTimeDiffCut(int first_channel_abs, int second_channel_ab
 		if (!skip_event[GetCurrentEvent(j)]) {
 			float time_diff = timing_results[j + second_channel][1] - timing_results[j + first_channel][1];
 
-			if (j <= static_cast<int>(timing_results.size()) && (time_diff < time_diff_min || time_diff > time_diff_max)) {
+			if (j <= timing_results_size && (time_diff < time_diff_min || time_diff > time_diff_max)) {
 				int currevent = eventnr_storage[GetCurrentEvent(j)];
 				if (verbose) cout << "\nevent:\t" << currevent << "\tchannels:\t" << first_channel_abs << " & " << second_channel_abs << "\ttime diff:\t" << time_diff;
 				skip_event[GetCurrentEvent(j)] = true;
 				counter++;
 			}
 		}
-		PrintProgressBar(j, nwf);
+		Helpers::PrintProgressBar(j, nwf);
 	}
 	cout << "\t" << counter << " events will be cut out of " << nevents << endl;
 }
@@ -1250,7 +1269,7 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 				lastevent = currevent;
 			}
 		}
-		PrintProgressBar(j, nwf);
+		Helpers::PrintProgressBar(j, nwf);
 		delete his;
 	}
 
@@ -1282,11 +1301,13 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, double rangestart,
 
 	cout << "\n Removing events with individual amplitude threshold per channel:" << endl;
 	int counter = 0;
+	int n_thrshld = static_cast<int>(thresholds.size());
+	int currchannel = 0;
 
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[GetCurrentEvent(j)]) {
-			int currchannel = j - nchannels * GetCurrentEvent(j);
-			if (currchannel < static_cast<int>(thresholds.size())) {
+			currchannel = j - nchannels * GetCurrentEvent(j);
+			if (currchannel < n_thrshld) {
 				auto his = (TH1F*)(Getwf(j))->Clone(); // use Clone() to not change ranges of original histogram
 				if (rangestart != 0 && rangeend != 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(rangeend));
 
@@ -1300,7 +1321,7 @@ void ReadRun::SkipEventsPerChannel(vector<double> thresholds, double rangestart,
 				delete his;
 			}
 		}
-		PrintProgressBar(j, nwf);
+		Helpers::PrintProgressBar(j, nwf);
 	}
 
 	cout << "\t" << counter << " events will be cut out of " << nevents << endl;
@@ -1365,7 +1386,7 @@ void ReadRun::IntegralFilter(vector<double> thresholds, vector<bool> highlow, fl
 				}
 				delete his;
 			}
-			PrintProgressBar(j, nwf);
+			Helpers::PrintProgressBar(j, nwf);
 		}
 	}
 	cout << "\t" << counter << " events will be cut out of " << nevents << endl;
@@ -1405,9 +1426,10 @@ int ReadRun::Nevents_good() {
 /// @brief Determine indices for integration window for peaks
 /// 
 /// Default usage: Find maximum in range ("start", "end") and return bin numbers for [0] the max, 
-/// [1] t_max - "windowlow", and [2] t_max + "windowhi" \n 
-/// If ("start" < 0 || "end" < 0) doesn't return max and integration window is fixed t(max(sum_spectrum[channel])) +/- "windowhi"/"windowlow" \n 
-/// If ("windowlow" == "start" && "windowhi" == "end") doesn't return max and sets fixed integration 
+/// [1] t_max - "windowlow", and [2] t_max + "windowhi". \n
+/// If ("start" < 0 || "end" < 0) doesn't return max and integration window is fixed relative to the maximum of the sum of all waveforms: \n
+/// t(max(sum_spectrum[channel])) +/- "windowhi"/"windowlow" \n 
+/// If ("windowlow" == "start" && "windowhi" == "end") doesn't return max and sets fixed integration
 /// window from "start" until "end" for all channels.
 /// 
 /// @param his Histogram to integrate.
@@ -1423,20 +1445,20 @@ int* ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float sta
 	int* foundindices = new int[3];//
 	foundindices[0] = 0;
 
-	if (start < 0 || end < 0) {									// fixed integration window relative to maximum of sum spectrum for each channel
+	if (start < 0 || end < 0) {							// fixed integration window relative to maximum of sum spectrum for each channel
 		foundindices[1] = his->GetXaxis()->FindBin(his->GetXaxis()->GetBinCenter(maxSumBin[channel]) - windowlow);
 		foundindices[2] = his->GetXaxis()->FindBin(his->GetXaxis()->GetBinCenter(maxSumBin[channel]) + windowhi);
 	}
-	else if (windowlow == start && windowhi == end) {				// fixed integration window for all channels
+	else if (windowlow == start && windowhi == end) {	// fixed integration window for all channels
 		foundindices[1] = his->GetXaxis()->FindBin(windowlow);
 		foundindices[2] = his->GetXaxis()->FindBin(windowhi);
 	}
-	else {															// fixed integration window relative to maximum of each individual waveform
+	else {												// fixed integration window relative to maximum of each individual waveform
 		istart = his->GetXaxis()->FindBin(start);
 		iend = his->GetXaxis()->FindBin(end);
 		foundindices[0] = istart;
 
-		if (istart<1 || iend>his->GetNbinsX()) {
+		if (istart < 1 || iend > his->GetNbinsX()) {
 			cout << "\nError: start or end out of range" << endl;
 			return 0;
 		}
@@ -1459,7 +1481,11 @@ int* ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float sta
 
 /// @brief Calculate the integral around a peak with several options explained in GetIntWindow().
 /// 
-/// Calculated over an integer number of bins.
+/// Calculated over an integer number of bins. \n
+/// If start = end = 0 will return the amplitude of the peak. \n
+/// If start < 0 || end < 0 will return the integral over the fixed integration window around 
+/// the maximum of the sum spectrum for each channel. \n
+/// If windowlow == start && windowhi == end will return the integral over the fixed integration window for all channels.
 /// 
 /// @param his Histogram with peak.
 /// @param windowlow Integration time left to the maximum of the peak.
@@ -1499,7 +1525,7 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 
 	TString name(Form("waveforms_event__%05d", eventnr));
 	TCanvas* intwinc = new TCanvas(name.Data(), name.Data(), 600, 400);
-	SplitCanvas(intwinc);
+	Helpers::SplitCanvas(intwinc, active_channels, plot_active_channels);
 	int event_index = GetEventIndex(eventnr);
 
 	int current_canvas = 0;
@@ -1614,7 +1640,7 @@ void ReadRun::SaveChargeLists(float windowlow, float windowhi, float start, floa
 			TGraph* charge_list_graph = new TGraph(nevents, event_list, charge_list);
 			charge_list_graph->SetLineWidth(0);
 			charge_list_graph->SetMarkerStyle(2);
-			charge_list_graph->SetMarkerColor(rcolor(i));
+			charge_list_graph->SetMarkerColor(Helpers::rcolor(i));
 			charge_list_graph->SetTitle(name.Data());
 
 			//remove skipped events
@@ -1745,7 +1771,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 
 	string ctitle("\"charge\" spectra" + to_string(PrintChargeSpectrum_cnt++));
 	TCanvas* chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 600, 400);
-	SplitCanvas(chargec);
+	Helpers::SplitCanvas(chargec, active_channels, plot_active_channels);
 
 	cout << "\n\nThere is data recorded in " << active_channels.size() << " channels \n\n\n";
 	int current_canvas = 0;
@@ -1959,7 +1985,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 		}
 	}
 
-	SetRangeCanvas(chargec, rangestart, rangeend);
+	Helpers::SetRangeCanvas(chargec, rangestart, rangeend);
 	root_out->WriteObject(chargec, ("ChargeSpectra" + to_string(PrintChargeSpectrum_cnt)).c_str());
 }
 /// @example timing_example.cc
@@ -2065,7 +2091,7 @@ void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangee
 	gStyle->SetOptStat(1111); // 11 is title + entries
 
 	TCanvas* time_dist_c = new TCanvas("timing of maximum", "timing of maximum", 600, 400);
-	SplitCanvas(time_dist_c);
+	Helpers::SplitCanvas(time_dist_c, active_channels, plot_active_channels);
 
 	int current_canvas = 0;
 
@@ -2129,7 +2155,7 @@ TGraph2D* ReadRun::MaxDist(int channel_index, float from, float to) {
 void ReadRun::PrintMaxDist(float from, float to) {
 
 	TCanvas* max_dist_c = new TCanvas("wf grouped by maximum", "wf grouped by maximum", 600, 400);
-	SplitCanvas(max_dist_c);
+	Helpers::SplitCanvas(max_dist_c, active_channels, plot_active_channels);
 
 	int current_canvas = 0;
 
@@ -2182,7 +2208,7 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, i
 	gStyle->SetOptFit(111);
 
 	TCanvas* timing_cfd_c = new TCanvas("timing of cfd", "timing of cfd", 600, 400);
-	SplitCanvas(timing_cfd_c);
+	Helpers::SplitCanvas(timing_cfd_c, active_channels, plot_active_channels);
 	int current_canvas = 0;
 
 	for (int i = 0; i < nchannels; i++) {
@@ -2409,36 +2435,6 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 
 
 
-/// @brief Helper. Creates a list of .bin data files in data folder to be read in
-/// @param dirname Directory
-/// @param ext File extension
-/// @return String of line separated file names
-string ReadRun::ListFiles(const char* dirname, const char* ext) {
-
-	stringstream ss;
-	TSystemDirectory dir(dirname, dirname);
-	TList* files = dir.GetListOfFiles();
-	if (files) {
-		TSystemFile* file;
-		TString fname;
-		TIter next(files);
-		while ((file = (TSystemFile*)next())) {
-			fname = file->GetName();
-			if (!file->IsDirectory() && fname.EndsWith(ext)) {
-				ss << fname.Data() << "\n";
-			}
-		}
-		TIter next2(files);
-		while ((file = (TSystemFile*)next2())) {
-			fname = file->GetName();
-			if (!file->IsDirectory() && !fname.EndsWith(ext) && fname.Contains(ext)) {
-				ss << fname.Data() << "\n";
-			}
-		}
-	}
-	return ss.str();
-}
-
 /// @brief Helper that returns the waveform histogram for a certain waveform number number 
 /// @param wf_nr Waveform number
 /// @return Waveform histogram 
@@ -2475,11 +2471,7 @@ double* ReadRun::getx(double shift) {
 /// @return Y values of waveform
 double* ReadRun::gety(int waveform_index) {
 	TH1F* his = Getwf(waveform_index);
-	double* yvals = new double[binNumber];
-	for (int i = 0; i < his->GetNbinsX(); i++) {
-		yvals[i] = his->GetBinContent(i + 1);
-	}
-	return yvals;
+	return Helpers::gety(his);
 }
 
 /// @brief Get array of y values for a certain waveform
@@ -2488,63 +2480,7 @@ double* ReadRun::gety(int waveform_index) {
 /// @return Y values of waveform
 double* ReadRun::gety(int channelnr, int eventnr) {
 	TH1F* his = Getwf(channelnr, eventnr);
-	double* yvals = new double[binNumber];
-	for (int i = 0; i < his->GetNbinsX(); i++) {
-		yvals[i] = his->GetBinContent(i + 1);
-	}
-	return yvals;
-}
-
-/// @brief Get array of y values for a certain waveform
-/// @param his Waveform histogram
-/// @return Y values of waveform
-double* ReadRun::gety(TH1F* his) {
-	double* yvals = new double[binNumber];
-	for (int i = 0; i < his->GetNbinsX(); i++) {
-		yvals[i] = his->GetBinContent(i + 1);
-	}
-	return yvals;
-}
-
-/// @brief Get truncated array of y values for a certain waveform
-/// @param his Waveform histogram
-/// @param start_at Truncate from index
-/// @param end_at Truncate to index
-/// @return Truncated Y values of waveform
-double* ReadRun::gety(TH1F* his, int start_at, int end_at) {
-	if (start_at < 0 || start_at >= his->GetNbinsX() || end_at >= his->GetNbinsX() || end_at - start_at < 1) {
-		cout << "\nError: ReadRun::gety out of range" << endl;
-		return 0;
-	}
-	const int n_bins_new = end_at - start_at;
-	double* yvals = new double[n_bins_new];
-	for (int i = start_at; i < end_at; i++) {
-		yvals[i - start_at] = his->GetBinContent(i + 1);
-	}
-	return yvals;
-}
-
-/// @brief Print progress bar for a loop in steps of 10 percent
-/// @param index Current loop index
-/// @param length Length of loop
-void ReadRun::PrintProgressBar(int index, int length) {
-	if ((index + 1) % (length / 10) == 0) {
-		float progress = 10 * (index + 1) / length;
-		cout << "\r[" << string(progress * 5, '#')
-			<< std::string(50 - progress * 5, ' ')
-			<< "] " << (progress * 10) << "%";
-		cout.flush();
-		if (index + 1 == length) cout << endl << endl;
-	}
-}
-
-/// @brief Translate a random number into a useful root color https://root.cern.ch/doc/master/classTColor.html
-/// @param i Index of your plotting loop that is to be translated into a useful ROOT color index
-/// @return ROOT color index
-int ReadRun::rcolor(unsigned int i) {
-	const int nclrs = 17;
-	int rclrs[nclrs] = { 1, 2, 3, 4, 6, 8, 9, 13, 20, 28, 30, 34, 38, 40, 31, 46, 49 };
-	return rclrs[i - static_cast<int>(floor(i / nclrs)) * nclrs];
+	return Helpers::gety(his);
 }
 
 /// @brief Returns index of a certain event number (if data files are read in parallel threads)
@@ -2592,76 +2528,6 @@ bool ReadRun::PlotChannel(int i) {
 	else return false;
 }
 
-/// @brief Helper to split canvas according to the number of channels to be plotted
-/// @param c Canvas to be split
-void ReadRun::SplitCanvas(TCanvas*& c) {
-	// cross check if user input exists in data
-	vector<int> rmv;
-	for (int i = 0; i < static_cast<int>(plot_active_channels.size()); i++) {
-		if (find(active_channels.begin(), active_channels.end(), plot_active_channels[i]) == active_channels.end()) {
-			cout << "\n\n\n ------------ WARNING ------------\n";
-			cout << "YOUR SELECTED CHANNEL " << plot_active_channels[i] << " DOES NOT EXIST IN DATA\n";
-			cout << "PLEASE CHANGE plot_active_channels\n\n\n";
-			rmv.push_back(plot_active_channels[i]);
-		}
-	}
-
-	for (int i = 0; i < static_cast<int>(rmv.size()); i++) {
-		auto it = find(plot_active_channels.begin(), plot_active_channels.end(), rmv[i]);
-		if (it != plot_active_channels.end()) plot_active_channels.erase(it);
-	}
-
-	if (plot_active_channels.empty()) {
-		c->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
-	}
-	else if (static_cast<int>(plot_active_channels.size()) > 1) {
-		c->Divide(TMath::Min(static_cast<double>(plot_active_channels.size()), 4.), TMath::Max(ceil(static_cast<double>(plot_active_channels.size()) / 4.), 1.), 0, 0);
-	}
-}
-
-/// @brief Set consistent x-axis and y-axis range for all TH1 histograms on a canvas. 
-/// 
-/// Will only change the axes where ```min != max```.
-/// 
-/// @param c Canvas Canvas
-/// @param x_range_min X-axis minimum
-/// @param x_range_max X-axis maximum
-/// @param y_range_min Y-axis minimum
-/// @param y_range_max Y-axis maximum
-void ReadRun::SetRangeCanvas(TCanvas*& c, double x_range_min, double x_range_max, double y_range_min, double y_range_max) {
-
-	// Lambda function to set the axis ranges
-	auto setAxisRanges = [&](TH1 *his) {
-		if (x_range_min != x_range_max) his->GetXaxis()->SetRangeUser(x_range_min, x_range_max);
-		if (y_range_min != y_range_max) his->GetYaxis()->SetRangeUser(y_range_min, y_range_max);
-	};
-
-	// Get the list of pads on the canvas and loop over pads
-	TList* pads = c->GetListOfPrimitives();
-	TIter nextPad(pads);
-	TObject* object;
-	while ((object = nextPad())) {
-		if (object->InheritsFrom(TPad::Class())) {
-			TPad* pad = static_cast<TPad*>(object);
-			// Set the axis ranges for all plots on the current pad
-			pad->cd();
-			TList* primitives = pad->GetListOfPrimitives();
-			TIter nextPrimitive(primitives);
-			TObject* primitive;
-			while ((primitive = nextPrimitive())) {
-				if (primitive->InheritsFrom(TH1::Class())) {
-					setAxisRanges(static_cast<TH1*>(primitive));
-				}
-			}
-		}
-		else if (object->InheritsFrom(TH1::Class())) {
-			setAxisRanges(static_cast<TH1*>(object));
-		}
-	}
-	c->Modified();
-	c->Update();
-}
-
 /// @brief Simple linear interpolation for x
 /// 
 /// Will return the mean of x1 and x2 if y1=y2.
@@ -2680,194 +2546,4 @@ float ReadRun::LinearInterpolation(float ym, float x1, float x2, float y1, float
 		return x1;
 	}
 	else return x1 + (ym - y1) * (x2 - x1) / (y2 - y1);
-}
-
-/// @brief Helper to perform convolution of two 1D arrays
-/// 
-/// Used for smoothing etc.
-/// 
-/// @param[in,out] result Array containing convolution result
-/// @param first First array for convolution
-/// @param second Second array for convolution 
-/// @param size Size of arrays
-void ReadRun::Convolute(double*& result, double* first, double* second, int size) {
-
-	// FFT real -> im
-	auto fftfirst = [&size](double*& orig, double*& re, double*& im) {
-		TVirtualFFT* fft = TVirtualFFT::FFT(1, &size, "R2C ES");
-		fft->SetPoints(orig);
-		fft->Transform();
-		fft->GetPointsComplex(re, im);
-		delete fft;
-	};
-
-	double* refirst = new double[size];
-	double* imfirst = new double[size];
-	double* resecond = new double[size];
-	double* imsecond = new double[size];
-	double* reres = new double[size];
-	double* imres = new double[size];
-
-	fftfirst(first, refirst, imfirst);
-	fftfirst(second, resecond, imsecond);
-
-	TComplex cofirst;
-	TComplex cosecond;
-	TComplex cores;
-
-	for (int i = 0; i < size; i++) {
-		cofirst(refirst[i], imfirst[i]);
-		cosecond(resecond[i], imsecond[i]);
-
-		cores = cofirst * cosecond / static_cast<double>(size);
-
-		reres[i] = cores.Re();
-		imres[i] = cores.Im();
-	}
-
-
-	//cout << "performing IFFT ... ";
-	TVirtualFFT* fft_back = TVirtualFFT::FFT(1, &size, "C2R ES");
-	fft_back->SetPointsComplex(reres, imres);
-	fft_back->Transform();
-	fft_back->GetPoints(result);
-	delete fft_back;
-	delete[] imres; delete[] reres; delete[] refirst; delete[] imfirst; delete[] resecond; delete[] imsecond;
-}
-
-/// @brief Apply smoothing array of double with length nbins
-/// 
-/// Use with care. Method=2 is preferred. \n \n
-///
-/// Please note that if you want to use gaussian smoothing for data with a binning different from 0.3125 ns/bin 
-/// you need to set the variable bin_size to the new bin size.
-/// 
-/// \image html use_functions_wo_measurement.png "Gaussian smoothing of a simple array with 15 entries. Code in example." width=50%
-/// 
-/// @param[in,out] ar Array to be smoothed.
-/// @param nbins Number of bins of input.
-/// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and 
-/// convolution (see parameter bin_size).
-/// @param method If 0: Use running average (box kernel smoothing). Simple, very fast. \n 
-/// If 1: Use 5 sigma FFT gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
-/// Else: Use 3 sigma gaussian kernel smoothing. Preferred method, fast. 
-/// @param bin_size Bin width of the array to smooth for gauss sigma. Default is .3125 for wavecatcher sampling rate. 
-/// Set to 1 to change sigma unit to number of bins.
-void ReadRun::SmoothArray(double*& ar, int nbins, double sigma, int method, double bin_size) {
-
-	double* artmp = new double[nbins];
-	for (int i = 0; i < nbins; i++) artmp[i] = ar[i];
-
-	if (method == 0) {
-		// calculate running average from -sigma until +sigma (sigma = number of bins)
-		for (int i = 0; i < nbins; i++) {
-			double mean = 0.;
-			int nmean = 0;
-			int start = max(0, i - static_cast<int>(floor(sigma)));
-			int end = min(i + static_cast<int>(ceil(sigma)), nbins - 1);
-
-			for (int k = start; k <= end; k++) {
-				mean += artmp[k];
-				nmean++;
-			}
-			if (nmean != 0) {
-				ar[i] = mean / static_cast<double>(nmean);
-			}
-		}
-	}
-	else if (method == 1) {
-		// convolution with gauss clipped at +-5 sigma (very inefficient and slow)
-		double* gauss = new double[nbins];
-
-		double sum = 0.;
-		double five_sigma = 5 * sigma;
-		double denom1 = -2. * sigma * sigma;
-		double denom2 = sigma * 2.506628;
-
-		for (int i = 0; i < nbins; i++) {
-			double position = static_cast<double>(i) * bin_size;
-			if (position < five_sigma) gauss[i] =
-				exp(pow((position - five_sigma), 2) / denom1) / denom2;
-			else gauss[i] = 0.;
-			sum += gauss[i];
-		}
-
-		for (int i = 0; i < nbins; i++) {
-			gauss[i] /= sum;
-		}
-
-		Convolute(ar, artmp, gauss, nbins);
-		delete[] gauss;
-	}
-	else {
-		// gauss kernel 3*sigma
-		int nbins_3sigma = static_cast<int>(ceil(6. * sigma / bin_size));
-		if (nbins_3sigma % 2 == 0) nbins_3sigma++;
-		if (nbins_3sigma > 1) {
-			double gauss[nbins_3sigma];
-			double gauss_offset = floor(static_cast<double>(nbins_3sigma) / 2.) * bin_size;
-			double denom = -2. * sigma * sigma;
-
-			for (int i = 0; i < nbins_3sigma; i++) {
-				double position = static_cast<double>(i) * bin_size;
-				gauss[i] = exp(pow(position - gauss_offset, 2) / denom);
-			}
-
-			double res = 0, norm = 0;
-
-			for (int i = 0; i < nbins; i++) {
-				res = 0., norm = 0.;
-				int start = max(0, nbins_3sigma / 2 - i);
-				int end = min(nbins - i + nbins_3sigma / 2, nbins_3sigma);
-
-				for (int j = start; j < end; j++) {
-					res += gauss[j] * artmp[i + j - nbins_3sigma / 2];
-					norm += gauss[j];
-				}
-				if (norm != 0.) ar[i] = res / norm;
-			}
-		}
-	}
-	delete[] artmp;
-}
-/// @example use_functions_wo_measurement.cc
-
-/// @brief Apply filter for array of double with length nbins
-/// 
-/// Experimental, can be used to highlight peaks and suppress long tails (suppresses low and high frequencies). 
-/// Use Filter_test.ipynb to test parameters.
-/// 
-/// @param[in,out] ar Array to be filtered.
-/// @param nbins Number of bins of input.
-/// @param sigma1 First.
-/// @param sigma2 Second.
-/// @param factor Factor for negative part (<=1).
-/// @param bin_size Bin width. Default is .3125. Set to 1 to get sigma in units of bins.
-void ReadRun::FilterArray(double*& ar, int nbins, double sigma1, double sigma2, double factor, double bin_size) {
-
-	double artmp[nbins];
-	for (int i = 0; i < nbins; i++) artmp[i] = ar[i];
-
-	// shifted difference of two gauss functions (~smoothed derivative)
-	int nbins_2sigma = static_cast<int>(ceil((2. * sigma1 + 3. * sigma2) / bin_size));
-	double sdog[nbins_2sigma];
-
-	double denom1 = 2. * sigma1 * sigma1;
-	double denom2 = 2. * sigma2 * sigma2;
-	for (int i = 0; i < nbins_2sigma; i++) {
-		sdog[i] = TMath::Exp(-1. * TMath::Power(static_cast<double>(i) * bin_size - 3. * sigma2, 2.) / denom1) -
-			factor * TMath::Exp(-1. * TMath::Power(static_cast<double>(i) * bin_size - 2. * sigma2, 2.) / denom2);
-	}
-
-	double res = 0;
-	double norm = 0;
-	for (int i = 0; i < nbins; i++) {
-		res = 0.;
-		norm = 0.;
-		for (int j = max(0, nbins_2sigma / 2 - i); j < min(nbins - i + nbins_2sigma / 2, nbins_2sigma); j++) {
-			res += sdog[j] * artmp[i + j - nbins_2sigma / 2];
-			if (sdog[j] > 0.) norm += sdog[j];
-		}
-		if (norm != 0.) ar[i] = res / norm;
-	}
 }
