@@ -15,8 +15,8 @@ void timing_example()
 
 	// apply baseline correction 
 	// CorrectBaselineMin() is optimized for SiPM measurements with a high dark count rate
-	// searches for the minimum sum over 30 bins without smoothing (0.) from bin 250 (78 ns) to bin 320 (110 ns) 
-	mymeas.CorrectBaselineMin(30, 0., 320, 250);
+	// searches for the minimum sum 10 ns from 75 ns to 110 ns 
+	mymeas.CorrectBaselineMin({10, 75, 110});
 
 	// parameters for signal integration
 	float intwindowminus = 15.;	// lower integration window in ns relative to max

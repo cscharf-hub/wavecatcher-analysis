@@ -83,9 +83,9 @@ void Filters::Convolute(double*& first, double* second, int size) {
 /// @param method "Box": Use running average (box kernel smoothing). Simple, very fast. \n 
 /// "GausFFT": Use 5 sigma FFT gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
 /// "Gaus": Use 3 sigma gaussian kernel smoothing. Preferred method, fast. 
-/// "Median": Use median filter. Very slow. \n
-/// "Bilateral": Use bilateral filter. Fast. \n
-/// "Bilateral2": Use bilateral filter with different kernel. Fast. \n
+/// "Median": Use median filter. Fast. \n
+/// "Bilateral": Use bilateral filter. Slow. \n
+/// "Bilateral2": Use bilateral filter with different kernel. Slow. \n
 /// @param bin_size Bin width of the array to smooth for gauss sigma. Default is .3125 for wavecatcher sampling rate. 
 /// Set to 1 to change sigma unit to number of bins.
 /// @param sigma2 Sigma in y for "Bilateral" and "Bilateral2".

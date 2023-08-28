@@ -28,9 +28,13 @@ def read_exampledata(which, autoclose):
     mymeas.ReadFile(path, True, 8, "examples/exampledata_results.root")
 
     # Apply baseline correction to ALL waveforms
-    # Searches for the minimum of sum((y_{i+1} - y_{i})^2)+sum(y_{i+1} - y_{i})^2 over 100 bins, starting at bin 50 going until bin 250 without smoothing
-    mymeas.CorrectBaselineMinSlopeRMS(100, False, 0, 250, 50)
-
+    # Searches for the minimum of sum((y_{i+1} - y_{i})^2)+sum(y_{i+1} - y_{i})^2 over 30 ns, starting at t=0 ns until t=80 ns
+    # One could also pass a vector directly with ```pars = ROOT.std.vector('float')(); pars.push_back(30.);``` ...
+    mymeas.CorrectBaselineMinSlopeRMS({30.,5.,80.})
+    
+    # print result baseline_correction_result
+    print('baseline correction result: ', mymeas.baseline_correction_result[1][2])
+    
     ##Plotting
     # Plot sums of all raw events per channel (see channel 9 has an offset)
     mymeas.PlotChannelSums()
@@ -45,7 +49,9 @@ def read_exampledata(which, autoclose):
     # Note that this removes about 70% of all events for this example data!!
     # The interpreter has problems converting python list objects into c++ vector objects
     # Usually it works with numpy arrays like here
-    mymeas.IntegralFilter(np.array([0., 200., 200.]), np.array([False, False, False]), intwindowminus, intwindowplus, findmaxfrom, findmaxto)
+    highlow = ROOT.std.vector('bool')(); 
+    highlow.push_back(False); highlow.push_back(False); highlow.push_back(False)
+    mymeas.IntegralFilter({0., 200., 200.}, highlow, intwindowminus, intwindowplus, findmaxfrom, findmaxto)
 
     # Get a rough estimate of the timing of the main peaks to make sure the choice of the time window makes sense
     mymeas.PrintTimeDist(50, 170, findmaxfrom, findmaxto, 60, 1, .5)

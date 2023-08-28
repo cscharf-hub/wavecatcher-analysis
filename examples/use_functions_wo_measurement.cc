@@ -1,8 +1,7 @@
 #include <iomanip>
 #include <TRandom.h>
-#include "src/ReadRun.h"
 
-// example how to use functions of ReadRun class in a macro without loading a measurement
+// example how to use compiled functions in a macro
 // an example how to use the implemented fit functions and other functions in python is given in cosmics-fit.ipynb
 void use_functions_wo_measurement() {
 
@@ -27,7 +26,7 @@ void use_functions_wo_measurement() {
 	orig->SetTitle("original data; x title [arb.]; y title [arb.]");
 
 	// now the array is smoothed with a gauss kernel (method = 2) with a sigma of 1.2 using ReadRun::SmoothArray()
-	ReadRun::SmoothArray(test_arr, n_entries, 1.2, 2, bin_size); // sigma = 1.2, method = 2
+	Filters::SmoothArray(test_arr, n_entries, 1.2, "Gaus", bin_size); // sigma = 1.2, method = "Gaus"
 
 	// print content of smoothed array
 	cout << "\n\nsmoothed: ";
@@ -35,12 +34,11 @@ void use_functions_wo_measurement() {
 
 	auto smoothed = new TGraph(n_entries, x, test_arr); 
 	smoothed->SetTitle("smoothed data");
-	smoothed->SetLineColor(ReadRun::rcolor(1));
+	smoothed->SetLineColor(Helpers::rcolor(1));
 	cout << endl;
 
 	// you can also initialze a dummy of the ReadRun class to use its functions. This also works for non-static functions
-	ReadRun dummy_class(0);
-	dummy_class.SmoothArray(test_arr, n_entries, 1, 0); // sigma = 1, method = 0 -> average over neigboring +-1 bins
+	Filters::SmoothArray(test_arr, n_entries, 1, "Box"); // sigma = 1, method = 0 -> average over neigboring +-1 bins
 
 	cout << "\naveraged: ";
 	for (int i = 0; i < n_entries; i++) cout << setprecision(2) << test_arr[i] << "\t";
