@@ -190,7 +190,6 @@ void Filters::GausFilter(double*& ar, int nbins, double sigma, double bin_size) 
 			if (norm != 0.) ar[i] = res / norm;
 		}
 	}
-
 	delete[] artmp;
 }
 
@@ -381,14 +380,14 @@ void Filters::ResponseFilter(double*& ar, int nbins, double sigma1, double sigma
 
 /// @brief Shifted second order underdamped filter
 /// 
-/// For TCT setup emulating 2nd order underdamped response function.
+/// For TCT setup emulating 2nd order underdamped response (simple damped harmonic oscillator).
 /// 
 /// @param[in,out] ar Array to be filtered.
 /// @param nbins Number of bins of input.
-/// @param period Period of response function.
-/// @param damping Damping of response function.
-/// @param shift Shift of response function.
-/// @param bin_size Bin width.
+/// @param period Period of response function in ns.
+/// @param damping Damping of response function. Needs to be in (0,1).
+/// @param shift Shift of response function in ns.
+/// @param bin_size Bin width of the input.
 /// @param do_plot Plot response function and save to file.
 void Filters::SecondOrderUnderdampedFilter(double*& ar, int nbins, double period, double damping, double shift, double bin_size, bool do_plot) {
 
@@ -471,8 +470,10 @@ void Filters::SecondOrderUnderdampedFilter(double*& ar, int nbins, double period
 
 /// @brief Shifted second order underdamped filter
 /// See above for details.
+/// @param[in,out] his Histogram to be filtered.
 void Filters::SecondOrderUnderdampedFilter(TH1F*& his, int nbins, double period, double damping, double shift, double bin_size, bool do_plot) {
 	double* yvals = Helpers::gety(his);
 	SecondOrderUnderdampedFilter(yvals, nbins, period, damping, shift, bin_size, do_plot);
 	for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i - 1]);
+	delete[] yvals;
 }

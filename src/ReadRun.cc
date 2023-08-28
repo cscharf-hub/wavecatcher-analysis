@@ -705,18 +705,19 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 
 	int nbins_search = end_search_at - start_search_at;
 
-	float minchange = 1.e9;
+	float minchange = 1.e99;
 	float sum = 0, change = 0, minsumsq = 0, sqsum = 0, minsqsum = 0, corr = 0;
 	int iintwindowstart = 0, imax = 0;
 
 	for (int j = 0; j < nwf; j++) {
-		minchange = 1.e9;
+		minchange = 1.e99;
 		minsumsq = 0, sqsum = 0, minsqsum = 0, corr = 0;
 		iintwindowstart = 0;
 
 		TH1F* his = Getwf(j);
 		if (search_relative_to_local_max) {
-			imax = GetIntWindow(his, 0, 0, (float)(nbins_search + min_distance_from_max) * SP, (float)(end_search_at)*SP)[1];
+			imax = GetIntWindow(his, 0, 0, static_cast<float>(nbins_search + min_distance_from_max) * SP, 
+				static_cast<float>(end_search_at)*SP)[1];
 			end_search_at = imax - min_distance_from_max;
 			nbins_search = end_search_at;
 			end_search_loop_at = nbins_search - nbins_average;
@@ -732,7 +733,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 
 		//find window for correction
 		for (int i = 0; i < end_search_loop_at; i += increment) { // recommendend max. 3 bins (~1 ns) 
-			sum = 0., change = 0.;
+			sum = 0., sqsum = 0., change = 0.;
 
 			for (int k = i; k < nbins_average + i; k += increment) { // recommendend max. 3 bins (~1 ns)
 				sum += slope[k];
@@ -748,7 +749,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 			}
 		}
 		// do correction
-		corr = his->Integral(iintwindowstart, iintwindowstart + nbins_average) / static_cast<float>(nbins_average + 1);
+		corr = his->Integral(iintwindowstart + 1, iintwindowstart + nbins_average + 1) / static_cast<float>(nbins_average + 1);
 		for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, his->GetBinContent(i) - corr);
 
 		baseline_correction_result.push_back(vector<float>());
@@ -889,7 +890,7 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 			}
 		}
 		// do correction
-		corr = his->Integral(iintwindowstart, iintwindowstart + nbins_average) / static_cast<float>(nbins_average + 1);
+		corr = his->Integral(iintwindowstart + 1, iintwindowstart + nbins_average + 1) / static_cast<float>(nbins_average + 1);
 		for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, his->GetBinContent(i) - corr);
 		delete[] yvals;
 
