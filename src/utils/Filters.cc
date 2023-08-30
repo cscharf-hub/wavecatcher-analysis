@@ -380,12 +380,13 @@ void Filters::ResponseFilter(double*& ar, int nbins, double sigma1, double sigma
 
 /// @brief Shifted second order underdamped filter
 /// 
-/// For TCT setup emulating 2nd order underdamped response (simple damped harmonic oscillator).
+/// For TCT setup emulating 2nd order underdamped response (simple damped harmonic oscillator). \n
+/// Will only consider 3 periods of the response function.
 /// 
 /// @param[in,out] ar Array to be filtered.
 /// @param nbins Number of bins of input.
 /// @param period Period of response function in ns.
-/// @param damping Damping of response function. Needs to be in (0,1).
+/// @param damping Damping time constant of the response function in ns. Needs to be > 0.
 /// @param shift Shift of response function in ns.
 /// @param bin_size Bin width of the input.
 /// @param do_plot Plot response function and save to file.
@@ -395,30 +396,29 @@ void Filters::SecondOrderUnderdampedFilter(double*& ar, int nbins, double period
 	for (int i = 0; i < nbins; i++) artmp[i] = ar[i];
 
 	int shift_n = static_cast<int>(ceil(shift / bin_size));
-	int nbins_response = shift_n + static_cast<int>(4. * period / bin_size);
+	int nbins_response = shift_n + static_cast<int>(3. * period / bin_size);
+	
 	if (nbins_response > nbins) {
 		cout << "ERROR: nbins_response > nbins. Reduce shift or period." << endl;
-		nbins_response = nbins;
+		nbins_response = nbins - 1;
 	}
-	if (damping <= 0 || damping >= 1) {
-		cout << "ERROR: damping <= 0 or >= 1. Setting damping to 0.01." << endl;
-		damping = 0.01;
+	if (damping <= 0) {
+		cout << "ERROR: damping <= 0. Setting to 1 ns" << endl;
+		damping = 1;
 	}
-
 
 	if (nbins_response % 2 == 0) nbins_response++;
 	double souf[nbins_response];
 
-	double exp_factor = -1. * bin_size * damping;
+	double exp_factor = -1. / damping;
 	double omega = 2. * M_PI / period;
-	double sin_factor = bin_size * omega;
 	double sum_norm = 0.;
 	for (int i = 0; i < nbins_response; i++) {
 		double position = static_cast<double>(i) * bin_size;
 		
 		if (i < shift_n) souf[i] = 0.;
 		else {
-			souf[i] = exp(exp_factor * (position - shift)) * sin(sin_factor * (position - shift));
+			souf[i] = exp(exp_factor * (position - shift)) * sin(omega * (position - shift));
 			sum_norm += souf[i];
 		}
 	}
@@ -438,7 +438,7 @@ void Filters::SecondOrderUnderdampedFilter(double*& ar, int nbins, double period
 		double x_full[nbins];
 		for (int i = 0; i < nbins; i++) {
 			x_full[i] = static_cast<double>(i) * bin_size;
-			if (i < nbins_response) x[i] = x_full[i];
+			if (i < nbins_response) x[i] = static_cast<double>(i) * bin_size;
 		}
 
 		TCanvas* c_response = new TCanvas("response", "response", 800, 600);
