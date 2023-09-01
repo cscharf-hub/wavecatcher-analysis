@@ -12,7 +12,7 @@
 void Filters::Convolute(double*& result, double* first, double* second, int size) {
 
 	// FFT real -> im
-	auto fftfirst = [&size](double*& orig, double*& re, double*& im) {
+	auto fft_re_im = [&size](double* orig, double*& re, double*& im) {
 		TVirtualFFT* fft = TVirtualFFT::FFT(1, &size, "R2C ES");
 		fft->SetPoints(orig);
 		fft->Transform();
@@ -27,8 +27,8 @@ void Filters::Convolute(double*& result, double* first, double* second, int size
 	double* reres = new double[size];
 	double* imres = new double[size];
 
-	fftfirst(first, refirst, imfirst);
-	fftfirst(second, resecond, imsecond);
+	fft_re_im(first, refirst, imfirst);
+	fft_re_im(second, resecond, imsecond);
 
 	TComplex cofirst;
 	TComplex cosecond;
@@ -66,6 +66,67 @@ void Filters::Convolute(double*& first, double* second, int size) {
 	Convolute(first, first, second, size);
 }
 
+/// @brief Helper to perform partial deconvolution of two 1D arrays
+///
+/// WARNING: All arrays must be of the same size. \n \n
+/// 
+/// @param[in,out] result Array containing deconvolution result
+/// @param first First array for deconvolution
+/// @param second Second array for deconvolution
+/// @param size Size of arrays
+/// @param sigma Gaussian sigma in ns
+/// @param x0 Gaussian center in ns
+/// @param bin_size Bin size in ns
+void Deconvolute(double*& result, double* first, double* second, int size, double sigma, double x0, double bin_size) {
+	
+	// FFT real -> im
+	auto fft_re_im = [&size](double* orig, double*& re, double*& im) {
+		TVirtualFFT* fft = TVirtualFFT::FFT(1, &size, "R2C ES");
+		fft->SetPoints(orig);
+		fft->Transform();
+		fft->GetPointsComplex(re, im);
+		delete fft;
+		}; 
+	
+	double* refirst = new double[size];
+	double* imfirst = new double[size];
+	double* resecond = new double[size];
+	double* imsecond = new double[size];
+	double* regauss = new double[size];
+	double* imgauss = new double[size];
+	double* reres = new double[size];
+	double* imres = new double[size];
+
+	fft_re_im(first, refirst, imfirst);
+	fft_re_im(second, resecond, imsecond);
+	fft_re_im(Helpers::Gauss(size, sigma, x0, bin_size), regauss, imgauss);
+
+	TComplex cofirst;
+	TComplex cosecond;
+	TComplex cogauss;
+	TComplex cores;
+
+	for (int i = 0; i < size; i++) {
+		cofirst(refirst[i], imfirst[i]);
+		cosecond(resecond[i], imsecond[i]);
+		cogauss(regauss[i], imgauss[i]);
+
+		cores = cofirst * cogauss / cosecond / static_cast<double>(size);
+
+		reres[i] = cores.Re();
+		imres[i] = cores.Im();
+	}
+
+	TVirtualFFT* fft_back = TVirtualFFT::FFT(1, &size, "C2R ES");
+	fft_back->SetPointsComplex(reres, imres);
+	fft_back->Transform();
+	fft_back->GetPoints(result);
+	delete fft_back;
+
+	delete[] imres; delete[] reres; delete[] refirst; delete[] imfirst; 
+	delete[] resecond; delete[] imsecond; delete[] regauss; delete[] imgauss;
+}
+
 /// @brief Apply smoothing array of double with length nbins
 /// 
 /// Use with care. Method="Gaus" is preferred. \n \n
@@ -73,7 +134,7 @@ void Filters::Convolute(double*& first, double* second, int size) {
 /// Please note that if you want to use gaussian smoothing for data with a binning different from 0.3125 ns/bin 
 /// you need to set the variable bin_size to the new bin size.
 /// 
-/// \image html smoothing_example_0.5.png "Gaussian smoothing of a simple array with 15 entries. Code in example." width=50%
+/// \image html use_functions_wo_measurement.png "Gaussian smoothing of a simple array with 15 entries. Code in example." width=50%
 /// 
 /// @param[in,out] ar Array to be smoothed.
 /// @param nbins Number of bins of input.

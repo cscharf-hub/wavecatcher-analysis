@@ -62,7 +62,7 @@ public:
 	double operator() (double* x, double* p) {
 		double sum = 0;
 		int kmax = static_cast<int>(ceil(p[1])) * 10;
-		
+
 		double mu = p[1];
 		double lambda = p[2];
 
@@ -172,7 +172,7 @@ public:
 /// See https://doi.org/10.1016/0168-9002(94)90183-X 
 ///
 class Fitf_PMT {
-public: 
+public:
 	/// @param x 
 	/// @param p 
 	/// 0 - A:		normalization to number of events in fit region \n 
@@ -272,7 +272,7 @@ public:
 /// See https://doi.org/10.1016/0168-9002(94)90183-X 
 ///
 class Fitf_PMT_ideal {
-public: 
+public:
 	/// @param x 
 	/// @param p 
 	/// 0 - A_s:		norm. of PE spectrum \n 
@@ -430,7 +430,7 @@ public:
 		for (int kint = -k_pm; kint <= k_pm; kint++) {
 			k = static_cast<double>(kint);
 			// periodic gauss
-			gauss += A*TMath::Exp(-TMath::Power(x[0] - mu + k * 360., 2.)/(2.*sigma*sigma));
+			gauss += A * TMath::Exp(-TMath::Power(x[0] - mu + k * 360., 2.) / (2. * sigma * sigma));
 		}
 		return gauss + B;
 	};
@@ -462,5 +462,30 @@ public:
 		fun->SetParameter(3, par[3]);
 
 		return (par[4] * (1. - fun->Integral(start, x[0])));
+	};
+};
+
+/// @brief Convolution of an exponential and a gaussian
+class Fitf_exp_gauss {
+public:
+	/// @param x
+	/// @param par
+	/// par[0]=tau_eff: effective decay time \n
+	/// par[1]=sigma_gauss: sigma of the gaussian \n
+	/// par[2]=t_0: time offset \n
+	/// par[3]=norm: normalization \n
+	double operator() (double* x, double* par) {
+		double tau_eff = par[0];
+		double sigma_gauss = par[1];
+		double t_0 = par[2];
+		double norm = par[3];
+
+		double e_g = norm / (2 * TMath::Abs(tau_eff)) *
+			TMath::Exp((sigma_gauss * sigma_gauss + 2 * t_0 * tau_eff - 2 * tau_eff * x[0]) /
+				(2 * tau_eff * tau_eff)) *
+			TMath::Erfc((sigma_gauss * sigma_gauss + tau_eff * (t_0 - x[0])) /
+				(TMath::Sqrt2() * TMath::Abs(tau_eff) * sigma_gauss));
+
+		return e_g;
 	};
 };

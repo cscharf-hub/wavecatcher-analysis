@@ -23,6 +23,7 @@ public:
 	// convolution for filtering waveforms
 	static void Convolute(double*&, double*, double*, int);
 	static void Convolute(double*&, double*, int);
+	static void Deconvolute(double*&, double*, double*, int, double, double = 0., double = 0.);
 
 	// smoothing
 	static void SmoothArray(double*&, int, double = .625, string = "Gaus", double = .3125, double = 1.5);

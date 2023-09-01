@@ -1,8 +1,7 @@
 #ifdef __CLING__
 
-#pragma link off all globals;
-#pragma link off all classes;
-#pragma link off all functions;
+#pragma link C++ nestedclass;
+#pragma link C++ nestedtypedef;
 
 #pragma link C++ class ReadRun+;
 
@@ -10,6 +9,9 @@
 #pragma link C++ class CosmicsBox+;
 #pragma link C++ class FFT_WF+;
 #pragma link C++ class Experimental+;
+
+#pragma link C++ class Helpers+;
+#pragma link C++ class Filters+;
 
 #pragma link C++ class Fitf+;
 #pragma link C++ class Fitf_full+;
@@ -20,5 +22,7 @@
 #pragma link C++ class Fitf_langaus+;
 #pragma link C++ class Fitf_plus_DC+;
 #pragma link C++ class Fitf_periodic_gauss+;
+#pragma link C++ class Fitf_langaus_int+;
+#pragma link C++ class Fitf_exp_gauss+;
 
 #endif

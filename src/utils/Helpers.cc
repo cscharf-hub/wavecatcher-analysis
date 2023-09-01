@@ -1,5 +1,14 @@
 #include "Helpers.h"
 
+/// @brief Helper function to create an array containing a gaussian distribution
+double* Gauss(int nbins, double sigma, double x0, double bin_size, bool norm) {
+	double* gauss = new double[nbins];
+	for (int i = 0; i < nbins; i++) {
+		gauss[i] = TMath::Gaus(static_cast<double>(i) * bin_size, x0, sigma, norm);
+	}
+	return gauss;
+}
+
 /// @brief Helper. Creates a list of .bin data files in data folder to be read in
 /// @param dirname Directory
 /// @param ext File extension

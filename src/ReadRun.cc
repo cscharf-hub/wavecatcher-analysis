@@ -366,9 +366,8 @@ ReadRun::~ReadRun() {
 /// @param normalize If true will normalize the maximum to 1.
 /// @param shift Shift histogram by "shift" ns
 /// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution.
-/// @param smooth_method If 0 use running average (box kernel smoothing). Simple, very fast. \n 
-/// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks! Very slow. \n
-/// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
+/// @param smooth_method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
+/// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double sigma, int smooth_method) {
 
 	double* xv = getx(shift);
@@ -487,10 +486,12 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 /// @example read_exampledata.py
 
 /// @brief Smoothing all waveforms which are not skipped (for testing, careful when using for analysis!)
-/// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss kernel and convolution.
-/// @param method If 0 use running average (box kernel smoothing). Simple, very fast. \n 
-/// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
-/// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
+/// 
+/// See Filters::SmoothArray().
+/// 
+/// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns.
+/// @param method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
+/// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::SmoothAll(double sigma, int method) {
 	cout << "\nSmoothing all non-skipped waveforms:" << endl;
 	for (int j = 0; j < nwf; j++) {
@@ -505,10 +506,13 @@ void ReadRun::SmoothAll(double sigma, int method) {
 	}
 }
 
-/// @brief Smoothing all waveforms which are not skipped 
+/// @brief Smoothing all waveforms which are not skipped (for testing, careful when using for analysis!)
 /// 
-/// For testing, careful when using for analysis! \n
-/// For parameters see Filters::SmoothArray().
+/// See Filters::SmoothArray().
+/// 
+/// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns.
+/// @param method "Box": Use running average (box kernel smoothing). Simple, very fast. \n
+/// "Gaus": Use 3 sigma gaussian kernel smoothing. Preferred method, fast. 
 void ReadRun::SmoothAll(double sigma, string method) {
 	cout << "\nSmoothing all non-skipped waveforms:" << endl;
 	for (int j = 0; j < nwf; j++) {
@@ -677,9 +681,8 @@ void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int
 /// @param window Vector containing {length for averaging, search start, search end} in ns. 
 /// Example: {20, 10, 90} would search for the best baseline candidate from 10 ns to 90 ns, averaging over 20 ns.
 /// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss
-/// @param smooth_method If 0: Use running average (box kernel smoothing). Simple, very fast. \n 
-/// If 1: Use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
-/// Else: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
+/// @param smooth_method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
+/// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 /// @param increment Increment for search in bins per step. Default value is 3 (=0.9375 ns).
 void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int smooth_method, int increment) {
 	cout << "\nBaseline correction (minimum slope variation method, " << nwf << " waveforms):" << endl;
@@ -795,9 +798,8 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 /// kernel and convolution. Set to 0 for no smoothing. Use with care!
 /// @param max_bin_for_baseline Maximum bin for search window.
 /// @param start_at Minimum bin for search window.
-/// @param smooth_method If 0: Use running average (box kernel smoothing). Simple, very fast. \n 
-/// If 1: Use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
-/// Else: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
+/// @param smooth_method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
+/// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, double sigma, int max_bin_for_baseline, int start_at, int smooth_method) {
 	cout << "Notification: This is a deprecated version of CorrectBaselineMinSlopeRMS. "
 		<< "It will be removed in future releases. Parameter bool smooth=" << smooth << " will be ignored." << endl;
@@ -829,9 +831,8 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 /// Example: {20, 10, 90} would search for the best baseline candidate from 10 ns to 90 ns, averaging over 20 ns.
 /// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss 
 /// kernel and convolution. Set to 0 for no smoothing. Use with care!
-/// @param smooth_method If 0: Use running average (box kernel smoothing). Simple, very fast. \n 
-/// If 1: Use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
-/// Else: Use 3 sigma gaussian kernel smoothing. Preferred method, fast. 
+/// @param smooth_method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
+/// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 /// @param increment Increment for search in bins per step. Default value is 3 (=0.9375 ns).
 void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_method, int increment) {
 	cout << "\nBaseline correction (minimal sum method, " << nwf << " waveforms):" << endl;
@@ -926,9 +927,8 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 /// kernel and convolution. Set to 0 for no smoothing. Use with care!
 /// @param max_bin_for_baseline Maximum bin for search window.
 /// @param start_at Minimum bin for search window.
-/// @param smooth_method If 0: Use running average (box kernel smoothing). Simple, very fast. \n 
-/// If 1: Use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
-/// Else: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
+/// @param smooth_method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
+/// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_bin_for_baseline, int start_at, int smooth_method) {
 	cout << "Notification: This is a deprecated version of CorrectBaselineMin. It will be removed in future releases." << endl;
 	vector<float> window;
@@ -1083,9 +1083,8 @@ void ReadRun::PrintBaselineCorrectionResults(float rangestart, float rangeend, i
 /// This will bias the results! Do not use (or use very carefully, only for noisy data)! Set to 0 if you do not want to use smoothing.
 /// @param find_CF_from_start If true will start search from "start_at_t" to find the first arriving photon (default setting). \n 
 /// If false search backwards from the time of the maximum.  
-/// @param smooth_method If 0 use running average (box kernel smoothing). Simple, very fast. \n 
-/// If 1 use 5 sigma gaussian smoothing. This method is not central and will shift peaks. Very slow. \n
-/// Else use 3 sigma gaussian kernel smoothing. Preferred method, fast.
+/// @param smooth_method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
+/// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 /// @param use_spline If false will use linear interpolation between the two bins closest to cf_r. \n
 /// If true will use a 5th order spline and bisection method for interpolation. 
 /// Performs a bit better in most cases compared to only linear interpolation. 
