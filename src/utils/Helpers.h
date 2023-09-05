@@ -17,9 +17,6 @@ using namespace std;
 
 class Helpers {
 public:
-	// generate array of gauss
-	static double* Gauss(int, double = 1, double = 0., double = 1., bool = false);
-
 	// find data files
 	static string ListFiles(const char*, const char*);
 	

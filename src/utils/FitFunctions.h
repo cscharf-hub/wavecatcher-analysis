@@ -470,10 +470,10 @@ class Fitf_exp_gauss {
 public:
 	/// @param x
 	/// @param par
-	/// par[0]=tau_eff: effective decay time \n
-	/// par[1]=sigma_gauss: sigma of the gaussian \n
-	/// par[2]=t_0: time offset \n
-	/// par[3]=norm: normalization \n
+	/// par[0]=tau_eff: Effective decay time \n
+	/// par[1]=sigma_gauss: Sigma of the gaussian \n
+	/// par[2]=t_0: Time offset \n
+	/// par[3]=norm: Normalization \n
 	double operator() (double* x, double* par) {
 		double tau_eff = par[0];
 		double sigma_gauss = par[1];

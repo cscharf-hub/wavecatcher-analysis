@@ -2379,10 +2379,8 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 	}
 	else if (do_fit == 2) {
 		// gauss x exp convolution (effective delay from random light path and/or self-absorption and reemission)
-		string gxe =	"[3]/(2*TMath::Abs([0]))*"
-						"TMath::Exp(([1]*[1]+2*[2]*[0]-2*[0]*x)/(2*[0]*[0]))*"
-						"TMath::Erfc(([1]*[1]+[0]*([2]-x))/(1.4142*TMath::Abs([0])*[1]))";
-		auto expgconv = new TF1("exp x gauss convolution", gxe.c_str(), fitrangestart, fitrangeend);
+		Fitf_exp_gauss fitf_exp_gauss;
+		auto expgconv = new TF1("exp x gauss convolution", fitf_exp_gauss, fitrangestart, fitrangeend, 4);
 		expgconv->SetNpx(5000);
 
 		// this parameter describes the sigma from different light paths 

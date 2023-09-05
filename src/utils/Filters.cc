@@ -78,7 +78,7 @@ void Filters::Convolute(double*& first, double* second, int size) {
 /// @param x0 Gaussian center in ns
 /// @param bin_size Bin size in ns
 void Deconvolute(double*& result, double* first, double* second, int size, double sigma, double x0, double bin_size) {
-	
+
 	// FFT real -> im
 	auto fft_re_im = [&size](double* orig, double*& re, double*& im) {
 		TVirtualFFT* fft = TVirtualFFT::FFT(1, &size, "R2C ES");
@@ -96,10 +96,15 @@ void Deconvolute(double*& result, double* first, double* second, int size, doubl
 	double* imgauss = new double[size];
 	double* reres = new double[size];
 	double* imres = new double[size];
+	double* gauss = new double[size];
+	
+	for (int i = 0; i < size; i++) {
+		gauss[i] = TMath::Gaus(static_cast<double>(i) * bin_size, x0, sigma);
+	}
 
 	fft_re_im(first, refirst, imfirst);
 	fft_re_im(second, resecond, imsecond);
-	fft_re_im(Helpers::Gauss(size, sigma, x0, bin_size), regauss, imgauss);
+	fft_re_im(gauss, regauss, imgauss);
 
 	TComplex cofirst;
 	TComplex cosecond;
@@ -124,7 +129,7 @@ void Deconvolute(double*& result, double* first, double* second, int size, doubl
 	delete fft_back;
 
 	delete[] imres; delete[] reres; delete[] refirst; delete[] imfirst; 
-	delete[] resecond; delete[] imsecond; delete[] regauss; delete[] imgauss;
+	delete[] resecond; delete[] imsecond; delete[] regauss; delete[] imgauss; delete[] gauss;
 }
 
 /// @brief Apply smoothing array of double with length nbins
@@ -228,17 +233,13 @@ void Filters::GausFilter(double*& ar, int nbins, double sigma, double bin_size) 
 	int nbins_6sigma = static_cast<int>(ceil(6. * sigma / bin_size));
 	if (nbins_6sigma % 2 == 0) nbins_6sigma++;
 	if (nbins_6sigma > 1) {
-		double gauss[nbins_6sigma];
 		double gauss_offset = floor(static_cast<double>(nbins_6sigma) / 2.) * bin_size;
-		double denom = -2. * sigma * sigma;
-
+		double gauss[nbins_6sigma];
 		for (int i = 0; i < nbins_6sigma; i++) {
-			double position = static_cast<double>(i) * bin_size;
-			gauss[i] = exp(pow(position - gauss_offset, 2) / denom);
+			gauss[i] = TMath::Gaus(static_cast<double>(i) * bin_size, gauss_offset, sigma);
 		}
 
 		double res = 0, norm = 0;
-
 		for (int i = 0; i < nbins; i++) {
 			res = 0., norm = 0.;
 			int start = max(0, nbins_6sigma / 2 - i);
@@ -425,11 +426,9 @@ void Filters::ResponseFilter(double*& ar, int nbins, double sigma1, double sigma
 			factor * exp(-1. * pow(static_cast<double>(i) * bin_size - 2. * sigma2, 2.) / denom2);
 	}
 
-	double res = 0;
-	double norm = 0;
+	double res = 0, norm = 0;
 	for (int i = 0; i < nbins; i++) {
-		res = 0.;
-		norm = 0.;
+		res = 0., norm = 0.;
 		for (int j = max(0, nbins_2sigma / 2 - i); j < min(nbins - i + nbins_2sigma / 2, nbins_2sigma); j++) {
 			res += sdog[j] * artmp[i + j - nbins_2sigma / 2];
 			if (sdog[j] > 0.) norm += sdog[j];
