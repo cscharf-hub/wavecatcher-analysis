@@ -98,13 +98,14 @@ void Filters::Deconvolute(double*& result, double* first, double* second, int si
 	double* imres = new double[size];
 	double* gauss = new double[size];
 	
-	for (int i = 0; i < size; i++) {
-		gauss[i] = TMath::Gaus(static_cast<double>(i) * bin_size, x0, sigma);
-	}
-
 	fft_re_im(first, refirst, imfirst);
 	fft_re_im(second, resecond, imsecond);
-	fft_re_im(gauss, regauss, imgauss);
+	if (sigma > 0.) {
+		for (int i = 0; i < size; i++) {
+			gauss[i] = TMath::Gaus(static_cast<double>(i) * bin_size, x0, sigma);
+		}
+		fft_re_im(gauss, regauss, imgauss);
+	}
 
 	TComplex cofirst;
 	TComplex cosecond;
@@ -114,7 +115,8 @@ void Filters::Deconvolute(double*& result, double* first, double* second, int si
 	for (int i = 0; i < size; i++) {
 		cofirst(refirst[i], imfirst[i]);
 		cosecond(resecond[i], imsecond[i]);
-		cogauss(regauss[i], imgauss[i]);
+		if (sigma > 0.) cogauss(regauss[i], imgauss[i]);
+		else cogauss(1., 0.);
 
 		cores = cofirst * cogauss / cosecond / static_cast<double>(size);
 
