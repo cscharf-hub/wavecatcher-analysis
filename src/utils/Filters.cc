@@ -77,7 +77,7 @@ void Filters::Convolute(double*& first, double* second, int size) {
 /// @param sigma Gaussian sigma in ns
 /// @param x0 Gaussian center in ns
 /// @param bin_size Bin size in ns
-void Deconvolute(double*& result, double* first, double* second, int size, double sigma, double x0, double bin_size) {
+void Filters::Deconvolute(double*& result, double* first, double* second, int size, double sigma, double x0, double bin_size) {
 
 	// FFT real -> im
 	auto fft_re_im = [&size](double* orig, double*& re, double*& im) {

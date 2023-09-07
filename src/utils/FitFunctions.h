@@ -466,6 +466,10 @@ public:
 };
 
 /// @brief Convolution of an exponential and a gaussian
+/// @details Timing distribution for different arrival times of photons due to different 
+/// possible light paths in the scintillator/light guide and/or delay due to self-absorption and reemission of 
+/// photons in the scintillator (see https://doi.org/10.1016/S0029-554X(79)90170-8 ). \n
+/// The function only works for sufficient asymmetry \f$\tau_{eff} > \sigma/2\f$.
 class Fitf_exp_gauss {
 public:
 	/// @param x
