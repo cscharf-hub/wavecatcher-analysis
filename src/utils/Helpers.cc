@@ -5,28 +5,18 @@
 /// @param ext File extension
 /// @return String of line separated file names
 string Helpers::ListFiles(const char* dirname, const char* ext) {
-
 	stringstream ss;
 	TSystemDirectory dir(dirname, dirname);
 	TList* files = dir.GetListOfFiles();
-	if (files) {
-		TSystemFile* file;
-		TString fname;
-		TIter next(files);
-		while ((file = (TSystemFile*)next())) {
-			fname = file->GetName();
-			if (!file->IsDirectory() && fname.EndsWith(ext)) {
-				ss << fname.Data() << "\n";
-			}
-		}
-		TIter next2(files);
-		while ((file = (TSystemFile*)next2())) {
-			fname = file->GetName();
-			if (!file->IsDirectory() && !fname.EndsWith(ext) && fname.Contains(ext)) {
-				ss << fname.Data() << "\n";
-			}
-		}
+	
+	TIter next(files);
+	TObjString* objString;
+	while ((objString = (TObjString*)next())) {
+		const char* fileName = objString->GetString().Data();
+		// Check if the filename or extension contains ".bin"
+		if (strstr(fileName, ext) != nullptr) ss << fileName << "\n";
 	}
+	if (ss.str().empty()) throw runtime_error("Error: No .bin files found in " + static_cast<string>(dirname) + "\n");
 	return ss.str();
 }
 

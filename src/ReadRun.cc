@@ -46,7 +46,6 @@ ReadRun::ReadRun(int no_of_bin_files_to_read) {
 /// Stores the data as ROOT histograms in ```TClonesArray rundata```. \n \n 
 /// 
 /// Reader modified from WaveCatcher binary -> root converter by manu chauveau@cenbg.in2p3.fr \n 
-/// See https://owncloud.lal.in2p3.fr/public.php?service=files&t=56e4a2c53a991cb08f73d03f1ce58ba2
 /// 
 /// @param path Path to the data. All files in this folder containing ```.bin``` in the file name will be read in.
 /// @param change_polarity Set ```true``` to change polarity (sign) of certain channels (see ```change_sign_from_to_ch_num``` below).
@@ -57,6 +56,7 @@ ReadRun::ReadRun(int no_of_bin_files_to_read) {
 /// @param debug Set ```true``` to increase the verbosity.
 void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_to_ch_num, string out_file_name, bool debug) {
 
+	if (path.back() != '/') path += '/'; // add '/' to path if not present
 	// save output path
 	data_path = path;
 
@@ -67,7 +67,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 	const int nChannelsWC = 64;
 
 	rundata = new TClonesArray("TH1F", maxNWF); //raw data will be stored here as TH1F
-	rundata->BypassStreamer(kFALSE);			//Doramas: I don't know why is it used, but it's better to use when working with TClonesArray
+	rundata->BypassStreamer(kFALSE);			//potentially faster read & write
 	TClonesArray& testrundata = *rundata;
 
 	// verbosity
@@ -76,9 +76,10 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 	unsigned short output_channel;
 	unsigned int output_event;
-	//unsigned long long int output_tdc;
 	unsigned short output_nbchannels;
 	unsigned short read_channels = 0;
+
+	size_t length_of_waveform = static_cast<size_t>(binNumber) * sizeof(short);
 
 	amplValuessum = new double* [nChannelsWC]; //sum of all wf for each channel
 	for (int i = 0; i < nChannelsWC; i++) {//init
@@ -127,12 +128,6 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 		size_t header_version_last = header_line.find_first_of(' ', header_version_first);
 		string software_version = header_line.substr(header_version_first, header_version_last - header_version_first);
 		if (debug_header) printf("    |- data version = '%s'\n", software_version.data());
-
-		//if (software_version == "V2.9.13")
-		//	;
-		//else if (software_version == "V2.9.15")
-		//	;
-		//else if (debug_header) printf("*** unsupported data version\n");
 
 		// HEADER 2 //
 		// "=== WAVECATCHER SYSTEM OF TYPE ?? WITH ?? CHANNELS AND GAIN: ??? ==="
@@ -194,12 +189,9 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 			if (debug_data) printf("%03d has %d channels\n", an_event.EventNumber, an_event.nchannelstored);
 
 			output_event = an_event.EventNumber;
-			//output_tdc = an_event.TDCsamIndex;
 			output_nbchannels = an_event.nchannelstored;
 
 			if (debug_data && output_event % 200 == 0) printf("EventNr: %d, nCh: %d\n", output_event, output_nbchannels);
-
-			//cout << "EvN:" << an_event.EventNumber << " EpT:" << an_event.EpochTime << " Yr:" << an_event.Year << " TDCt:" << an_event.TDCsamIndex;
 
 			// do analysis only for limited range of channels to reduce memory usage for large datasets with many channels and many events
 			int start_at_ch = 0;
@@ -212,23 +204,20 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 			if (event_counter == 0) cout << "\nstart at ch " << start_at_ch << " end at ch " << end_at_ch << endl;
 
 			for (int ch = 0; ch < output_nbchannels; ++ch) { // channel loop
-				//
 				channel_data_with_measurement a_channel_data;
 				channel_data_without_measurement a_channel_data_without_measurement;
 
-				if (has_measurement) {
-					// read with 'channel_data_with_measurement' struct
+				if (has_measurement) { // read with 'channel_data_with_measurement' struct
 					input_file.read((char*)(&a_channel_data), sizeof(channel_data_with_measurement));
 				}
-				else {
-					// read with 'channel_data_without_measurement' struct
+				else { // read with 'channel_data_without_measurement' struct
 					input_file.read((char*)(&a_channel_data_without_measurement), sizeof(channel_data_without_measurement));
 
-					// copy the content into 'channel_data_with_measurement' struct
+					// copy the content
 					a_channel_data.channel = a_channel_data_without_measurement.channel;
 					a_channel_data.EventIDsamIndex = a_channel_data_without_measurement.EventIDsamIndex;
 					a_channel_data.FirstCellToPlotsamIndex = a_channel_data_without_measurement.FirstCellToPlotsamIndex;
-					memcpy(a_channel_data.waveform, a_channel_data_without_measurement.waveform, binNumber * sizeof(short));
+					memcpy(a_channel_data.waveform, a_channel_data_without_measurement.waveform, length_of_waveform);
 				}
 
 
@@ -248,8 +237,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 					hCh->SetBins(binNumber, -0.5 * SP, 1023.5 * SP);
 
 					int nshift = 0;
-					if (Shift_WFs_in_file_loop) {
-						// shift all waveforms to tWF_CF_bin
+					if (Shift_WFs_in_file_loop) { // shift all waveforms to tWF_CF_bin
 						float max = 0.;
 						int nmax = 0;
 						float cf = tWF_CF;
@@ -273,13 +261,14 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 								nmax = s;
 							}
 
-							// stop search if the current maximum is at least 0.5 * global maximum and if there are at least three consecutive bins where the waveform amplitude is decreasing
+							// stop search if the current maximum is at least 0.5 * global maximum and if there are at 
+							// least three consecutive bins where the waveform amplitude is decreasing
 							if (max > .5 * global_max && s - nmax < 4 && TMath::Abs(a_channel_data.waveform[s + 2]) + TMath::Abs(a_channel_data.waveform[s + 3]) < TMath::Abs(a_channel_data.waveform[s]) + TMath::Abs(a_channel_data.waveform[s + 1])) count_fall++;
 							else count_fall = 0;
 							if (count_fall == 3) break;
 						}
 						cf *= max;
-						//if (debug) cout << " || " << cf << ";" << max << ";" << nmax << ";";
+						
 						for (int s = nmax; s > tWF_CF_lo; --s) {
 							if (cf >= TMath::Abs(a_channel_data.waveform[s])) {
 								if (cf - TMath::Abs(a_channel_data.waveform[s]) < TMath::Abs(a_channel_data.waveform[s - 1]) - cf) nshift = tWF_CF_bin - s;
@@ -287,7 +276,6 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 								break;
 							}
 						}
-						//if (debug) cout << nshift;
 					}
 
 					float val = 0.;
@@ -296,13 +284,12 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 						if (shiftind < 0) shiftind += 1023;
 						else if (shiftind > 1023) shiftind -= 1023;
 						val = a_channel_data.waveform[shiftind] * coef * 1000.;
-						if (change_polarity && 
-							((output_channel >= change_sign_from_to_ch_num) || 
-								(change_sign_from_to_ch_num < 0 && output_channel <= abs(change_sign_from_to_ch_num)))) {
+						if (change_polarity 
+							&& ((output_channel >= change_sign_from_to_ch_num)
+								|| (change_sign_from_to_ch_num < 0 && output_channel <= abs(change_sign_from_to_ch_num)))) {
 							val *= -1.;
 						}
 						hCh->SetBinContent(s + 1, val);
-						//hCh->SetBinError(s, 0.5); //DO NOT USE! Will double the memory usage
 
 						// channel sums
 						amplValuessum[ch][s] += static_cast<double>(val);
@@ -331,7 +318,8 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 	// in case there are empty channels, nchannels is the number of channels which contain data
 	nchannels = read_channels;
 
-	// get bins where the sum spectrum has its maximum for runs with fixed trigger delay and fixed integration window relative to the max of the sum spectrum (not working for DC measurement)
+	// get bins where the sum spectrum has its maximum for runs with fixed trigger delay and fixed 
+	// integration window relative to the max of the sum spectrum (not working for DC measurement)
 	for (int ch = 0; ch < nchannels; ch++) {
 		double max = 0.;
 		for (int i = 0; i < binNumber; i++) {
@@ -344,12 +332,13 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 	nevents = event_counter;
 	nwf = wfcounter;
+
+	printf("Finished reading %d files containing %d events with %d channels.\n\n", file_counter, nevents, nchannels);
 }
 
 /// @brief Destructor
 ReadRun::~ReadRun() {
-	//rundata->Clear("C");
-	//if (maxSumBin) delete[] maxSumBin;
+	//delete rundata;
 	//plot_active_channels.clear();
 	if (root_out->IsOpen()) root_out->Close();
 	cout << "\ndeleting nothing currently..." << endl;

@@ -4,7 +4,7 @@
 
 #include <TSystemDirectory.h>
 #include <TList.h>
-#include <TSystemFile.h>
+#include <TObjString.h>
 #include <TCanvas.h>
 #include <TH1.h>
 #include <TMath.h>

@@ -69,12 +69,10 @@ private:
 	int PrintWFProjection_cnt;
 
 
-#pragma pack(1) // padding suppression
-	// struct copied from
+#pragma pack(1) // byte padding suppression for WaveCatcher data format
+	// structs copied from
 	// WaveCatcher binary -> root converter
 	// by manu chauveau@cenbg.in2p3.fr
-	// see https://owncloud.lal.in2p3.fr/public.php?service=files&t=56e4a2c53a991cb08f73d03f1ce58ba2
-
 	struct event_data
 	{
 		int EventNumber;
@@ -111,7 +109,7 @@ private:
 		float	RawTriggerRate;
 		short waveform[1024];
 	};
-#pragma pack() // padding suppression
+#pragma pack() // byte padding suppression for WaveCatcher data format
 
 public:
 	/// @brief Stores data
