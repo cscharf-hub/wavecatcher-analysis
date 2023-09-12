@@ -18,6 +18,10 @@ void timing_example()
 	// searches for the minimum sum 10 ns from 75 ns to 110 ns 
 	mymeas.CorrectBaselineMin({10, 75, 110});
 
+	// check baseline correction results
+	mymeas.PrintBaselineCorrectionResults(-2, 5, 50);
+	mymeas.PrintWFProjection(0, 110, -3.5, 10, 50);
+
 	// parameters for signal integration
 	float intwindowminus = 15.;	// lower integration window in ns relative to max
 	float intwindowplus = 85.;	// upper integration window in ns relative to max

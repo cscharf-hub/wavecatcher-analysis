@@ -11,7 +11,7 @@ ROOT.gSystem.Load('ReadRunLib.sl')
 ### However, at the moment of writing, there are some constraints with using Python:
 ### Some functions rely on C++ vectors which are similar to list and numpy array, but not exactly the same. 
 ### Vectors can hold only one type and the interpreter sometimes converts to the wrong types. 
-### There are examples how to handle this in the code below.
+### To avoid errors, always cast to ROOT.std.vector (see code below).
 
 def read_exampledata(which, autoclose):
     path = 'examples/'
@@ -29,8 +29,13 @@ def read_exampledata(which, autoclose):
 
     # Apply baseline correction to ALL waveforms
     # Searches for the minimum of sum((y_{i+1} - y_{i})^2)+sum(y_{i+1} - y_{i})^2 over 30 ns, starting at t=0 ns until t=80 ns
-    # One could also pass a vector directly with ```pars = ROOT.std.vector('float')(); pars.push_back(30.);``` ...
-    mymeas.CorrectBaselineMinSlopeRMS({30.,5.,80.})
+    # The interpreter has problems converting python list objects into c++ vector objects
+    # To do a proper cast, one has to use the ROOT.std.vector() constructor
+    baseline_pars = ROOT.std.vector('float')([30., 0, 80.])
+    mymeas.CorrectBaselineMinSlopeRMS(baseline_pars)
+    
+    # test if baseline correction worked (should be centered around 0)
+    mymeas.PrintWFProjection(0, 80, -3.5, 3.5, 50);
     
     # print result baseline_correction_result
     print('baseline correction result: ', mymeas.baseline_correction_result[1][2])
@@ -48,10 +53,9 @@ def read_exampledata(which, autoclose):
     # Cut out pedestal events by setting a threshold of 200 mV*ns of the integrals of the last two trigger channels
     # Note that this removes about 70% of all events for this example data!!
     # The interpreter has problems converting python list objects into c++ vector objects
-    # Usually it works with numpy arrays like here
-    highlow = ROOT.std.vector('bool')(); 
-    highlow.push_back(False); highlow.push_back(False); highlow.push_back(False)
-    mymeas.IntegralFilter({0., 200., 200.}, highlow, intwindowminus, intwindowplus, findmaxfrom, findmaxto)
+    # To do a proper cast, one has to use the ROOT.std.vector() constructor
+    highlow = ROOT.std.vector('bool')([False, False, False]);
+    mymeas.IntegralFilter(ROOT.std.vector('float')([0., 200., 200.]), highlow, intwindowminus, intwindowplus, findmaxfrom, findmaxto)
 
     # Get a rough estimate of the timing of the main peaks to make sure the choice of the time window makes sense
     mymeas.PrintTimeDist(50, 170, findmaxfrom, findmaxto, 60, 1, .5)
@@ -63,7 +67,7 @@ def read_exampledata(which, autoclose):
     example_event = 68
     # Plot range
     ymin = -5
-    ymax = 50
+    ymax = 150
     # Plot the waveforms for event 68 with integration window and baseline correction info
     mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, example_event, ymin, ymax)
 

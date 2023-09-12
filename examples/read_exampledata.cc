@@ -32,6 +32,9 @@ void read_exampledata(int which = 0)
 	// searches for the minimum of sum((y_{i+1} - y_{i})^2)+sum(y_{i+1} - y_{i})^2  over 30 ns, starting at t=0 ns until t=80 ns
 	mymeas.CorrectBaselineMinSlopeRMS({ 30, 0, 80 });
 
+	// test if baseline correction worked (should be centered around 0)
+	mymeas.PrintWFProjection(0, 80, -3.5, 3.5, 50);
+
 	////plotting
 	// plot sums of all raw events per channel (see channel 9 has an offset)
 	mymeas.PlotChannelSums();
@@ -59,7 +62,7 @@ void read_exampledata(int which = 0)
 	int example_event = 68;
 	//plot range
 	double ymin = -5;
-	double ymax = 50;
+	double ymax = 150;
 	// plot the waveforms for event 68 with integration window and baseline correction info
 	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, example_event, ymin, ymax);
 
