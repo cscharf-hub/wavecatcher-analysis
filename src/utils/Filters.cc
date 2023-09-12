@@ -401,8 +401,9 @@ void Filters::MedianFilter(double*& ar, int nbins, int window_size) {
 
 /// @brief Custom filter emulating primitive response function
 /// 
-/// Can be used to highlight peaks and suppress long tails (pole-zero cancellation). 
+/// Can be used to highlight peaks and suppress long tails (see pole-zero cancellation). 
 /// Emulates response function of an amplifier setup. \n
+/// Uses constant padding to avoid edge effects. \n
 /// Use Filter_test.ipynb to test parameters.
 /// 
 /// @param[in,out] ar Array to be filtered.
@@ -417,33 +418,37 @@ void Filters::ResponseFilter(double*& ar, int nbins, double sigma1, double sigma
 	for (int i = 0; i < nbins; i++) artmp[i] = ar[i];
 
 	// shifted difference of two gauss functions (~smoothed derivative)
-	int nbins_2sigma = static_cast<int>(ceil((2. * sigma1 + 3. * sigma2) / bin_size));
-	if (nbins_2sigma % 2 == 0) nbins_2sigma++;
-	double sdog[nbins_2sigma];
+	int nbins_23sigma = static_cast<int>(ceil((2. * sigma1 + 3. * sigma2) / bin_size));
+	int nbins_3sigma = static_cast<int>(ceil(3. * sigma2 / bin_size));
+	double sdog[nbins_23sigma];
 
 	double denom1 = 2. * sigma1 * sigma1;
 	double denom2 = 2. * sigma2 * sigma2;
-	for (int i = 0; i < nbins_2sigma; i++) {
+	double norm = 0.;
+	for (int i = 0; i < nbins_23sigma; i++) {
 		sdog[i] = exp(-1. * pow(static_cast<double>(i) * bin_size - 3. * sigma2, 2.) / denom1) -
 			factor * exp(-1. * pow(static_cast<double>(i) * bin_size - 2. * sigma2, 2.) / denom2);
+		if (sdog[i] > 0.) norm += sdog[i];
 	}
+	if (norm == 0.) norm = 1.;
 
-	double res = 0, norm = 0;
 	for (int i = 0; i < nbins; i++) {
-		res = 0., norm = 0.;
-		for (int j = max(0, nbins_2sigma / 2 - i); j < min(nbins - i + nbins_2sigma / 2, nbins_2sigma); j++) {
-			res += sdog[j] * artmp[i + j - nbins_2sigma / 2];
-			if (sdog[j] > 0.) norm += sdog[j];
+		double res = 0.;
+		for (int j = -1 * nbins_3sigma; j < nbins_23sigma - nbins_3sigma; j++) {
+			if (i + j >= 0 && i + j < nbins) res += sdog[j + nbins_3sigma] * artmp[i + j];
+			else if (i + j < 0) res += sdog[j + nbins_3sigma] * artmp[0];
+			else res += sdog[j + nbins_3sigma] * artmp[nbins - 1];
 		}
-		if (norm != 0.) ar[i] = res / norm;
+		ar[i] = res / norm;
 	}
 	delete[] artmp;
 }
 
 /// @brief Shifted second order underdamped filter
 /// 
-/// For TCT setup emulating 2nd order underdamped response (simple damped harmonic oscillator). \n
-/// Will only consider 3 periods of the response function.
+/// Emulating 2nd order underdamped response (simple damped harmonic oscillator). \n
+/// Will only consider 3 periods of the response function. \n
+/// In development, for testing only.
 /// 
 /// @param[in,out] ar Array to be filtered.
 /// @param nbins Number of bins of input.
