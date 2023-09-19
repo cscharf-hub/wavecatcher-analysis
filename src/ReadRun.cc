@@ -1282,7 +1282,7 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 void ReadRun::SkipEventsPerChannel(vector<float> thresholds, float rangestart, float rangeend, bool verbose) { // merge with IntegralFilter()?
 
 	if (thresholds.empty()) cout << "\nError: thresholds is empty";
-	while (thresholds.size() <= plot_active_channels.size()) thresholds.push_back(thresholds[0]);
+	while (thresholds.size() <= active_channels.size()) thresholds.push_back(thresholds[0]);
 
 	cout << "\n Removing events with individual amplitude threshold per channel:" << endl;
 	int counter = 0;
@@ -1314,11 +1314,9 @@ void ReadRun::SkipEventsPerChannel(vector<float> thresholds, float rangestart, f
 
 /// @brief Skip events with threshold on integral
 /// 
-/// Compare with SkipEventsPerChannel()
-/// Needs to be called before the charge spectrum etc functions. \n 
-/// Baseline correction should be called before this function.
-/// 
-/// Please note that the old version was missing start and end, so please add these parameters to older scripts if they throw errors.
+/// Compare with SkipEventsPerChannel() \n
+/// Needs to be called before the charge spectrum etc functions in order to have an effect on them. \n 
+/// Baseline correction should be called before this function. \n
 /// 
 /// @param thresholds Vector should contain a threshold for each active channel saved in the data, in ascending order (ch0, ch1 ...). 
 /// Negative thresholds mean events below threshold will be cut. A threshold of 0 means the channel will not be evaluated. 
@@ -1334,10 +1332,8 @@ void ReadRun::SkipEventsPerChannel(vector<float> thresholds, float rangestart, f
 void ReadRun::IntegralFilter(vector<float> thresholds, vector<bool> highlow, float windowlow, float windowhi, float start, float end, bool use_AND_condition, bool verbose) {
 
 	if (thresholds.empty() || highlow.empty()) cout << "\nError: thresholds or highlow are empty";
-	while (thresholds.size() <= plot_active_channels.size()) { 
-		thresholds.push_back(thresholds[0]);
-		highlow.push_back(highlow[0]);
-	}
+	while (thresholds.size() <= active_channels.size())	{ thresholds.push_back(thresholds[0]); }
+	while (highlow.size() <= active_channels.size())	{ highlow.push_back(highlow[0]); }
 
 	cout << "\n\nRemoving events with individual integral threshold per channel:" << endl;
 	int counter = 0;

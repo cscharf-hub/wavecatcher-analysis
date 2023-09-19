@@ -339,24 +339,28 @@ void Filters::Bilateral2Filter(double*& ar, int nbins, int sigma_x, double sigma
 	for (int i = 0; i < nbins; i++) artmp[i] = ar[i];
 
 	double denom = -2. * sigma_y * sigma_y;
+	int x_shift = static_cast<int>(sigma_x / bin_size);
 
 	double weightedSum = 0.;
 	double sumOfWeights = 0.;
 
 	double slope[nbins - 1];
-	for (int i = 0; i < nbins; i++) slope[i] = ar[i + 1] - ar[i];
+	double slope_weight[nbins - 1];
+	for (int i = 0; i < nbins - 1; i++) {
+		slope[i] = ar[i + 1] - ar[i];
+		slope_weight[i] = 1. / (1. + pow(.5 * slope[i] / sigma_slope, 2.));
+	}
 
 	for (int i = 0; i < nbins; i++) {
 		weightedSum = 0.;
 		sumOfWeights = 0.;
-		int start =	max(0, i - static_cast<int>(sigma_x / bin_size));
-		int end =	min(i + static_cast<int>(sigma_x / bin_size), nbins - 1);
+		int start =	max(0, i - x_shift);
+		int end =	min(i + x_shift, nbins - 1);
 
 		for (int j = start; j <= end; j++) {
 			double diff = artmp[i] - artmp[j];
-			double nom = pow(diff, 2);
-			double weight = exp(nom / denom);
-			if (j < nbins - 2) weight /= (1 + pow(.5 * slope[j] / sigma_slope, 2));
+			double weight = exp(pow(diff, 2) / denom);
+			if (j < nbins - 1) weight *= slope_weight[j];
 			weightedSum += weight * artmp[j];
 			sumOfWeights += weight;
 		}
