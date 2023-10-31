@@ -128,6 +128,12 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 		size_t header_version_last = header_line.find_first_of(' ', header_version_first);
 		string software_version = header_line.substr(header_version_first, header_version_last - header_version_first);
 		if (debug_header) printf("    |- data version = '%s'\n", software_version.data());
+		// convert software version
+		software_version.erase(0, 1);
+		int v_major, v_minor, v_patch;
+		istringstream software_version_iss(software_version);
+		char dot_;
+		software_version_iss >> v_major >> dot_ >> v_minor >> dot_ >> v_patch;
 
 		// HEADER 2 //
 		// "=== WAVECATCHER SYSTEM OF TYPE ?? WITH ?? CHANNELS AND GAIN: ??? ==="
@@ -165,17 +171,16 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 		nchannels = atoi(nchannels_str.data());
 		if (debug_header) printf("    |- nchannels    = %d\n", nchannels);
 
-		if (software_version == "V2.9.15" || software_version == "V2.9.16" || software_version == "V2.10.1") {
+		// compatibility with older WC software versions
+		if (v_major ==2 && v_minor == 9 && v_patch <= 13) {
+			// V2.9.13 has always measurement stored (everything is set to 0 when disabled!)
+			has_measurement = true; 
+		}
+		else {
 			size_t has_measurement_first = 14 + header_line.find("MEASUREMENTS: ", nsamples_first);
 			size_t has_measurement_last = header_line.find_first_of(' ', has_measurement_first);
 			string has_measurement_str = header_line.substr(has_measurement_first, has_measurement_last - has_measurement_first);
 			has_measurement = atoi(has_measurement_str.data());
-		}
-		else {
-			//if (software_version == "V2.9.13") {
-				// V2.9.13 has always measurement stored
-				// (everything is set to 0 when disabled!)
-			has_measurement = true;
 		}
 
 		if (debug_header) printf("    `- measurement  = %d\n", has_measurement);
@@ -268,7 +273,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 							if (count_fall == 3) break;
 						}
 						cf *= max;
-						
+
 						for (int s = nmax; s > tWF_CF_lo; --s) {
 							if (cf >= TMath::Abs(a_channel_data.waveform[s])) {
 								if (cf - TMath::Abs(a_channel_data.waveform[s]) < TMath::Abs(a_channel_data.waveform[s - 1]) - cf) nshift = tWF_CF_bin - s;
@@ -284,7 +289,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 						if (shiftind < 0) shiftind += 1023;
 						else if (shiftind > 1023) shiftind -= 1023;
 						val = a_channel_data.waveform[shiftind] * coef * 1000.;
-						if (change_polarity 
+						if (change_polarity
 							&& ((output_channel >= change_sign_from_to_ch_num)
 								|| (change_sign_from_to_ch_num < 0 && output_channel <= abs(change_sign_from_to_ch_num)))) {
 							val *= -1.;
@@ -414,17 +419,17 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 /// 
 /// @param normalize If true will normalize the maximum to 1.
 void ReadRun::PlotChannelAverages(bool normalize) {
-	
+
 	double* xv = getx(0);
 	auto mgav = new TMultiGraph();
 	mgav->SetTitle("channel averages; t [ns]; amplitude [mV]");
 	if (normalize) mgav->SetTitle("channel averages; t[ns]; amplitude[arb.]");
 
 	double max = 0., min = 0.;
-		
+
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
-			
+
 			double* yv = new double[binNumber];
 			for (int k = 0; k < binNumber; k++) yv[k] = 0.;
 
@@ -545,13 +550,13 @@ void ReadRun::FilterAll(double sigma1, double sigma2, double factor) {
 /// 
 void ReadRun::ShiftAllToAverageCF() {
 	cout << "\nShifting all waveforms to the average constant fraction time for each channel:" << endl;
-	
+
 	//call GetTimingCFD() in case it was not initialized
 	if (static_cast<int>(timing_results.size()) == 0) GetTimingCFD();
-	
+
 	double* timing_mean = new double[nchannels];
 	for (int i = 0; i < nchannels; i++) timing_mean[i] = 0.;
-	
+
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[GetCurrentEvent(j)]) timing_mean[GetCurrentChannel(j)] += timing_results[j][0];
 	}
@@ -560,7 +565,7 @@ void ReadRun::ShiftAllToAverageCF() {
 
 	int* timing_mean_n = new int[nchannels];
 	for (int i = 0; i < nchannels; i++) {
-		timing_mean_n[i] = static_cast<int>(round(timing_mean[i] / norm ));
+		timing_mean_n[i] = static_cast<int>(round(timing_mean[i] / norm));
 	}
 	delete[] timing_mean;
 
@@ -709,8 +714,8 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 
 		TH1F* his = Getwf(j);
 		if (search_relative_to_local_max) {
-			imax = GetIntWindow(his, 0, 0, static_cast<float>(nbins_search + min_distance_from_max) * SP, 
-				static_cast<float>(end_search_at)*SP)[1];
+			imax = GetIntWindow(his, 0, 0, static_cast<float>(nbins_search + min_distance_from_max) * SP,
+				static_cast<float>(end_search_at) * SP)[1];
 			end_search_at = imax - min_distance_from_max;
 			nbins_search = end_search_at;
 			end_search_loop_at = nbins_search - nbins_average;
@@ -1130,7 +1135,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 			TSpline5* wfspl = 0;
 			wfspl = new TSpline5("wf_spline", xvals, yvals, n_range, "b1e1b2e2", 0., 0., 0., 0.);
 			delete[] xvals;
-			
+
 			// using bisection method: halving search window until cf is less than epsilon bins from spline value
 			while (x_high - x_low > epsilon) {
 				double x_mid = (x_low + x_high) / 2;
@@ -1153,7 +1158,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 		timing_results[j].push_back(static_cast<float>(start_at) * SP);						// starting time
 		timing_results[j].push_back(static_cast<float>(end_at) * SP);						// end time
 		delete[] yvals;
-		
+
 		Helpers::PrintProgressBar(j, nwf);
 	}
 }
@@ -1260,10 +1265,10 @@ void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool great
 
 	//  Loop to show the fraction of events above threshold for each channel that will be plotted
 	for (int i = 0; i < static_cast<int>(plot_active_channels.size()); i++) {
-		cout << "Fraction of events in channel " << plot_active_channels[i] << " above threshold: " 
+		cout << "Fraction of events in channel " << plot_active_channels[i] << " above threshold: "
 			<< 100. * static_cast<float>(counter_abovethr[i]) / static_cast<float>(nevents) << "%\n";
 	}
-	
+
 	cout << "Fraction of events w/ at least 2 channels above threshold: "
 		<< 100. * static_cast<float>(occurences2ch) / static_cast<float>(nevents) << "%\n"
 		<< "For a total of " << nevents << " events" << endl;
@@ -1352,7 +1357,7 @@ void ReadRun::IntegralFilter(vector<float> thresholds, vector<bool> highlow, flo
 				auto his = (TH1F*)(Getwf(j))->Clone(); // use Clone() to not change ranges of original histogram
 				integral = GetPeakIntegral(his, windowlow, windowhi, start, end, currchannel);
 
-				if (thresholds[currchannel] != 0 && !skip_event[currevent_counter] && 
+				if (thresholds[currchannel] != 0 && !skip_event[currevent_counter] &&
 					((highlow[currchannel] && integral > thresholds[currchannel]) || (!highlow[currchannel] && integral < thresholds[currchannel]))) {
 					currevent = eventnr_storage[currevent_counter];
 					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel] << "\tintegral:\t" << integral;
@@ -1534,7 +1539,7 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 			if (current_canvas == 1 && last_canvas < 4) gPad->SetLeftMargin(.15);
 			if (current_canvas % 4 == 0 || current_canvas == last_canvas) gPad->SetRightMargin(.01);
 			his->Draw("HIST");
-			his->SetStats(0); 
+			his->SetStats(0);
 
 			low->Draw("same");
 			hi->Draw("same");
@@ -1672,7 +1677,7 @@ void ReadRun::ChargeCorrelation(float windowlow, float windowhi, float start, fl
 	for (int i = 0; i < nevents; i++) {
 		if (!ignore_skipped_events || !skip_event[i]) charge_corr->Fill(charge1[i], charge2[i]);
 	}
-	
+
 	charge_corr->Draw("colz");
 	root_out->WriteObject(charge_corr, name.str().c_str());
 
@@ -1768,7 +1773,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
 			current_canvas++;
-			
+
 			his = ChargeSpectrum(i, windowlow, windowhi, start, end, default_rangestart, default_rangeend, default_nbins);
 			his->GetYaxis()->SetTitle("#Entries");
 			if (windowlow + windowhi > 0.) his->GetXaxis()->SetTitle("integral in mV#timesns");
@@ -2012,12 +2017,12 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 	for (int j = 0; j < nevents; j++) {
 		if (!skip_event[j]) {
 			auto his = (TH1F*)(Getwf(j * nchannels + channel_index));
-			
+
 			int from_n = his->GetXaxis()->FindBin(from);
 
 			int max_n = GetIntWindow(his, 0, 0, from, to)[0];
 			float max = his->GetBinContent(max_n);
-			
+
 			if (which == 0) { // time of maximum 
 				h1->Fill(max);
 			}
@@ -2367,7 +2372,7 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 		// this parameter describes the sigma from different light paths 
 		// and/or the effective decay time constant for self-absorption and reemission
 		expgconv->SetParName(0, "#tau_{eff}");		expgconv->SetParameter(0, skewness);
-		if (skewness>0) expgconv->SetParLimits(0, .15, 5.);
+		if (skewness > 0) expgconv->SetParLimits(0, .15, 5.);
 		else expgconv->SetParLimits(0, -5., -.15);
 		//expgconv->FixParameter(0, 1.55);
 
@@ -2519,9 +2524,9 @@ bool ReadRun::PlotChannel(int i) {
 /// @return x value at "ym"
 float ReadRun::LinearInterpolation(float ym, float x1, float x2, float y1, float y2) {
 	if (y1 == y2) return (x1 + x2) / 2.;
-	else if (y1 > ym) { 
+	else if (y1 > ym) {
 		cout << "\nError in LinearInterpolation: Value ym=" << ym << " out of range (" << y1 << "|" << y2 << ").\n"
-				<< "Will return x1. Increase window for search.\n";
+			<< "Will return x1. Increase window for search.\n";
 		return x1;
 	}
 	else return x1 + (ym - y1) * (x2 - x1) / (y2 - y1);
