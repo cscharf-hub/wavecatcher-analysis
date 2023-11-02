@@ -161,8 +161,9 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 		size_t nsamples_last = header_line.find_first_of(']', nsamples_first);
 		string nsamples_str = header_line.substr(nsamples_first, nsamples_last - nsamples_first);
 
-		int nsamples = atoi(nsamples_str.data());
-		if (debug_header) printf("    |- data sample  = %d\n", nsamples);
+		binNumber = atoi(nsamples_str.data());
+		if (debug_header) printf("    |- data sample  = %d\n", binNumber);
+		if (binNumber != 1024) cout << "\nERROR: Measurement must have 1024 samples.\nCheck WaveCatcher seeting!" << endl;
 
 		size_t nchannels_first = 10 + header_line.find("ACQUIRED: ", nsamples_first);
 		size_t nchannels_last = header_line.find_first_of(' ', nchannels_first);
@@ -170,6 +171,12 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 		nchannels = atoi(nchannels_str.data());
 		if (debug_header) printf("    |- nchannels    = %d\n", nchannels);
+
+		size_t sp_first = 8 + header_line.find("Period:");
+		size_t sp_last = header_line.find(" ps");
+		float sampling_period = atof(header_line.substr(sp_first, sp_last - sp_first).data());
+		if (debug_header) printf("sampling period  = %f ps\n", sampling_period);
+		SP = sampling_period * 1e-3;
 
 		// compatibility with older WC software versions
 		if (v_major ==2 && v_minor == 9 && v_patch <= 13) {
@@ -981,8 +988,8 @@ void ReadRun::PrintWFProjection(float from, float to, float rangestart, float ra
 	if (default_rangeend < rangeend) default_rangeend = rangeend;
 	int default_nbins = static_cast<int>((default_rangeend - default_rangestart) * nbins / (rangeend - rangestart));
 
-	int from_n =	(from > 0 && from < binNumber * SP)	? static_cast<int>(round(abs(from) / SP)) + 1	: 0;
-	int to_n =		(to > 0 && to < binNumber * SP)		? static_cast<int>(round(abs(to) / SP)) + 1		: binNumber;
+	int from_n = (from > 0 && from < binNumber * SP) ? static_cast<int>(round(abs(from) / SP)) + 1 : 0;
+	int to_n = (to > 0 && to < binNumber * SP) ? static_cast<int>(round(abs(to) / SP)) + 1 : binNumber;
 
 	TH1F* his;
 	for (int i = 0; i < nchannels; i++) {
@@ -1337,8 +1344,8 @@ void ReadRun::SkipEventsPerChannel(vector<float> thresholds, float rangestart, f
 void ReadRun::IntegralFilter(vector<float> thresholds, vector<bool> highlow, float windowlow, float windowhi, float start, float end, bool use_AND_condition, bool verbose) {
 
 	if (thresholds.empty() || highlow.empty()) cout << "\nError: thresholds or highlow are empty";
-	while (thresholds.size() <= active_channels.size())	{ thresholds.push_back(thresholds[0]); }
-	while (highlow.size() <= active_channels.size())	{ highlow.push_back(highlow[0]); }
+	while (thresholds.size() <= active_channels.size()) { thresholds.push_back(thresholds[0]); }
+	while (highlow.size() <= active_channels.size()) { highlow.push_back(highlow[0]); }
 
 	cout << "\n\nRemoving events with individual integral threshold per channel:" << endl;
 	int counter = 0;
