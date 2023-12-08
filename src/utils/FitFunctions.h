@@ -288,7 +288,7 @@ public:
 		for (int kint = 1; kint <= kmax; kint++) {
 			double k = static_cast<double>(kint);
 
-			double poiss = TMath::Power(p[1], k) * TMath::Exp(-1. * p[1]) / TMath::Factorial(kint);
+			double poiss = TMath::Power(p[1], k) * TMath::Exp(-p[1]) / TMath::Factorial(kint);
 
 			double norm = 1. / (p[2] * TMath::Sqrt(2. * TMath::Pi() * k));
 
@@ -454,14 +454,57 @@ public:
 		// Variables
 		Double_t start = par[1] - sc * (par[0] + par[3]);
 
-		Fitf_langaus func;
-		TF1* fun = new TF1("fun", func, start - 1, x[0] + 1, 4);
-		fun->SetParameter(0, par[0]);
-		fun->SetParameter(1, par[1]);
-		fun->SetParameter(2, par[2]);
-		fun->SetParameter(3, par[3]);
+		Fitf_langaus langaus;
+		TF1* langaus_fun = new TF1("fun", langaus, start - 1, x[0] + 1, 4);
+		langaus_fun->SetParameter(0, par[0]);
+		langaus_fun->SetParameter(1, par[1]);
+		langaus_fun->SetParameter(2, par[2]);
+		langaus_fun->SetParameter(3, par[3]);
 
-		return (par[4] * (1. - fun->Integral(start, x[0])));
+		return (par[4] * (1. - langaus_fun->Integral(start, x[0])));
+	};
+};
+
+/// @brief Poisson-distributed Landau-Gauss-Convolutions 
+/// 
+/// Energy distribution measured in detector for an average of mu MIPs per event.
+class Fitf_langaus_poisson {
+public:
+	/// @param x
+	/// @param par
+	/// par[0]=Width (scale) parameter of Landau density \n 
+	/// par[1]=Most Probable (MP, location) parameter of Landau density \n 
+	/// par[2]=Total area (integral -inf to inf, normalization constant) \n 
+	/// par[3, 4]=Widths (sigma_0, sigma_1) of convoluted Gaussian functions \n
+	/// par[5]=Mean number of MIPs \n
+	/// par[6]=Signal per MIP (distance between two MIPs)
+
+	/// @return Func value
+	double operator() (double* x, double* par) {
+		// Range of the sum (should be significantly larger than the mean number of MIPs)
+		int kmax = static_cast<int>(ceil(par[5])) * 10;
+
+		Fitf_langaus langaus;
+		TF1* langaus_fun = new TF1("fun", langaus, 0, 1, 4);
+		langaus_fun->SetParameter(0, par[0]);
+		langaus_fun->SetParameter(2, par[2]);
+
+		double sum = 0.;
+		for (int kint = 1; kint <= kmax; kint++) {
+			double k = static_cast<double>(kint);
+
+			double peak_shift = (k - 1) * par[6];
+			langaus_fun->SetParameter(1, par[1] + peak_shift);
+
+			double sigmaK = sqrt(par[3] * par[3] + (k - 1) * par[4] * par[4]);
+			langaus_fun->SetParameter(3, sigmaK);
+
+			//poisson envelope
+			double poiss = TMath::Power(par[5], k) * TMath::Exp(-par[5]) / TMath::Factorial(kint);
+
+			sum += langaus_fun->Eval(x[0]) * poiss;
+		}
+		return sum;
 	};
 };
 
