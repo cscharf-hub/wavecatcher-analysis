@@ -1,5 +1,4 @@
 #ifdef __CLING__
-
 #pragma link C++ nestedclass;
 #pragma link C++ nestedtypedef;
 
@@ -23,6 +22,7 @@
 #pragma link C++ class Fitf_plus_DC+;
 #pragma link C++ class Fitf_periodic_gauss+;
 #pragma link C++ class Fitf_langaus_int+;
+#pragma link C++ class Fitf_langaus_poisson+;
 #pragma link C++ class Fitf_exp_gauss+;
 
 #endif

@@ -48,7 +48,8 @@ ReadRun::ReadRun(int no_of_bin_files_to_read) {
 /// Reader modified from WaveCatcher binary -> root converter by manu chauveau@cenbg.in2p3.fr \n 
 /// 
 /// @param path Path to the data. All files in this folder containing ```.bin``` in the file name will be read in.
-/// @param change_polarity Set ```true``` to change polarity (sign) of certain channels (see ```change_sign_from_to_ch_num``` below).
+/// @param change_polarity Set ```true``` to change polarity (sign) of certain channels (see ```change_sign_from_to_ch_num``` below). 
+/// You can also define a list of channels where the polarity should be switched with switch_polarity_for_channels.
 /// @param change_sign_from_to_ch_num All channels \f$ \geq \f$ ```change_sign_from_to_ch_num``` 
 /// will be inverted if ```change_polarity``` is ```true```. \n 
 /// If negative number all channels \f$ \leq \f$ ```abs(change_sign_from_to_ch_num)``` will be inverted if ```change_polarity``` is ```true```.
@@ -290,17 +291,27 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 						}
 					}
 
+					bool change_pol_ch = false;
 					float val = 0.;
 					for (int s = 0; s < binNumber; ++s) {
 						int shiftind = s - nshift;
 						if (shiftind < 0) shiftind += 1023;
 						else if (shiftind > 1023) shiftind -= 1023;
 						val = a_channel_data.waveform[shiftind] * coef * 1000.;
-						if (change_polarity
-							&& ((output_channel >= change_sign_from_to_ch_num)
-								|| (change_sign_from_to_ch_num < 0 && output_channel <= abs(change_sign_from_to_ch_num)))) {
-							val *= -1.;
+						
+						if (s == 0 && change_polarity) {
+							if ((output_channel >= change_sign_from_to_ch_num)
+								|| (change_sign_from_to_ch_num < 0 && output_channel <= abs(change_sign_from_to_ch_num))) {
+								change_pol_ch = true;
+							}
+							else if (!switch_polarity_for_channels.empty()
+								&& find(switch_polarity_for_channels.begin(), switch_polarity_for_channels.end(), output_channel) 
+								!= switch_polarity_for_channels.end()) {
+								change_pol_ch = true;
+							}
 						}
+						if (change_pol_ch == true) val *= -1.;
+
 						hCh->SetBinContent(s + 1, val);
 
 						// channel sums

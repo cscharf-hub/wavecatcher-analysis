@@ -266,6 +266,10 @@ public:
 	/// You can select the channels you want with plot_active_channels.push_back(channel_to_plot); to add them to the list. \n 
 	/// If undefined all channels will be plotted.
 	vector<int> plot_active_channels;
+	
+	/// @brief Stores the channel number where the polarity should be inverted.
+	/// Example use to switch polarity for channel 0 and channel 14: ```mymeas.switch_polarity_for_channels = {0, 14};```
+	vector<int> switch_polarity_for_channels;
 
 	/// @brief Stores the fit results of PrintChargeSpectrum() for all channels and all function calls in ascending order 
 	vector<TFitResultPtr> fit_results;
