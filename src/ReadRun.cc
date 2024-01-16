@@ -1756,14 +1756,14 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 /// @param max_channel_nr_to_fit Fit only channels with index < "max_channel_nr_to_fit". Set to -1 to skip fitting.
 /// @param which_fitf Choose fit function: \n 
 /// 0 - do not fit \n
-/// 1 - landau gauss convolution for large number of photons \n 
-/// 2 - if pedestal is biased because of peak finder algorithm \n 
-/// 3 - SiPM fit function with exponential delayed after pulsing \n 
-/// 4 - ideal PMT fit function \n 
-/// 5 - PMT fit function \n 
-/// 6 - PMT fit function with biased pedestal \n 
-/// 7 - default SiPM fit function + dark count spectrum (for lots of false triggers) \n 
-/// else - default SiPM fit function \n 
+/// 1 - Fitf_langaus: landau gauss convolution for large number of photons \n 
+/// 2 - Fitf_biased: if pedestal is biased because of peak finder algorithm \n 
+/// 3 - Fitf_full: SiPM fit function with exponential delayed after pulsing \n 
+/// 4 - Fitf_PMT_ideal: ideal %PMT fit function \n 
+/// 5 - Fitf_PMT: %PMT fit function \n 
+/// 6 - Fitf_PMT_pedestal: %PMT fit function with biased pedestal \n 
+/// 7 - Fitf_plus_DC: default SiPM fit function + dark count spectrum (for lots of false triggers) \n 
+/// else - Fitf: default SiPM fit function \n 
 void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, float fitrangestart, float fitrangeend, int max_channel_nr_to_fit, int which_fitf) {
 	// print ReadRun::ChargeSpectrum for all channels optimized for SiPM signals
 
@@ -2326,7 +2326,7 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 /// @param rangestart Start of x range for plot in ns.
 /// @param rangeend End of x range for plot in ns.
 /// @param do_fit If 1: Fit a gaussian. \n
-/// If 2: Fit a gaussian-exponential convolution to account for different arrival times of photons due to different 
+/// If 2: Fit a gaussian-exponential convolution (Fitf_exp_gauss) to account for different arrival times of photons due to different 
 /// possible light paths in the scintillator/light guide \n
 /// and/or delay due to self-absorption and reemission of photons in the scintillator. \n
 /// To be used for long light paths in the scintillator. See https://doi.org/10.1016/S0029-554X(79)90170-8 . \n

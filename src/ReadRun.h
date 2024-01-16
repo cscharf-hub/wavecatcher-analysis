@@ -268,7 +268,8 @@ public:
 	vector<int> plot_active_channels;
 	
 	/// @brief Stores the channel number where the polarity should be inverted.
-	/// Example use to switch polarity for channel 0 and channel 14: ```mymeas.switch_polarity_for_channels = {0, 14};```
+	/// Example use to switch polarity for channel 0 and channel 14: ```mymeas.switch_polarity_for_channels = {0, 14};```.
+	/// Needs to be called before ReadFile().
 	vector<int> switch_polarity_for_channels;
 
 	/// @brief Stores the fit results of PrintChargeSpectrum() for all channels and all function calls in ascending order 
@@ -311,8 +312,8 @@ public:
 
 	//other controls 
 
-	/// @brief Set true for baseline correction during data reading
-	/// Needs to be called before ReadFile()
+	/// @brief Set true for baseline correction during data reading.
+	/// Needs to be called before ReadFile().
 	bool Using_BaselineCorrection_in_file_loop = false;
 	/// @brief Start of time window for baseline correction when using ReadRun::Using_BaselineCorrection_in_file_loop
 	float tCutg;
