@@ -67,6 +67,8 @@ private:
 	int PlotChannelAverages_cnt;
 	/// @brief Index for multiple executions of the same plotting function
 	int PrintWFProjection_cnt;
+	/// @brief Index for multiple executions of the same plotting function
+	int PlotWFHeatmaps_cnt;
 
 
 #pragma pack(1) // byte padding suppression for WaveCatcher data format
@@ -120,6 +122,9 @@ public:
 
 	void PlotChannelAverages(bool = false);
 
+	TH2F* WFHeatmapChannel(int, float = -20, float = 200, int = 880);
+	void PlotWFHeatmaps(float = -20, float = 200, int = 880, bool = false, float = 0, EColorPalette = kGistEarth);
+	
 	// baseline correction (shifts all waveforms individually in y)
 	void CorrectBaseline(float, float = -999);
 	void CorrectBaseline_function(TH1F*, float, float, int);

@@ -27,11 +27,12 @@ ReadRun::ReadRun(int no_of_bin_files_to_read) {
 	if (no_of_bin_files_to_read > 0) cout << "will read <=" << no_of_bin_files_to_read << " bin files" << endl;
 	ROOT::EnableImplicitMT();
 	TH1::AddDirectory(kFALSE);
-
+	// init counters
 	nwf = 0;
 	PrintChargeSpectrum_cnt = 0;
 	PlotChannelAverages_cnt = 0;
 	PrintWFProjection_cnt = 0;
+	PlotWFHeatmaps_cnt = 0;
 	NoOfBinFilesToRead = no_of_bin_files_to_read;
 
 	root_out = new TFile();	// init results file
@@ -291,14 +292,17 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 						}
 					}
 
+					// loop to fill waveform histograms
 					bool change_pol_ch = false;
 					float val = 0.;
 					for (int s = 0; s < binNumber; ++s) {
+						// shift all waveforms
 						int shiftind = s - nshift;
 						if (shiftind < 0) shiftind += 1023;
 						else if (shiftind > 1023) shiftind -= 1023;
 						val = a_channel_data.waveform[shiftind] * coef * 1000.;
 						
+						// change the polarity for certain channels since our PMTs have negative signals while our SiPMs have positive signals
 						if (s == 0 && change_polarity) {
 							if ((output_channel >= change_sign_from_to_ch_num)
 								|| (change_sign_from_to_ch_num < 0 && output_channel <= abs(change_sign_from_to_ch_num))) {
@@ -312,6 +316,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 						}
 						if (change_pol_ch == true) val *= -1.;
 
+						// fill waveforms
 						hCh->SetBinContent(s + 1, val);
 
 						// channel sums
@@ -496,6 +501,77 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 /// @example timing_example.cc
 /// @example read_exampledata.cc
 /// @example read_exampledata.py
+
+
+/// @brief 2D histogram of all non-skipped waveforms for one channel
+/// 
+/// See PlotWFHeatmaps()
+/// 
+/// @param channel_index Index of the channel
+/// @param ymin Min. y range
+/// @param ymax Max. y range
+/// @param n_bins_y Number of bins along y
+/// @returns TH2F
+TH2F* ReadRun::WFHeatmapChannel(int channel_index, float ymin, float ymax, int n_bins_y) {
+
+	TString name(Form("channel__%02d", active_channels[channel_index]));
+	TH2F* h2 = new TH2F(name.Data(), name.Data(), binNumber, 0, SP * static_cast<float>(binNumber), n_bins_y, ymin, ymax);
+	h2->GetXaxis()->SetTitle("t [ns]");
+	h2->GetYaxis()->SetTitle("I [arb.]");
+	h2->GetZaxis()->SetTitle("entries");
+
+	for (int j = 0; j < nevents; j++) {
+		if (!skip_event[j]) {
+			auto his = Getwf(channel_index, j);
+			for (int i = 0; i < binNumber; i++) h2->Fill(his->GetBinCenter(i), his->GetBinContent(i));
+		}
+	}
+	return h2;
+}
+
+/// @brief Plot stacks of all non-skipped waveforms for all active channels
+/// 
+/// Classical SiPM dark count/calibration plot in the style of a phosphor oscilloscope screen. \n
+/// Helpful to see the prevalence of certain signal/baseline shapes etc. \n
+/// Take care not to plot too many channels at once to maintain visibility and performance (-> ReadRun::plot_active_channels).
+/// 
+/// @param channel_index Index of the channel
+/// @param ymin Min. y range
+/// @param ymax Max. y range
+/// @param n_bins_y Number of bins along y
+/// @param logz Set z logarithmic
+/// @param zmax Max. z range. Set to zero to use auto range (default).
+/// @param palette Root color palette (see https://root.cern.ch/doc/master/classTColor.html).
+void ReadRun::PlotWFHeatmaps(float ymin, float ymax, int n_bins_y, bool logz, float zmax, EColorPalette palette) {
+
+	gStyle->SetOptStat(0);
+	string name("waveforms_heatmap_" + to_string(PlotWFHeatmaps_cnt++));
+	auto wfhm_c = new TCanvas(name.c_str(), name.c_str(), 600, 400);
+	Helpers::SplitCanvas(wfhm_c, active_channels, plot_active_channels);
+
+	int current_canvas = 0;
+	for (int i = 0; i < nchannels; i++) {
+		if (PlotChannel(i)) {
+			wfhm_c->cd(++current_canvas);
+			// formatting
+			gPad->SetTopMargin(.1);
+			gPad->SetBottomMargin(.1);
+			gPad->SetLeftMargin(.15);
+			gPad->SetRightMargin(.15);
+			gStyle->SetPalette(palette);
+
+			auto h2 = WFHeatmapChannel(i, ymin, ymax, n_bins_y);
+			h2->SetContour(99);
+			h2->SetStats(0);
+			h2->Draw("CONT4Z");
+			if (logz) gPad->SetLogz();
+			if (zmax != 0) h2->GetZaxis()->SetRangeUser(0, zmax);
+		}
+	}
+	wfhm_c->Update();
+
+	root_out->WriteObject(wfhm_c, name.c_str());
+}
 
 /// @brief Smoothing all waveforms which are not skipped (for testing, careful when using for analysis!)
 /// 
@@ -2523,7 +2599,7 @@ int ReadRun::GetCurrentEvent(int waveform_index) {
 	return floor(waveform_index / nchannels);
 }
 
-/// @brief Check if a channel index should be plotted according to plot_active_channels
+/// @brief Check if a channel index should be plotted according to ReadRun::plot_active_channels
 /// @param i Channel index.
 bool ReadRun::PlotChannel(int i) {
 	if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) return true;

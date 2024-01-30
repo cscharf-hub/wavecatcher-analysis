@@ -226,6 +226,7 @@ void Filters::BoxFilter(double*& ar, int nbins, int sigma) {
 /// @param ar Array to be smoothed.
 /// @param nbins Number of bins of input.
 /// @param sigma Gauss sigma in ns.
+/// @param bin_size Bin size in ns.
 void Filters::GausFilter(double*& ar, int nbins, double sigma, double bin_size) {
 	// gauss kernel 3*sigma
 	double* artmp = new double[nbins];
@@ -261,6 +262,7 @@ void Filters::GausFilter(double*& ar, int nbins, double sigma, double bin_size) 
 /// @param ar Array to be smoothed.
 ///	@param nbins Number of bins of input.
 /// @param sigma Gauss sigma in ns.
+/// @param bin_size Bin size in ns.
 void Filters::GausFFTFilter(double*& ar, int nbins, double sigma, double bin_size) {
 	// convolution with gauss clipped at +-5 sigma (very inefficient and slow)
 	double* gauss = new double[nbins];

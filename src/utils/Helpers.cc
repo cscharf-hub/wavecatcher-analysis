@@ -67,7 +67,7 @@ void Helpers::SetRangeCanvas(TCanvas*& c, double x_range_min, double x_range_max
 	while ((object = nextPad())) {
 		if (object->InheritsFrom(TPad::Class())) {
 			TPad* pad = static_cast<TPad*>(object);
-			// Set the axis ranges for all plots on the current pad
+			// Set the axis ranges on the current pad
 			pad->cd();
 			TList* primitives = pad->GetListOfPrimitives();
 			TIter nextPrimitive(primitives);
@@ -88,6 +88,8 @@ void Helpers::SetRangeCanvas(TCanvas*& c, double x_range_min, double x_range_max
 
 /// @brief Helper to split canvas according to the number of channels to be plotted
 /// @param c Canvas to be split
+/// @param active_channels All channels available in the data
+/// @param plot_active_channels The channels from the data that should be plotted
 void Helpers::SplitCanvas(TCanvas*& c, vector<int> active_channels, vector<int> plot_active_channels) {
 	// cross check if user input exists in data
 	vector<int> rmv;
