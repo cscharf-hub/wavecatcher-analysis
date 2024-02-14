@@ -468,6 +468,7 @@ public:
 /// @brief Poisson-distributed Landau-Gauss-Convolutions 
 /// 
 /// Energy distribution measured in detector for an average of mu MIPs per event.
+/// Uses a zero-clipped Poisson (at least 1 MIP).
 class Fitf_langaus_poisson {
 public:
 	/// @param x
@@ -500,7 +501,7 @@ public:
 			langaus_fun->SetParameter(3, sigmaK);
 
 			//poisson envelope
-			double poiss = TMath::Power(par[5], k) * TMath::Exp(-par[5]) / TMath::Factorial(kint);
+			double poiss = TMath::Power(par[5], k) / (TMath::Factorial(kint) * (TMath::Exp(par[5]) - 1.));
 
 			sum += langaus_fun->Eval(x[0]) * poiss;
 		}
