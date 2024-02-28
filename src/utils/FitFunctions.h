@@ -467,8 +467,8 @@ public:
 
 /// @brief Poisson-distributed Landau-Gauss-Convolutions 
 /// 
-/// Energy distribution measured in detector for an average of mu MIPs per event.
-/// Uses a zero-clipped Poisson (at least 1 MIP).
+/// Energy distribution measured in detector if there can be more than one MIP per event. \n
+/// Uses a zero-clipped Poisson (at least 1 MIP due to trigger).
 class Fitf_langaus_poisson {
 public:
 	/// @param x
@@ -477,7 +477,8 @@ public:
 	/// par[1]=Most Probable (MP, location) parameter of Landau density \n 
 	/// par[2]=Total area (integral -inf to inf, normalization constant) \n 
 	/// par[3, 4]=Widths (sigma_0, sigma_1) of convoluted Gaussian functions \n
-	/// par[5]=Mean number of MIPs \n
+	/// par[5]=\f$\lambda\f$ parameter of the Poisson distribution. The mean number of MIPs is 
+	/// \f$\mu=\lambda/\left(1-exp(-\lambda)\right)\f$. \n
 	/// par[6]=Signal per MIP (distance between two MIPs)
 
 	/// @return Func value
