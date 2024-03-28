@@ -21,10 +21,16 @@
 #include "ReadRun.h"
 
 /// @brief Constructor of the class
-ReadRun::ReadRun(int no_of_bin_files_to_read) {
+ReadRun::ReadRun(int max_no_of_bin_files_to_read, int min_no_of_bin_files_to_read) {
 
 	cout << "\ninitializing ..." << endl;
-	if (no_of_bin_files_to_read > 0) cout << "will read <=" << no_of_bin_files_to_read << " bin files" << endl;
+
+	if (max_no_of_bin_files_to_read > 0) {
+		cout << "will read " << max_no_of_bin_files_to_read - min_no_of_bin_files_to_read << " .bin files from file number " 
+			<< min_no_of_bin_files_to_read << " to file number " << max_no_of_bin_files_to_read << endl;
+	}
+	if (min_no_of_bin_files_to_read > 0) discard_original_eventnr = true;
+
 	ROOT::EnableImplicitMT();
 	TH1::AddDirectory(kFALSE);
 	// init counters
@@ -33,7 +39,8 @@ ReadRun::ReadRun(int no_of_bin_files_to_read) {
 	PlotChannelAverages_cnt = 0;
 	PrintWFProjection_cnt = 0;
 	PlotWFHeatmaps_cnt = 0;
-	NoOfBinFilesToRead = no_of_bin_files_to_read;
+	MaxNoOfBinFilesToRead = max_no_of_bin_files_to_read;
+	MinNoOfBinFilesToRead = min_no_of_bin_files_to_read;
 
 	root_out = new TFile();	// init results file
 }
@@ -65,9 +72,6 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 	printf("+++ saving analysis results in '%s' ...\n\n", out_file_name.c_str());
 	root_out = TFile::Open(out_file_name.c_str(), "recreate");
 
-	/// Wavecatcher hardware max. number of channels (reduce if not using the 64 channel crate)
-	const int nChannelsWC = 64;
-
 	rundata = new TClonesArray("TH1F", maxNWF); //raw data will be stored here as TH1F
 	rundata->BypassStreamer(kFALSE);			//potentially faster read & write
 	TClonesArray& testrundata = *rundata;
@@ -95,13 +99,16 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 	stringstream inFileList;
 	inFileList << Helpers::ListFiles(path.c_str(), ".bin"); //all *.bin* files in folder path
 	string fileName;
-	int file_counter = 0;
+	int file_counter = -1;
 	int wfcounter = 0;
 	int event_counter = 0;
 
 	while (inFileList >> fileName) {
 		// file loop
-		if (NoOfBinFilesToRead > 0 && file_counter >= NoOfBinFilesToRead) break;
+		file_counter++;
+		// read only fraction/batch of the .bin files for testing or to reduce memory usage
+		if (MinNoOfBinFilesToRead > 0 && MinNoOfBinFilesToRead < MaxNoOfBinFilesToRead && file_counter < MinNoOfBinFilesToRead) continue;
+		if (MaxNoOfBinFilesToRead > 0 && file_counter >= MaxNoOfBinFilesToRead) break;
 
 		fileName = path + fileName;
 		ifstream input_file(fileName.c_str(), std::ios::binary | std::ios::in);
@@ -206,6 +213,11 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 			output_nbchannels = an_event.nchannelstored;
 
 			if (debug_data && output_event % 200 == 0) printf("EventNr: %d, nCh: %d\n", output_event, output_nbchannels);
+			if (output_nbchannels > nChannelsWC) {
+				cout << "ERROR:\nThe number of channels in the data is " << output_nbchannels 
+					<< ", which is larger than the maximum allowed number of channels which is set to " << nChannelsWC 
+					<< "\nPlease set the parameter nChannelsWC=" << output_nbchannels << endl;
+			}
 
 			// do analysis only for limited range of channels to reduce memory usage for large datasets with many channels and many events
 			int start_at_ch = 0;
@@ -340,7 +352,6 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 		} // while an_event
 
 		input_file.close();
-		file_counter++;
 	} // for file_id
 
 	// in case there are empty channels, nchannels is the number of channels which contain data

@@ -201,9 +201,12 @@ public:
 	
 
 	/// @brief Constructor of the class
-	/// @param no_of_bin_files_to_read Set to >1 in order to constrain the number of .bin files read from the target folder. 
-	/// Intended for quick tests on a fraction of the full dataset.
-	ReadRun(int no_of_bin_files_to_read = 0);
+	/// @param max_no_of_bin_files_to_read Number of last .bin file to be read in.\n
+	/// Set it to =>1 in order to constrain the number of .bin files to be read from the target folder.\n
+	/// Intended for quick tests on a fraction of the full dataset or for batch reading if combined with min_no_of_bin_files_to_read.
+	/// @param min_no_of_bin_files_to_read Number first of .bin file to be read in. \n
+	/// Can be used to batch read large datasets in chunks of files.
+	ReadRun(int max_no_of_bin_files_to_read = 0, int min_no_of_bin_files_to_read = 0);
 	
 	void ReadFile(string, bool = false, int = 9, string = "out.root", bool = false);
 
@@ -214,10 +217,15 @@ public:
 	/// Can be used to save analysis results in the data folder
 	string data_path;
 
-	/// @brief Number of bin files to be read in. 
+	/// @brief Number of last .bin file to be read in. 
 	///
-	/// Can be used to test analysis on a small sample of the data.
-	int NoOfBinFilesToRead;
+	/// Can be used to test analysis on a small sample of the data or for batch reading if combined with MinNoOfBinFilesToRead.
+	int MaxNoOfBinFilesToRead;
+	/// @brief Number first of .bin file to be read in. 
+	///
+	/// Can be used to batch read large datasets in chunks of files.
+	int MinNoOfBinFilesToRead;
+
 
 	/// @brief Can be used to discard the original event numbering of the data
 	/// 
@@ -258,6 +266,8 @@ public:
 	double coef = 2.5 / (4096 * 10);
 	/// @brief Number of bins (always 1024 samples per waveform). Do not change!
 	int binNumber = 1024;
+	/// @brief Wavecatcher hardware max. number of channels (reduce/increase if not using the 64 channel crate)
+	int nChannelsWC = 64;
 
 	/// @brief Stores bin numbers where the sum of waveforms have their maximum
 	/// 
