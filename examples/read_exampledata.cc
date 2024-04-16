@@ -32,12 +32,15 @@ void read_exampledata(int which = 0)
 	// searches for the minimum of sum((y_{i+1} - y_{i})^2)+sum(y_{i+1} - y_{i})^2  over 30 ns, starting at t=0 ns until t=80 ns
 	mymeas.CorrectBaselineMinSlopeRMS({ 30, 0, 80 });
 
+	////plotting
 	// test if baseline correction worked (should be centered around 0)
 	mymeas.PrintWFProjection(0, 80, -3.5, 3.5, 50);
 
-	////plotting
 	// plot sums of all raw events per channel (see channel 9 has an offset)
 	mymeas.PlotChannelSums();
+
+	// plot all waveforms in a single histogram
+	mymeas.PlotWFHeatmaps(-20, 300, 160, "log");
 
 	// investigate charge spectrum. should see photo electron peaks here
 	float intwindowminus = 10.;	// lower integration window in ns rel. to max

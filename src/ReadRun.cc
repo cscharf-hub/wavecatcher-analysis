@@ -546,14 +546,17 @@ TH2F* ReadRun::WFHeatmapChannel(int channel_index, float ymin, float ymax, int n
 /// Helpful to see the prevalence of certain signal/baseline shapes etc. \n
 /// Take care not to plot too many channels at once to maintain visibility and performance (-> ReadRun::plot_active_channels).
 /// 
+/// \image html heatmaps.png "Waveforms of all events filled into a single histogram. Code in example." width=75%
+/// 
 /// @param channel_index Index of the channel
 /// @param ymin Min. y range
 /// @param ymax Max. y range
 /// @param n_bins_y Number of bins along y
-/// @param logz Set z logarithmic
-/// @param zmax Max. z range. Set to zero to use auto range (default).
+/// @param z_opt "log": Set z logarithmic. \n
+/// "COLZ0": Do not plot bins with zero entries.
+/// @param z_max Max. z range. Set to zero to use auto range (default).
 /// @param palette Root color palette (see https://root.cern.ch/doc/master/classTColor.html).
-void ReadRun::PlotWFHeatmaps(float ymin, float ymax, int n_bins_y, bool logz, float zmax, EColorPalette palette) {
+void ReadRun::PlotWFHeatmaps(float ymin, float ymax, int n_bins_y, string z_opt, float z_max, EColorPalette palette) {
 
 	gStyle->SetOptStat(0);
 	string name("waveforms_heatmap_" + to_string(PlotWFHeatmaps_cnt++));
@@ -574,15 +577,20 @@ void ReadRun::PlotWFHeatmaps(float ymin, float ymax, int n_bins_y, bool logz, fl
 			auto h2 = WFHeatmapChannel(i, ymin, ymax, n_bins_y);
 			h2->SetContour(99);
 			h2->SetStats(0);
-			h2->Draw("CONT4Z");
-			if (logz) gPad->SetLogz();
-			if (zmax != 0) h2->GetZaxis()->SetRangeUser(0, zmax);
+			if (z_opt == "COLZ0") h2->Draw("COLZ0");
+			else h2->Draw("CONT4Z");
+			if (z_opt == "log") {
+				gPad->SetLogz();
+				if (z_max > 1) h2->GetZaxis()->SetRangeUser(1, z_max);
+			}
+			else if (z_max > 0) h2->GetZaxis()->SetRangeUser(0, z_max);
 		}
 	}
 	wfhm_c->Update();
 
 	root_out->WriteObject(wfhm_c, name.c_str());
 }
+/// @example read_exampledata.cc
 
 /// @brief Smoothing all waveforms which are not skipped (for testing, careful when using for analysis!)
 /// 
