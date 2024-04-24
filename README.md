@@ -122,8 +122,10 @@ You can find the documentation for all classes, functions, and variables here:
 
 You can find the documentation for ROOT here:
 <https://root.cern/doc/master/>
+
 Direct link to histogram documentation:
 <https://root.cern/doc/master/group__Histograms.html>
+
 Interactive testing of ROOT ```Draw()``` options:
 <https://root.cern/js/latest/examples.htm>
 
