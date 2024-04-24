@@ -117,19 +117,25 @@ make
 # Documentation
 
 You can find the documentation for all classes, functions, and variables here: 
+
 <https://wavecatcher-analysis.web.cern.ch/>   
+
 <https://wavecatcher-analysis.web.cern.ch/classReadRun.html>
 
-You can find the documentation for ROOT here:
+Documentation for ROOT:
+
 <https://root.cern/doc/master/>
 
 Direct link to histogram documentation:
+
 <https://root.cern/doc/master/group__Histograms.html>
 
 Interactive testing of ROOT ```Draw()``` options:
+
 <https://root.cern/js/latest/examples.htm>
 
-And the link to the repository here:   
+And the link to the repository:   
+
 <https://github.com/cscharf-hub/wavecatcher-analysis>
 
 # Adding custom functions and contribute
@@ -139,6 +145,7 @@ The easiest way to add new and/or modified functions for your analysis is to add
 If you find bugs or have developed new, thoroughly tested functionality please make a merge request. 
 
 One example how to structure a derived class can be found here:
+
 <https://wavecatcher-analysis.web.cern.ch/classExperimental.html>
 
 # Additional remarks
