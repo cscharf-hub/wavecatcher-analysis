@@ -15,7 +15,7 @@ This is the main analysis framework used by the experimental elementary (EE) par
 # Requirements
 We recommend using CERN ROOT Release 6.24/02 or later[^1].
 
-It is best to install [ROOT](https://root.cern/install/#conda) with [conda](https://docs.conda.io/en/latest/miniconda.html), as this will help you install all dependencies. 
+It is strongly recommended to install [ROOT](https://root.cern/install/#conda) with [conda](https://docs.conda.io/en/latest/miniconda.html), as this will automatically install all dependencies and set the correct paths.
 You can do so by simply executing the included scripts as explained under [Getting started](#Getting-started).
 
 The compilation needs ```make```, which can be installed with ```sudo apt install make```. 
@@ -23,13 +23,15 @@ The compilation needs ```make```, which can be installed with ```sudo apt instal
 If you use Windows, you should first install WSL and then Ubuntu from the Microsoft Store[^2]. 
 Once installed, open Ubuntu and install ROOT using conda as described below. 
 
+It should also work on Mac if ROOT was installed using conda, but it is not tested.
+
 # Getting started
 
 Before downloading the repository, navigate to the directory where you want to store the analysis code using ```cd```. 
 On WSL, you might prefer to save the analysis in your Windows home folder to make it more easily accessible: ```cd /mnt/c/Users/<your_user_name>/```
 
 ## Doing a custom setup
-To get started, open a Linux or Mac terminal and download repository:
+To get started, open a Linux shell and download repository:
 ```
 git clone https://github.com/cscharf-hub/wavecatcher-analysis
 ```
@@ -74,6 +76,14 @@ to run the timing example macro and close root once it has finished. The results
  root -b -x "examples/read_exampledata.cc+(0)" -q
 ```
 
+## On the CERN infrastructure
+
+On the CERN infrastructure everything should be set up by default, so you just need to execute:
+```
+git clone https://github.com/cscharf-hub/wavecatcher-analysis && cd wavecatcher-analysis && make
+```
+
+
 ## On HU EE / DESY NAF computing infrastructure
 
 The library can be used efficiently on our computing infrastructure, and the setup takes only a minute since ROOT is already installed there. 
@@ -112,6 +122,10 @@ You can find the documentation for all classes, functions, and variables here:
 
 You can find the documentation for ROOT here:
 <https://root.cern/doc/master/>
+Direct link to histogram documentation:
+<https://root.cern/doc/master/group__Histograms.html>
+Interactive testing of ROOT ```Draw()``` options:
+<https://root.cern/js/latest/examples.htm>
 
 And the link to the repository here:   
 <https://github.com/cscharf-hub/wavecatcher-analysis>
@@ -138,17 +152,17 @@ to your macros or to rootlogon.C (the rootlogon.C file needs to be in the direct
 Note that you can add ```-b``` for batch mode or ```-q``` to quit root after running your macro.
 
 The results of the analysis are stored in ```.root``` files. To see the content of the ```.root``` files, start a ```TBrowser```.
-You can do so by starting root with ```root``` and then type ```new TBrowser```. Alternatively, you can double-click on the file if you have root installed locally. 
+You can do so by typing ```rootbrowse```.[^5] Alternatively, you can double-click on the file if you have root installed locally. 
 If you don't like the browser-based TBrowser, you can use the old-school TBrowser by calling ```root --web=off```. 
 
-To save typing, you can create an alias with ```sudo nano ~/.bash_aliases``` and add the line ```alias root='root --web=off'```. 
+To do less typing you can change the default ```Browser.Name``` in ```$ROOTSYS/etc/system.rootrc``` to ```TRootBrowser``` or create an alias with ```sudo nano ~/.bash_aliases``` and add the line ```alias root='root --web=off'```.
 For WSL, you could also add a Windows browser ```alias root='root --web="/mnt/c/Program\ Files\ \(x86\)/.../your-browser.exe"'```.
 
 To update the repository to the latest version, navigate into the downloaded folder and run: ```git pull```. Then compile the repository again ```make```. 
 Please note that this does not apply if there are changes in your local repository.
 
-The analysis can be easily used with notebooks[^5]. To open an example notebook, type ```root --notebook``` and navigate to the examples folder.
-Jupyter Notebook can be installed with ```pip install notebook``` and open with ```jupyter notebook```.
+The analysis can be easily used with notebooks[^6]. To open an example notebook, type ```root --notebook``` and navigate to the examples folder.
+Jupyter Notebook can be installed with ```pip install notebook``` and then opened with ```jupyter notebook```.
 
 # Contact
 
@@ -165,4 +179,6 @@ christian.scharf at physik.hu-berlin.de
 
 [^4]: To avoid repeating this step every time you log in call ```nano ~/.rootrc``` and add line ```source /usr/local/root6/pro/bin/thisroot.sh```.
 
-[^5]: On Windows WSL, do ```jupyter notebook --generate-config```, set ```c.NotebookApp.use_redirect_file = True``` and add your default browser ```export BROWSER=<path-to-your-fav-browser>```.
+[^5]: For old ROOT versions start root with ```root``` and then type ```new TBrowser```.
+
+[^6]: On Windows WSL, do ```jupyter notebook --generate-config```, set ```c.NotebookApp.use_redirect_file = True``` and add your default browser ```export BROWSER=<path-to-your-fav-browser>```.

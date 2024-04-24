@@ -15,7 +15,7 @@ ifeq ($(shell expr $(word 1,$(subst ., ,$(CXXVER))) \< 7), 1)
 	else
 		CXXFLAGS += -std=c++14
 	endif
-else ifeq ($(shell expr $(word 1,$(subst ., ,$(CXXVER))) \>= 10), 1)
+else ifeq ($(shell expr $(word 1,$(subst ., ,$(CXXVER))) \>= 12), 1)
 	CXXFLAGS += -std=c++20
 else 
 	CXXFLAGS += -std=c++17
