@@ -4,22 +4,18 @@ LD              =g++
 INCROOT         =$(shell root-config --incdir)
 
 CPPFLAGS        =-I $(INCROOT)/ -I $(INCDIR)/
-CXXFLAGS        =-fPIC -g -O2 -Wall -Wextra
+CXXFLAGS        =-fPIC -g -O2 -Wall -Wextra -pthread
 
-# Check the version of the C++ compiler for older systems
-CXXVER := $(shell $(CXX) -dumpversion)
-# $(info g++ compiler version $(CXXVER))
-ifeq ($(shell expr $(word 1,$(subst ., ,$(CXXVER))) \< 7), 1)
-	ifeq ($(shell expr $(word 1,$(subst ., ,$(CXXVER))) \< 5), 1)
-		CXXFLAGS += -std=c++11
-	else
-		CXXFLAGS += -std=c++14
-	endif
-else ifeq ($(shell expr $(word 1,$(subst ., ,$(CXXVER))) \>= 12), 1)
-	CXXFLAGS += -std=c++20
-else 
-	CXXFLAGS += -std=c++17
+# Get the C++ version of ROOT
+ROOT_CFLAGS := $(shell root-config --cflags)
+CXX_STD := $(shell echo $(ROOT_CFLAGS) | grep -oP '(?<=-std=c\+\+)\d+')
+
+# Default
+ifeq ($(CXX_STD),)
+CXX_STD := 20
 endif
+
+CXXFLAGS += -std=c++$(CXX_STD)
 
 
 DICTB           =ReadRunDictUX
