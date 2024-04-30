@@ -35,5 +35,8 @@ public:
 	static double* gety(TH1F*);
 	// get y values of a histogram for a dedicated x range
 	static double* gety(TH1F*, int, int);
+
+	// shift a TH1F in x
+	static void ShiftTH1F(TH1F*&, int = 0);
 };
 #endif

@@ -684,17 +684,9 @@ void ReadRun::ShiftAllToAverageCF() {
 
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[GetCurrentEvent(j)]) {
-			auto his = Getwf(j);
-			double* yvals = Helpers::gety(his);
 			int shift = static_cast<int>(timing_results[j][0]) - timing_mean_n[GetCurrentChannel(j)];
-
-			for (int i = 0; i < binNumber; i++) {
-				int icycle = 0;
-				if (i + shift >= binNumber) icycle = -1 * binNumber;
-				else if (i + shift < 0) icycle = binNumber;
-				his->SetBinContent(i + 1, yvals[i + shift + icycle]);
-			}
-			delete[] yvals;
+			auto his = Getwf(j);
+			Helpers::ShiftTH1F(his, shift);
 		}
 		Helpers::PrintProgressBar(j, nwf);
 	}

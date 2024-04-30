@@ -143,3 +143,23 @@ double* Helpers::gety(TH1F* his, int start_at, int end_at) {
 	}
 	return yvals;
 }
+
+/// @brief Shift a histogram in x
+/// 
+/// The histogram will be cycled, so bins at the end will be attached at the front and vice versa
+/// 
+/// @param his Histogram to be shifted
+/// @param shift_bins Number of bins in x to shift by
+void Helpers::ShiftTH1F(TH1F*& his, int shift_bins) {
+	int nbins = his->GetNbinsX();
+	shift_bins = shift_bins % nbins;
+	double* yvals = Helpers::gety(his);
+
+	for (int i = 0; i < nbins; i++) {
+		int icycle = 0;
+		if (i + shift_bins >= nbins) icycle = -1 * nbins;
+		else if (i + shift_bins < 0) icycle = nbins;
+		his->SetBinContent(i + 1, yvals[i + shift_bins + icycle]);
+	}
+	delete[] yvals;
+}
