@@ -73,7 +73,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 	root_out = TFile::Open(out_file_name.c_str(), "recreate");
 
 	rundata = new TClonesArray("TH1F", maxNWF); //raw data will be stored here as TH1F
-	rundata->BypassStreamer(kFALSE);			//potentially faster read & write
+	rundata->BypassStreamer(kFALSE);			//kFALSE: potentially faster read & write
 	TClonesArray& testrundata = *rundata;
 
 	// verbosity
@@ -89,8 +89,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 	amplValuessum = new double* [nChannelsWC]; //sum of all wf for each channel
 	for (int i = 0; i < nChannelsWC; i++) {//init
-		amplValuessum[i] = new double[binNumber];
-		for (int k = 0; k < binNumber; k++) amplValuessum[i][k] = 0.;
+		amplValuessum[i] = new double[binNumber]();
 	}
 
 	maxSumBin = new int[nChannelsWC];
@@ -111,7 +110,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 		if (MaxNoOfBinFilesToRead > 0 && file_counter >= MaxNoOfBinFilesToRead) break;
 
 		fileName = path + fileName;
-		ifstream input_file(fileName.c_str(), std::ios::binary | std::ios::in);
+		ifstream input_file(fileName.c_str(), ios::binary | ios::in);
 
 		bool has_measurement = false;
 
@@ -255,8 +254,8 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 					if (event_counter == 0) active_channels.push_back(static_cast<int>(output_channel));
 
-					TString name(Form("channel%02d_event%05d", output_channel, an_event.EventNumber));
-					TString title(Form("Channel %d, event %d;time [ns];signal [mV]", output_channel, an_event.EventNumber));
+					TString name(Form("ch%02d_%05d", output_channel, an_event.EventNumber));
+					TString title(Form("ch%d, event %d;t [ns];U [mV]", output_channel, an_event.EventNumber));
 					auto hCh = (TH1F*)testrundata.ConstructedAt(wfcounter);
 					hCh->SetName(name.Data());
 					hCh->SetTitle(title.Data());
@@ -464,8 +463,7 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
 
-			double* yv = new double[binNumber];
-			for (int k = 0; k < binNumber; k++) yv[k] = 0.;
+			double* yv = new double[binNumber]();
 
 			for (int j = 0; j < nevents; j++) {
 				if (!skip_event[j]) {
@@ -667,8 +665,7 @@ void ReadRun::ShiftAllToAverageCF() {
 	//call GetTimingCFD() in case it was not initialized
 	if (static_cast<int>(timing_results.size()) == 0) GetTimingCFD();
 
-	double* timing_mean = new double[nchannels];
-	for (int i = 0; i < nchannels; i++) timing_mean[i] = 0.;
+	double* timing_mean = new double[nchannels]();
 
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[GetCurrentEvent(j)]) timing_mean[GetCurrentChannel(j)] += timing_results[j][0];
@@ -1528,8 +1525,7 @@ int ReadRun::Nevents_good() {
 int* ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float start, float end, int channel) {
 
 	int istart, iend;
-	int* foundindices = new int[3];//
-	foundindices[0] = 0;
+	int* foundindices = new int[3]();
 
 	if (start < 0 || end < 0) {							// fixed integration window relative to maximum of sum spectrum for each channel
 		foundindices[1] = his->GetXaxis()->FindBin(his->GetXaxis()->GetBinCenter(maxSumBin[channel]) - windowlow);
@@ -1690,7 +1686,7 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 /// @param end ...to "end" in ns.
 /// @param negative_vals If true will save negative values. If false will set negative values to 0.
 float* ReadRun::ChargeList(int channel_index, float windowlow, float windowhi, float start, float end, bool negative_vals) {
-	float* charge_list = new float[nevents];
+	float* charge_list = new float[nevents]();
 	for (int j = 0; j < nevents; j++) {
 		auto his = Getwf(j * nchannels + channel_index);
 		charge_list[j] = GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index);
@@ -2272,7 +2268,7 @@ TH1F* ReadRun::His_GetTimingCFD(int channel_index, float rangestart, float range
 /// Else do not fit. \n 
 /// Fit results per channel are stored in ReadRun::timing_fit_results.
 /// @param nbins Number of bins for histogram. Will use 320 MHz sampling rate for binning if nbins = -999.
-/// @param fitoption ROOT fit option, default is "S".
+/// @param fitoption ROOT fit option, default is "S". See Fit(): https://root.cern/doc/master/classTH1.html
 /// @param set_errors Assign errors to the bins. Will assign errors of 1 to empty bins and \f$ \sqrt(N) \f$ if they are not empty. 
 /// Can improve the chi^2 fit.
 void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, int nbins, string fitoption, bool set_errors) {
