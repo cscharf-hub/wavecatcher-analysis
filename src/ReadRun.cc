@@ -603,7 +603,7 @@ void ReadRun::SmoothAll(double sigma, int method) {
 	cout << "\nSmoothing all non-skipped waveforms:" << endl;
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[GetCurrentEvent(j)]) {
-			TH1F* his = Getwf(j);
+			auto his = Getwf(j);
 			double* yvals = Helpers::gety(his);
 			Filters::SmoothArray(yvals, binNumber, sigma, method, SP);
 			for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i - 1]);
@@ -624,7 +624,7 @@ void ReadRun::SmoothAll(double sigma, string method) {
 	cout << "\nSmoothing all non-skipped waveforms:" << endl;
 	for (int j = 0; j < nwf; j++) {
 		if (!skip_event[GetCurrentEvent(j)]) {
-			TH1F* his = Getwf(j);
+			auto his = Getwf(j);
 			double* yvals = Helpers::gety(his);
 			Filters::SmoothArray(yvals, binNumber, sigma, method, SP);
 			for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, yvals[i - 1]);
@@ -644,7 +644,7 @@ void ReadRun::SmoothAll(double sigma, string method) {
 void ReadRun::FilterAll(double sigma1, double sigma2, double factor) {
 	cout << "\nFiltering all waveforms" << endl;
 	for (int j = 0; j < nwf; j++) {
-		TH1F* his = Getwf(j);
+		auto his = Getwf(j);
 		double* yvals = Helpers::gety(his);
 		if (factor > 0 && factor <= 1) Filters::ResponseFilter(yvals, binNumber, sigma1, sigma2, factor, SP);
 		else Filters::SecondOrderUnderdampedFilter(yvals, binNumber, sigma1, sigma2, abs(factor), SP);
@@ -792,9 +792,9 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 
 	int nbins_average = !window.empty() ? static_cast<int>(round(abs(window[0]) / SP)) : static_cast<int>(50. / SP);
 	int start_search_at = static_cast<int>(window.size()) > 1 ? static_cast<int>(round(abs(window[1]) / SP)) : 0;
-	int end_search_at = static_cast<int>(window.size()) > 2 ? static_cast<int>(round(abs(window[2]) / SP)) : binNumber - 1;
+	int end_search_at = static_cast<int>(window.size()) > 2 ? 
+		min(static_cast<int>(round(abs(window[2]) / SP)), binNumber - 1) : binNumber - 1;
 
-	if (end_search_at >= binNumber) end_search_at = binNumber - 1;
 	int end_search_loop_at = end_search_at - start_search_at - nbins_average;
 
 	// if no valid static search window is specified, it will be dynamic from 0 ns up to 8 ns before the global maximum
@@ -817,7 +817,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 		minsumsq = 0, sqsum = 0, minsqsum = 0, corr = 0;
 		iintwindowstart = 0;
 
-		TH1F* his = Getwf(j);
+		auto his = Getwf(j);
 		if (search_relative_to_local_max) {
 			imax = GetIntWindow(his, 0, 0, static_cast<float>(nbins_search + min_distance_from_max) * SP,
 				static_cast<float>(end_search_at) * SP)[1];
@@ -942,9 +942,9 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 
 	int nbins_average = !window.empty() ? static_cast<int>(round(abs(window[0]) / SP)) : static_cast<int>(50. / SP);
 	int start_search_at = static_cast<int>(window.size()) > 1 ? static_cast<int>(round(abs(window[1]) / SP)) : 0;
-	int end_search_at = static_cast<int>(window.size()) > 2 ? static_cast<int>(round(abs(window[2]) / SP)) : binNumber - 1;
+	int end_search_at = static_cast<int>(window.size()) > 2 ? 
+		min(static_cast<int>(round(abs(window[2]) / SP)), binNumber - 1) : binNumber - 1;
 
-	if (end_search_at >= binNumber) end_search_at = binNumber - 1;
 	int end_search_loop_at = end_search_at - start_search_at - nbins_average;
 
 	// if no valid static search window is specified, it will be dynamic from 0 ns up to 8 ns before the global maximum
@@ -967,7 +967,7 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 		corr = 0;
 		iintwindowstart = 0;
 
-		TH1F* his = Getwf(j);
+		auto his = Getwf(j);
 		if (search_relative_to_local_max) {
 			imax = GetIntWindow(his, 0, 0, (float)(nbins_search + min_distance_from_max) * SP, (float)(end_search_at)*SP)[1];
 			end_search_at = imax - min_distance_from_max;
@@ -1073,37 +1073,31 @@ TH1F* ReadRun::WFProjectionChannel(int channel_index, int from_n, int to_n, floa
 /// @param nbins Number of bins in range.
 void ReadRun::PrintWFProjection(float from, float to, float rangestart, float rangeend, int nbins) {
 	gStyle->SetOptFit(111);
-	gStyle->SetOptStat(1111);
+	float default_rangestart = -10;
+	float default_rangeend = 20;
+	if (default_rangestart > rangestart) default_rangestart = rangestart;
+	if (default_rangeend < rangeend) default_rangeend = rangeend;
+	int default_nbins = static_cast<int>((default_rangeend - default_rangestart) * nbins / (rangeend - rangestart));
 
 	string ctitle("WFProjection" + to_string(PrintWFProjection_cnt++));
 	auto wf_projection_c = new TCanvas(ctitle.c_str(), ctitle.c_str(), 600, 400);
 	Helpers::SplitCanvas(wf_projection_c, active_channels, plot_active_channels);
 	int current_canvas = 0;
 
-	float default_rangestart = -100;
-	float default_rangeend = 500;
-	if (default_rangestart > rangestart) default_rangestart = rangestart;
-	if (default_rangeend < rangeend) default_rangeend = rangeend;
-	int default_nbins = static_cast<int>((default_rangeend - default_rangestart) * nbins / (rangeend - rangestart));
+	int from_n = (from > 0 && from < static_cast<float>(binNumber) * SP) ? static_cast<int>(round(abs(from) / SP)) + 1 : 0;
+	int to_n = (to > 0 && to < static_cast<float>(binNumber) * SP) ? static_cast<int>(round(abs(to) / SP)) + 1 : binNumber;
 
-	int from_n = (from > 0 && from < binNumber * SP) ? static_cast<int>(round(abs(from) / SP)) + 1 : 0;
-	int to_n = (to > 0 && to < binNumber * SP) ? static_cast<int>(round(abs(to) / SP)) + 1 : binNumber;
-
-	TH1F* his;
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
-			current_canvas++;
+			wf_projection_c->cd(++current_canvas);
 
-			his = WFProjectionChannel(i, from_n, to_n, default_rangestart, default_rangeend, default_nbins);
+			auto his = WFProjectionChannel(i, from_n, to_n, default_rangestart, default_rangeend, default_nbins);
 			his->GetYaxis()->SetTitle("#Entries");
 			his->GetXaxis()->SetTitle("amplitude in mV");
-
-			wf_projection_c->cd(current_canvas);
-
 			TString name(Form("WFProjection channel_%02d_%d", active_channels[i], PrintWFProjection_cnt));
-			root_out->WriteObject(his, name.Data());
 			his->Draw();
 			his->Fit("gaus", "WWM", "same");
+			root_out->WriteObject(his, name.Data());
 		}
 	}
 
@@ -1121,7 +1115,7 @@ TH1F* ReadRun::BaselineCorrectionResults(int channel_index, int which, float ran
 		cout << "\nError: baseline_correction_result empty. Call baseline correction first." << endl;
 	}
 	TString name(Form("channel__%02d", active_channels[channel_index]));
-	TH1F* h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
+	auto h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
 
 	for (int j = 0; j < nevents; j++) {
 		if (!skip_event[j]) h1->Fill(baseline_correction_result[j * nchannels + channel_index][which]);
@@ -1137,6 +1131,7 @@ TH1F* ReadRun::BaselineCorrectionResults(int channel_index, int which, float ran
 /// @param rangeend Plot x range end.
 /// @param nbins Number of bins in range.
 void ReadRun::PrintBaselineCorrectionResults(float rangestart, float rangeend, int nbins) {
+	gStyle->SetOptFit(111);
 	float default_rangestart = -10;
 	float default_rangeend = 20;
 	if (default_rangestart > rangestart) default_rangestart = rangestart;
@@ -1151,11 +1146,11 @@ void ReadRun::PrintBaselineCorrectionResults(float rangestart, float rangeend, i
 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
-			current_canvas++;
-			TH1F* his = BaselineCorrectionResults(i, 0, default_rangestart, default_rangeend, default_nbins);
+			blc_res_c->cd(++current_canvas);
+
+			auto his = BaselineCorrectionResults(i, 0, default_rangestart, default_rangeend, default_nbins);
 			his->GetYaxis()->SetTitle("#Entries");
 			his->GetXaxis()->SetTitle(ctitle.c_str());
-			blc_res_c->cd(current_canvas);
 			his->Draw();
 			his->Fit("gaus", "WWM", "same");
 		}
@@ -1187,8 +1182,8 @@ void ReadRun::PrintBaselineCorrectionResults(float rangestart, float rangeend, i
 /// Performs a bit better in most cases compared to only linear interpolation. 
 void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double sigma, bool find_CF_from_start, int smooth_method, bool use_spline) {
 
-	int start_at = static_cast<int>(floor(start_at_t / SP));
-	int end_at = static_cast<int>(ceil(end_at_t / SP));
+	int start_at = max(static_cast<int>(floor(start_at_t / SP)), 0);
+	int end_at = min(static_cast<int>(ceil(end_at_t / SP)), binNumber - 1);
 	int n_range = end_at - start_at;
 
 	cout << "\nGet timing at " << (cf_r > 0 && cf_r <= 1 ? "CF=" : "threshold=");
@@ -1622,9 +1617,9 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 	int current_canvas = 0;
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
-			current_canvas++;
+			intwinc->cd(++current_canvas);
 
-			TH1F* his = Getwf(i, event_index);
+			auto his = Getwf(i, event_index);
 			int* windowind = GetIntWindow(his, windowlow, windowhi, start, end, i);
 			// create lines to indicate the integration window
 			TLine* low = new TLine(his->GetXaxis()->GetBinCenter(windowind[1]), -5, his->GetXaxis()->GetBinCenter(windowind[1]), 10);
@@ -1635,9 +1630,7 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 			zero->SetLineColor(1);
 			delete[] windowind;
 
-			// draw to canvas
-			intwinc->cd(current_canvas);
-			// formatting
+			// drawing and formatting
 			gPad->SetTopMargin(.01);
 			int last_canvas = nchannels;
 			if (!plot_active_channels.empty()) last_canvas = static_cast<int>(plot_active_channels.size());
@@ -1874,20 +1867,17 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 
 	int default_nbins = static_cast<int>((default_rangeend - default_rangestart) * nbins / (rangeend - rangestart));
 
-	TH1F* his;
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
-			current_canvas++;
+			chargec->cd(++current_canvas);
 
-			his = ChargeSpectrum(i, windowlow, windowhi, start, end, default_rangestart, default_rangeend, default_nbins);
+			auto his = ChargeSpectrum(i, windowlow, windowhi, start, end, default_rangestart, default_rangeend, default_nbins);
 			his->GetYaxis()->SetTitle("#Entries");
 			if (windowlow + windowhi > 0.) his->GetXaxis()->SetTitle("integral in mV#timesns");
 			else his->GetXaxis()->SetTitle("amplitude in mV");
 
 			//store the mean integral of each channel --> used for correction factors of phi_ew analysis
 			mean_integral.push_back(his->GetMean());
-
-			chargec->cd(current_canvas);
 
 			//fitting
 			if (i < max_channel_nr_to_fit) {
@@ -2095,9 +2085,7 @@ void ReadRun::PrintDCR(float windowlow, float windowhi, float rangestart, float 
 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
-
-			TH1F* his;
-			his = ChargeSpectrum(i, windowlow, windowhi, rangestart, rangeend, rangestart, rangeend, 500);
+			auto his = ChargeSpectrum(i, windowlow, windowhi, rangestart, rangeend, rangestart, rangeend, 500);
 
 			stringstream lonamerate;
 			lonamerate << "<0.5 pe=" << threshold << unit << " -> " << his->Integral(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(threshold)) / his->GetEntries() / (1.e-3 * (rangeend - rangestart)) << " MHz";
@@ -2188,11 +2176,9 @@ void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangee
 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
-			current_canvas++;
-			time_dist_c->cd(current_canvas);
+			time_dist_c->cd(++current_canvas);
 
-			TH1F* his;
-			his = TimeDist(i, from, to, rangestart, rangeend, nbins, which, cf_r);
+			auto his = TimeDist(i, from, to, rangestart, rangeend, nbins, which, cf_r);
 			his->GetYaxis()->SetTitle("#Entries");
 			his->GetXaxis()->SetTitle("time [ns]");
 			his->Draw();
@@ -2252,9 +2238,8 @@ void ReadRun::PrintMaxDist(float from, float to) {
 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
-			current_canvas++;
+			max_dist_c->cd(++current_canvas);
 			auto g3d = MaxDist(i, from, to);
-			max_dist_c->cd(current_canvas);
 			g3d->Draw();
 		}
 	}
@@ -2304,11 +2289,9 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, i
 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
-			current_canvas++;
-			timing_cfd_c->cd(current_canvas);
+			timing_cfd_c->cd(++current_canvas);
 
-			TH1F* his;
-			his = His_GetTimingCFD(i, rangestart, rangeend, nbins);
+			auto his = His_GetTimingCFD(i, rangestart, rangeend, nbins);
 			his->GetYaxis()->SetTitle("#Entries");
 			his->GetXaxis()->SetTitle("time [ns]");
 
@@ -2445,8 +2428,7 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 
 	auto timing_cfd_d_c = new TCanvas("timing of cfd diff", "timing of cfd diff", 600, 400);
 
-	TH1F* his;
-	his = His_GetTimingCFD_diff(channels1, channels2, rangestart, rangeend, nbins);
+	auto his = His_GetTimingCFD_diff(channels1, channels2, rangestart, rangeend, nbins);
 	his->GetYaxis()->SetTitle("#Entries");
 	his->GetXaxis()->SetTitle("time [ns]");
 
@@ -2559,7 +2541,7 @@ double* ReadRun::getx(double shift) {
 /// @param waveform_index Waveform index
 /// @return Y values of waveform
 double* ReadRun::gety(int waveform_index) {
-	TH1F* his = Getwf(waveform_index);
+	auto his = Getwf(waveform_index);
 	return Helpers::gety(his);
 }
 
@@ -2568,7 +2550,7 @@ double* ReadRun::gety(int waveform_index) {
 /// @param eventnr Event number
 /// @return Y values of waveform
 double* ReadRun::gety(int channelnr, int eventnr) {
-	TH1F* his = Getwf(channelnr, eventnr);
+	auto his = Getwf(channelnr, eventnr);
 	return Helpers::gety(his);
 }
 
