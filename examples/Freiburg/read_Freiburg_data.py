@@ -13,11 +13,14 @@ from convert_data import convert_data
 ### Note that amc_hax.py needs to be located in ```examples/Freiburg/```
 
 def read_Freiburg_data(which, autoclose):
+
+    # Define path to data and for results
     path_raw = 'examples/Freiburg/'
     path_converted = 'examples/Freiburg/'
     path_results = 'examples/Freiburg/'
 
     if int(which) == 0:
+        # specify file name
         path_raw += 'run3_4w_3_20240615175403_164.gz'
         path_converted += 'run3_4w_3_20240615175403_164_converted.bin'
         path_results += 'results.root'
@@ -34,11 +37,9 @@ def read_Freiburg_data(which, autoclose):
     # Read data
     mymeas.ReadFile(path_converted, True, path_results)
 
-    # Do some analysis
-    baseline_pars = ROOT.std.vector('float')([10., 0, 50.])
+    # Correct for baseline shift
+    baseline_pars = ROOT.std.vector('float')([30., 10, 80.])
     mymeas.CorrectBaselineMinSlopeRMS(baseline_pars)
-
-    #mymeas.PrintWFProjection(0, 80, -3.5, 3.5, 50)
 
     # Investigate charge spectrum. should see photo electron peaks here
     intwindowminus = 20.    # lower integration window in ns rel. to max
@@ -54,14 +55,19 @@ def read_Freiburg_data(which, autoclose):
     # Investigate average waveforms
     mymeas.PlotChannelAverages()
 
+    # Check if baseline correction worked and fit baseline fluctuations
+    # Will not be displayed and only be saved to root file
+    ROOT.gROOT.SetBatch(True)
+    mymeas.PrintWFProjection(0, 80, -3.5, 3.5, 50)
+    ROOT.gROOT.SetBatch(False)
+
+    # Plot a few indiviual events which have passed the cut (-> if not mymeas.skip_event[i])
     # Plot range
     ymin = -5
     ymax = 40
-    #ROOT.gROOT.SetBatch(True)
     for i in range(1, mymeas.nevents, int(mymeas.nevents / 10)):
            if not mymeas.skip_event[i]:
                mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, i, ymin, ymax)
-    #ROOT.gROOT.SetBatch(False)
 
     ## Set starting values for the fit of a landau gauss convolution
     mymeas.PrintChargeSpectrum_pars.push_back(30); 
