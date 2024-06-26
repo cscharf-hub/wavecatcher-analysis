@@ -9,6 +9,8 @@ from convert_data import convert_data
 ### For more examples see read_exampledata.py
 ###
 ### To execute, type ```python examples/Freiburg/read_Freiburg_data.py 0```.
+###
+### Note that amc_hax.py needs to be located in ```examples/Freiburg/```
 
 def read_Freiburg_data(which, autoclose):
     path_raw = 'examples/Freiburg/'

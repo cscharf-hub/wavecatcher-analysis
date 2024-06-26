@@ -1,10 +1,6 @@
 import sys, argparse
-sys.path.append('./examples/Freiburg/gandalf_usb/')
-sys.path.append('./examples/Freiburg/gandalf_usb/amc_tools/')
-sys.path.append('./examples/Freiburg/gandalf_usb/gandalf_env')
 #import reader, decode
 import amc_hax
-
 import gzip
 import numpy as np
 

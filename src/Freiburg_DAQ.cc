@@ -4,7 +4,7 @@
 /// @brief Routine to read converted data by the GANDALF DAQ System at Uni Freiburg. \n
 /// Call ```python examples/Freiburg/read_Freiburg_data.py 0``` to convert and analyze test data. \n
 /// 
-/// Note that gandalf_usb needs to be located in ```examples/Freiburg/gandalf_usb/```
+/// Note that amc_hax.py needs to be located in ```examples/Freiburg/```
 /// 
 /// @param path File name of (currently only a single) data file
 /// @param change_polarity Defaults to true, meaning the peaks are positive.
