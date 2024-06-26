@@ -38,25 +38,40 @@ def read_Freiburg_data(which, autoclose):
     baseline_pars = ROOT.std.vector('float')([10., 0, 50.])
     mymeas.CorrectBaselineMinSlopeRMS(baseline_pars)
 
-    mymeas.PrintWFProjection(0, 80, -3.5, 3.5, 50)
-
-    mymeas.PlotChannelAverages()
+    #mymeas.PrintWFProjection(0, 80, -3.5, 3.5, 50)
 
     # Investigate charge spectrum. should see photo electron peaks here
-    intwindowminus = 10.    # lower integration window in ns rel. to max
+    intwindowminus = 20.    # lower integration window in ns rel. to max
     intwindowplus = 30.	    # upper integration window in ns rel. to max
-    findmaxfrom = 80.	    # assume pulse after trigger arrives between here ...
-    findmaxto = 140.		# ... and here (depends on trigger delay setting etc., for dark counts the signal is random so we look at the whole recorded time range)
+    findmaxfrom = 60.	    # assume pulse after trigger arrives between here ...
+    findmaxto = 150.		# ... and here (depends on trigger delay setting etc., for dark counts the signal is random so we look at the whole recorded time range)
     
+    # remove events where the integral in any of the channels is below 50 mV*ns
+    integral_threshold = ROOT.std.vector('float')([50.])
+    highlow = ROOT.std.vector('bool')([False]);
+    mymeas.IntegralFilter(integral_threshold, highlow, intwindowminus, intwindowplus, findmaxfrom, findmaxto)
+
+    # Investigate average waveforms
+    mymeas.PlotChannelAverages()
+
     # Plot range
     ymin = -5
-    ymax = 150
-    # Save more events to root file
-    ROOT.gROOT.SetBatch(True)
+    ymax = 40
+    #ROOT.gROOT.SetBatch(True)
     for i in range(1, mymeas.nevents, int(mymeas.nevents / 10)):
-           mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, i, ymin, ymax)
-    ROOT.gROOT.SetBatch(False)
+           if not mymeas.skip_event[i]:
+               mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, i, ymin, ymax)
+    #ROOT.gROOT.SetBatch(False)
 
+    ## Set starting values for the fit of a landau gauss convolution
+    mymeas.PrintChargeSpectrum_pars.push_back(30); 
+    mymeas.PrintChargeSpectrum_pars.push_back(400); 
+    mymeas.PrintChargeSpectrum_pars.push_back(5e3); 
+    mymeas.PrintChargeSpectrum_pars.push_back(150); 
+
+    # Fit and plot the fit results for all channels with x range (0, 2000), 200 bins, fit range (50, 1600)
+    # fit all 8 channels with fit function 1 (landau-gauss)
+    mymeas.PrintChargeSpectrum(intwindowminus, intwindowplus, findmaxfrom, findmaxto, 0, 2000, 200, 50, 1600, 8, 1)
 
     # Keep plots open until script is closed manually
     if not autoclose:
