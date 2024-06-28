@@ -26,10 +26,10 @@ void Freiburg_DAQ::ReadFile(string path, bool change_polarity, string out_file_n
 	file.read(reinterpret_cast<char*>(&rows), sizeof(int32_t));
 	file.read(reinterpret_cast<char*>(&cols), sizeof(int32_t));
 
-	// hardcoded and limited to 8 channels, change in the future
-	SP = 1 / 0.880;
-	nchannels = 8;
-	binNumber = static_cast<int>(cols - 2);
+	// harcoded parameters, might want to read directly from data header in the future
+	SP = 1 / 0.880; // sampling rate is 880 MSa/s (0.880 Sa/ns)
+	nchannels = 8; // currently limited to 8 channels
+	binNumber = static_cast<int>(cols - 2); // number of samples read from file
 
 	float ADC_factor = 2.2 / 4.096; // convert to mV
 	if (change_polarity) ADC_factor *= -1;

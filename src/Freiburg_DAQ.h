@@ -7,7 +7,7 @@
 class Freiburg_DAQ : public virtual ReadRun {
 public:
 	/// @brief Initializer will call initializer of ReadRun class
-	/// @param no_of_bin_files_to_read 
+	/// @param no_of_bin_files_to_read Parameter not yet implemented
 	Freiburg_DAQ(int no_of_bin_files_to_read) : ReadRun(no_of_bin_files_to_read) { }
 	
 	void ReadFile(string, bool = true, string = "out.root");
