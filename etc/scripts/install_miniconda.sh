@@ -7,30 +7,23 @@ MINICONDA_VERSION="latest"
 PLATFORM=$(uname)
 
 # Determine the processor architecture
-if [[ $(uname -m) == "x86_64" ]]; then
-    ARCH="x86_64"
-elif [[ $(uname -m) == "x86" ]]; then
-    ARCH="x86"
-else 
-    printf "ERROR: Your CPU architecture is currently not supported by this script"
-    printf "Please visit https://github.com/conda-forge/miniforge and follow the instructions for your system: (%s)" $(uname -m)
-    exit 1
+ARCH=$(uname -m)
+
+if [[ $ARCH!="x86_64" ]] && [[ $ARCH!="x86"; ]]; then
+    printf "INFO: Your system architecture (%s) might not be fully supported\n" $(uname -m)
+    printf "In case of problems please follow the instructions at https://github.com/conda-forge/miniforge/n/n" 
+    
+    curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+    bash Miniforge3-$PLATFORM-$ARCH.sh
+    source $HOME/.bashrc
+    rm Miniforge3-$PLATFORM-$ARCH.sh
+else
+    wget https://repo.anaconda.com/miniconda/Miniconda3-$MINICONDA_VERSION-$PLATFORM-$ARCH.sh -O miniconda.sh
+    bash miniconda.sh -b -p $HOME/miniconda
+    echo 'export PATH="$HOME/miniconda/bin:$PATH"' >> $HOME/.bashrc
+    source $HOME/.bashrc
+    rm miniconda.sh
 fi
-
-# Download the Miniconda installation script
-wget https://repo.anaconda.com/miniconda/Miniconda3-$MINICONDA_VERSION-$PLATFORM-$ARCH.sh -O miniconda.sh
-
-# Run the installation script
-bash miniconda.sh -b -p $HOME/miniconda
-
-# Add the Miniconda bin directory to the PATH environment variable
-echo 'export PATH="$HOME/miniconda/bin:$PATH"' >> $HOME/.bashrc
-
-# Refresh the current terminal session
-source $HOME/.bashrc
-
-# Remove the installation script
-rm miniconda.sh
 
 # Initialize the base environment
 $HOME/miniconda/bin/conda init bash
