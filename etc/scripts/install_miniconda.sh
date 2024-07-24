@@ -9,8 +9,12 @@ PLATFORM=$(uname)
 # Determine the processor architecture
 if [[ $(uname -m) == "x86_64" ]]; then
     ARCH="x86_64"
-else
+elif [[ $(uname -m) == "x86" ]]; then
     ARCH="x86"
+else 
+    printf "ERROR: Your CPU architecture is currently not supported by this script"
+    printf "Please visit https://github.com/conda-forge/miniforge and follow the instructions for your system: (%s)" $(uname -m)
+    exit 1
 fi
 
 # Download the Miniconda installation script
