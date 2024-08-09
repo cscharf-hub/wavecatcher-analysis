@@ -9,7 +9,7 @@ PLATFORM=$(uname)
 # Determine the processor architecture
 ARCH=$(uname -m)
 
-if [[ $ARCH!="x86_64" ]] && [[ $ARCH!="x86"; ]]; then
+if [[ $ARCH!="x86_64" ]] && [[ $ARCH!="x86" ]]; then
     printf "INFO: Your system architecture (%s) might not be fully supported\n" $(uname -m)
     printf "In case of problems please follow the instructions at https://github.com/conda-forge/miniforge/n/n" 
     
