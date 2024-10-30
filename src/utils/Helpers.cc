@@ -13,6 +13,8 @@ string Helpers::ListFiles(const char* dirname, const char* ext) {
 	TObjString* objString;
 	while ((objString = (TObjString*)next())) {
 		const char* fileName = objString->GetString().Data();
+		// skip hidden/temporary files from backup etc.
+		if (fileName[0] == '.') continue;
 		// Check if the filename or extension contains ".bin"
 		if (strstr(fileName, ext) != nullptr) ss << fileName << "\n";
 	}
