@@ -71,9 +71,9 @@ This will execute the macro ```read_exampledata.cc``` with the parameter ```0```
 ```
 to run the timing example macro and close root once it has finished. The results will be saved in a .root file.
 
-**It is highly advisable to compile your macros** every now and then in order to find bugs. For compilation the includes need to be set correctly and you have to ```#include <src/ReadRun.h>``` at the beginning. Now you can compile the macro by adding a ```+``` after the file name:
+**It is highly advisable to compile your macros** every now and then in order to find bugs. For compilation the includes need to be set correctly and you have to add ```#include <src/ReadRun.h>``` at the beginning of the macro. Now you can compile the macro by adding a ```+``` after the file name:
 ```
- root -b -x "examples/read_exampledata.cc+(0)" -q
+ root examples/read_exampledata.cc+ -b -q
 ```
 
 ## On the CERN infrastructure
