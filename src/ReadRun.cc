@@ -1844,7 +1844,8 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 /// 6 - Fitf_PMT_pedestal: %PMT fit function with biased pedestal \n 
 /// 7 - Fitf_plus_DC: default SiPM fit function + dark count spectrum (for lots of false triggers) \n 
 /// else - Fitf: default SiPM fit function \n 
-void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, float fitrangestart, float fitrangeend, int max_channel_nr_to_fit, int which_fitf) {
+/// @param use_log_y Set all y axes to log scale (for dark count spectra)
+void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, float fitrangestart, float fitrangeend, int max_channel_nr_to_fit, int which_fitf, bool use_log_y) {
 	// print ReadRun::ChargeSpectrum for all channels optimized for SiPM signals
 
 	gStyle->SetOptStat("ne");
@@ -1870,6 +1871,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
 			chargec->cd(++current_canvas);
+			if (use_log_y) gPad->SetLogy();
 
 			auto his = ChargeSpectrum(i, windowlow, windowhi, start, end, default_rangestart, default_rangeend, default_nbins);
 			his->GetYaxis()->SetTitle("#Entries");

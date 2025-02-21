@@ -159,7 +159,7 @@ public:
 	float GetPeakIntegral(TH1F*, float, float, float, float, int = 0);
 	void PrintChargeSpectrumWF(float, float, float = 0, float = 300, int = 1, float = 0., float = 0., float = 0., float = 0.);
 	TH1F* ChargeSpectrum(int, float, float, float = 0, float = 300, float = -50, float = 600, int = 750);
-	void PrintChargeSpectrum(float, float, float = 0, float = 300, float = -50, float = 600, int = 750, float = 0., float = 0., int = 99, int = 0);
+	void PrintChargeSpectrum(float, float, float = 0, float = 300, float = -50, float = 600, int = 750, float = 0., float = 0., int = 99, int = 0, bool = false);
 	/// @brief Starting values of the fit parameters for PrintChargeSpectrum()
 	vector<float> PrintChargeSpectrum_pars;
 
