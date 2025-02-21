@@ -1,5 +1,4 @@
 #include <TROOT.h>
-#include "src/ReadRun.h"
 
 // main function, needs to have the same name as the file
 void timing_example() 
