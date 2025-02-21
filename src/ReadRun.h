@@ -55,12 +55,6 @@ using namespace std;
 
 class ReadRun {
 private:
-	/// @brief Collects sums of all waveforms for each channel
-	double** amplValuessum;
-
-	/// @brief Events will be stored here in the order they have been read
-	vector<unsigned int> eventnr_storage;
-
 	/// @brief Index for multiple executions of the same plotting function
 	int PrintChargeSpectrum_cnt;
 	/// @brief Index for multiple executions of the same plotting function
@@ -116,6 +110,12 @@ private:
 public:
 	/// @brief Stores data
 	TClonesArray* rundata;
+
+	/// @brief Collects sums of all waveforms for each channel
+	double** amplValuessum;
+
+	/// @brief Events will be stored here in the order they have been read
+	vector<unsigned int> eventnr_storage;
 
 	// plots amplValuessum
 	void PlotChannelSums(bool = false, bool = false, double = 0., double = 0., int = 2);
