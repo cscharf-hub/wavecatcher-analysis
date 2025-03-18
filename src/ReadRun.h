@@ -46,6 +46,7 @@
 #include <vector>
 #include <stdlib.h>
 #include <sstream>
+#include <stdexcept>
 
 #include "utils/FitFunctions.h"
 #include "utils/Helpers.h"
@@ -107,12 +108,23 @@ private:
 	};
 #pragma pack() // byte padding suppression for WaveCatcher data format
 
+protected:
+	/// @brief Primitive check to see if data has been loaded
+    void checkData() const {
+        if (eventnr_storage.empty()) {
+            throw std::runtime_error(
+				"Error: No data has been loaded yet!\n \
+				Please call ReadFile() before calling any functions which manipulate data.\n \
+				Aborting execution.");
+        }
+    }
+
 public:
 	/// @brief Stores data
 	TClonesArray* rundata;
 
 	/// @brief Collects sums of all waveforms for each channel
-	double** amplValuessum;
+	float** amplValuessum;
 
 	/// @brief Events will be stored here in the order they have been read
 	vector<unsigned int> eventnr_storage;
@@ -260,10 +272,10 @@ public:
 
 	/// @brief Sampling: ns per bin of data, sampling rate 3.2 GS/s -> 0.3125 ns
 	float SP = .3125;
-	/// @brief DAC conversion coefficient for wavecatcher
+	/// @brief DAQ conversion factor for wavecatcher output to mV
 	/// 
 	/// From https://owncloud.lal.in2p3.fr/public.php?service=files&t=56e4a2c53a991cb08f73d03f1ce58ba2 
-	double coef = 2.5 / (4096 * 10);
+	float DAQ_factor = 250. / 4096.;
 	/// @brief Number of bins (always 1024 samples per waveform). Do not change!
 	int binNumber = 1024;
 	/// @brief Wavecatcher hardware max. number of channels (reduce/increase if not using the 64 channel crate)

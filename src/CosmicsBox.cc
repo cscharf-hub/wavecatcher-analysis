@@ -24,7 +24,8 @@
 /// @param periodic If true, will print all phi_ew shifted by +/- 360 deg (so normal phi_ew distri * 3) and fit a periodic gauss
 /// @return Phi_ew spectrum
 void CosmicsBox::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<int> SiPMchannels, float windowmin, float windowmax, float maxfrom, float maxto, int nbins, bool corr, bool periodic) {
-
+	checkData();
+	
 	// plotting uncorrected/corrected phi_ew - spectra ; first: map the phi_i to the channels, like Alex did, but with new channel positions
 	// match channel number to channel index (still very specific)
 	int sipmnum = SiPMchannels.size();
@@ -63,7 +64,7 @@ void CosmicsBox::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<i
 	for (int i = 0; i < nevents; i++) {
 		if (!skip_event[i]) {
 			for (int j = 0; j < sipmnum; j++) { //loop through all SiPM-channels
-				TH1F* hisly = ((TH1F*)rundata->At(i * nchannels + ch_index[j]));
+				TH1F* hisly = Getwf(i * nchannels + ch_index[j]);
 				lightyield = GetPeakIntegral(hisly, windowmin, windowmax, maxfrom, maxto, 0); //lightyield as the integral around maximum
 				anglevaluex += cos(phi_chx[j] * TMath::Pi() / 180) * lightyield / ly_corr[j]; //x part of vectorial addition
 				anglevaluey += sin(phi_chx[j] * TMath::Pi() / 180) * lightyield / ly_corr[j]; //y part of vectorial addition
@@ -80,13 +81,16 @@ void CosmicsBox::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<i
 	}
 
 	//make histogram fancy + printing
-	his->GetXaxis()->SetTitle("#phi_{ew} [#circ]"); his->GetYaxis()->SetTitle("#Entries"); //titling of axes
+	his->GetXaxis()->SetTitle("#phi_{ew} [#circ]"); 
+	his->GetYaxis()->SetTitle("#Entries");
 	his->Draw();
 
 	if (periodic) {
 		Fitf_periodic_gauss fitf;
 		int n_par = 4;
-		TF1* f = new TF1("fitf", fitf, min_angle, max_angle, n_par); f->SetLineColor(2); f->SetNpx(1000);
+		TF1* f = new TF1("fitf", fitf, min_angle, max_angle, n_par); 
+		f->SetLineColor(2);
+		f->SetNpx(1000);
 
 		double max = his->GetMaximum();
 		double min = his->GetMinimum();
@@ -108,6 +112,6 @@ void CosmicsBox::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<i
 	root_out->WriteObject(his, "Phi_ew_his");
 
 	string pdf_name = "phi_ew_spectrum";
-	if (corr) pdf_name += "_corr.pdf"; else pdf_name += "_uncorr.pdf";
+	pdf_name += corr ? "_corr.pdf" : "_uncorr.pdf";
 	hisc->SaveAs(pdf_name.c_str()); //write the histogram to a .pdf-file
 }

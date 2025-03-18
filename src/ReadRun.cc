@@ -88,9 +88,9 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 	size_t length_of_waveform = static_cast<size_t>(binNumber) * sizeof(short);
 
-	amplValuessum = new double* [nChannelsWC]; //sum of all wf for each channel
+	amplValuessum = new float* [nChannelsWC]; //sum of all wf for each channel
 	for (int i = 0; i < nChannelsWC; i++) {//init
-		amplValuessum[i] = new double[binNumber]();
+		amplValuessum[i] = new float[binNumber]();
 	}
 
 	maxSumBin = new int[nChannelsWC];
@@ -274,13 +274,9 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 						short bsln = (a_channel_data.waveform[0] + a_channel_data.waveform[1] + a_channel_data.waveform[3]) / 3;
 						for (int lll = 0; lll < binNumber; lll++) a_channel_data.waveform[lll] -= bsln;
 
-						float global_max = TMath::MaxElement(1024, a_channel_data.waveform);
-						//nmax = TMath::LocMax(binNumber, a_channel_data.waveform);
-						if (global_max < TMath::Abs(TMath::MinElement(binNumber, a_channel_data.waveform))) {
-							global_max = TMath::Abs(TMath::MinElement(binNumber, a_channel_data.waveform));
-							//nmax = TMath::LocMin(binNumber, a_channel_data.waveform);
-						}
-
+						int g_max = TMath::MaxElement(binNumber, a_channel_data.waveform);
+						int g_min = TMath::Abs(TMath::MinElement(binNumber, a_channel_data.waveform));
+						int global_max = g_max < g_min ? g_min : g_max;
 
 						for (int s = tWF_CF_lo; s < tWF_CF_hi; ++s) {
 							if (max < TMath::Abs(a_channel_data.waveform[s])) {
@@ -307,14 +303,14 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 					// loop to fill waveform histograms
 					bool change_pol_ch = false;
-					float val = 0.;
+					float val = 0;
 					for (int s = 0; s < binNumber; ++s) {
 						// shift all waveforms
 						int shiftind = s - nshift;
 						if (shiftind < 0) shiftind += (binNumber - 1);
 						else if (shiftind > binNumber - 1) shiftind -= (binNumber - 1);
-						val = a_channel_data.waveform[shiftind] * coef * 1000.;
-						
+						val = static_cast<float>(a_channel_data.waveform[shiftind]) * DAQ_factor;
+
 						// change the polarity for certain channels since our PMTs have negative signals while our SiPMs have positive signals
 						if (s == 0 && change_polarity) {
 							if ((output_channel >= change_sign_from_to_ch_num)
@@ -327,13 +323,13 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 								change_pol_ch = true;
 							}
 						}
-						if (change_pol_ch == true) val *= -1.;
+						if (change_pol_ch == true) val *= -1;
 
 						// fill waveforms
 						hCh->SetBinContent(s + 1, val);
 
 						// channel sums
-						amplValuessum[ch][s] += static_cast<double>(val);
+						amplValuessum[ch][s] += val;
 					}
 
 					// baseline correction
@@ -361,7 +357,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 	// get bins where the sum spectrum has its maximum for runs with fixed trigger delay and fixed 
 	// integration window relative to the max of the sum spectrum (not working for DC measurement)
 	for (int ch = 0; ch < nchannels; ch++) {
-		double max = 0.;
+		float max = 0.;
 		for (int i = 0; i < binNumber; i++) {
 			if (amplValuessum[ch][i] > max) {
 				max = amplValuessum[ch][i];
@@ -408,7 +404,7 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
-			double* yv = amplValuessum[i];
+			double* yv = reinterpret_cast<double*>(amplValuessum[i]);
 			if (smooth) Filters::SmoothArray(yv, binNumber, sigma, smooth_method);
 
 			TGraph* gr = new TGraph(binNumber, xv, yv);
@@ -708,6 +704,7 @@ void ReadRun::ShiftAllToAverageCF() {
 /// @param tCut Time denoting the end or the beginning (if "tCutEnd" is set) of the integration window.
 /// @param tCutEnd Time denoting the end of the integration window.
 void ReadRun::CorrectBaseline(float tCut, float tCutEnd) {
+	checkData();
 
 	cout << "\nPerforming simple baseline correction in fixed time window."
 		<< "This method is only suitable for measurements without dark counts!" << endl;
@@ -784,6 +781,8 @@ void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int
 /// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 /// @param increment Increment for search in bins per step. Default value is 3 (=0.9375 ns).
 void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int smooth_method, int increment) {
+	checkData();
+
 	cout << "\nBaseline correction (minimum slope variation method, " << nwf << " waveforms):" << endl;
 	if (window.empty()) cout << "\nWarning: Window not set in CorrectBaselineMinSlopeRMS. Will use default values." << endl;
 	if (sigma != 0.) cout << "\nNotification: Using smoothing in CorrectBaselineMinSlopeRMS." << endl;
@@ -900,6 +899,8 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 /// @param smooth_method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
 /// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, double sigma, int max_bin_for_baseline, int start_at, int smooth_method) {
+	checkData();
+
 	cout << "Notification: This is a deprecated version of CorrectBaselineMinSlopeRMS. "
 		<< "It will be removed in future releases. Parameter bool smooth=" << smooth << " will be ignored." << endl;
 	vector<float> window;
@@ -934,6 +935,8 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 /// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 /// @param increment Increment for search in bins per step. Default value is 3 (=0.9375 ns).
 void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_method, int increment) {
+	checkData();
+
 	cout << "\nBaseline correction (minimal sum method, " << nwf << " waveforms):" << endl;
 	if (window.empty()) cout << "\nWarning: Window not set in CorrectBaselineMin. Will use default values." << endl;
 	if (sigma != 0.) cout << "\nNotification: Using smoothing in CorrectBaselineMin." << endl;
@@ -1029,6 +1032,8 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 /// @param smooth_method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
 /// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_bin_for_baseline, int start_at, int smooth_method) {
+	checkData();
+
 	cout << "Notification: This is a deprecated version of CorrectBaselineMin. It will be removed in future releases." << endl;
 	vector<float> window;
 	window.push_back(static_cast<float>(nIntegrationWindow) * SP);
@@ -1845,7 +1850,8 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 /// @param use_log_y Set all y axes to log scale (for dark count spectra)
 void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, float fitrangestart, float fitrangeend, int max_channel_nr_to_fit, int which_fitf, bool use_log_y) {
 	// print ReadRun::ChargeSpectrum for all channels optimized for SiPM signals
-
+	checkData();
+	
 	gStyle->SetOptStat("ne");
 	gStyle->SetOptFit(1111);
 
@@ -2510,6 +2516,7 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 /// @param wf_nr Waveform number
 /// @return Waveform histogram 
 TH1F* ReadRun::Getwf(int wf_nr) {
+	checkData();
 	return (TH1F*)rundata->At(wf_nr);
 }
 
@@ -2519,6 +2526,7 @@ TH1F* ReadRun::Getwf(int wf_nr) {
 /// @param color Choose color of histogram
 /// @return Waveform histogram 
 TH1F* ReadRun::Getwf(int channelnr, int eventnr, int color) {
+	checkData();
 	TH1F* his;
 	his = (TH1F*)rundata->At(eventnr * nchannels + channelnr);
 	his->SetLineColor(color);
