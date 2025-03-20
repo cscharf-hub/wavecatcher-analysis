@@ -2565,10 +2565,19 @@ double* ReadRun::gety(int channelnr, int eventnr) {
 /// @brief Returns index of a certain event number (if data files are read in parallel threads)
 /// @param eventnr Event number as stored in the data.
 /// @return Corresponding event number in the internal data structure.
-int ReadRun::GetEventIndex(int eventnr) {
-	if (eventnr <= 0) eventnr = 1; // first event is 1
-	if (eventnr > nevents) eventnr = nevents;
-	return distance(eventnr_storage.begin(), find(eventnr_storage.begin(), eventnr_storage.end(), eventnr));
+int ReadRun::GetEventIndex(unsigned int eventnr) {
+	auto event_pos = find(eventnr_storage.begin(), eventnr_storage.end(), eventnr);
+	if (event_pos == eventnr_storage.end()) {
+		cout << "WARNING: Event number " << eventnr << " for GetEventIndex() does not exist in data.\n"
+			<< "Please check the events in the data or set discard_original_eventnr = true before calling ReadFile()." << endl;
+		
+		if (static_cast<int>(eventnr) < nevents) {
+			eventnr = eventnr_storage[eventnr];
+			event_pos = find(eventnr_storage.begin(), eventnr_storage.end(), eventnr);
+			cout << "Found event number " << eventnr << " in data and will use it." << endl;
+		}
+	}
+	return static_cast<int>(distance(eventnr_storage.begin(), event_pos));
 }
 
 /// @brief  Match channel number (wavecatcher input channel) to channel index

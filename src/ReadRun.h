@@ -204,7 +204,7 @@ public:
 
 	static float LinearInterpolation(float, float, float, float, float); // linear interpolation
 	
-	int GetEventIndex(int);			// get index of a triggered event (finds the correct event if files are not read sequentially)
+	int GetEventIndex(unsigned int);			// get index of a triggered event (finds the correct event if files are not read sequentially)
 	int GetChannelIndex(int);		// get index of a certain channel
 	int GetCurrentChannel(int);		// get index of channel for a certain waveform
 	int GetCurrentEvent(int);		// get index of event for a certain waveform
