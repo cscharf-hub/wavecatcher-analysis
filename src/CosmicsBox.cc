@@ -22,7 +22,6 @@
 /// If true - corrected spectra \n
 /// If false - uncorrected spectra
 /// @param periodic If true, will print all phi_ew shifted by +/- 360 deg (so normal phi_ew distri * 3) and fit a periodic gauss
-/// @return Phi_ew spectrum
 void CosmicsBox::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<int> SiPMchannels, float windowmin, float windowmax, float maxfrom, float maxto, int nbins, bool corr, bool periodic) {
 	checkData();
 	

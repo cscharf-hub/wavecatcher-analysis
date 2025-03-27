@@ -404,7 +404,9 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
-			double* yv = reinterpret_cast<double*>(amplValuessum[i]);
+			double* yv = new double[binNumber];
+			for (int k = 0; k < binNumber; k++) yv[k] = static_cast<double>(amplValuessum[i][k]);
+
 			if (smooth) Filters::SmoothArray(yv, binNumber, sigma, smooth_method);
 
 			TGraph* gr = new TGraph(binNumber, xv, yv);
@@ -544,7 +546,6 @@ TH2F* ReadRun::WFHeatmapChannel(int channel_index, float ymin, float ymax, int n
 /// 
 /// \image html heatmaps.png "Waveforms of all events filled into a single histogram. Code in example." width=75%
 /// 
-/// @param channel_index Index of the channel
 /// @param ymin Min. y range
 /// @param ymax Max. y range
 /// @param n_bins_y Number of bins along y
@@ -1807,10 +1808,17 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 	TString name(Form("channel__%02d", active_channels[channel_index]));
 	TH1F* h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
 
+	float pedestal = 0;
+	float gain = 1;
+	if (channel_index < static_cast<int>(PrintChargeSpectrum_cal.size())) {
+		if (PrintChargeSpectrum_cal[channel_index][0] != 0) gain = PrintChargeSpectrum_cal[channel_index][0];
+		if (PrintChargeSpectrum_cal[channel_index][1] != 1) pedestal = PrintChargeSpectrum_cal[channel_index][1];
+	}
+
 	for (int j = 0; j < nevents; j++) {
 		if (!skip_event[j]) {
 			auto his = Getwf(channel_index, j);
-			h1->Fill(GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index)); 
+			h1->Fill((GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index) - pedestal) / gain); 
 		}
 	}
 	return h1;
@@ -1821,7 +1829,8 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 /// Integrate all pulses in range ("start", "end") from t_max - "windowlow" to t_max + "windowhi" for a given channel 
 /// and return the charge histogram with x range ("rangestart", "rangeend") and the number of bins "nbins". \n 
 /// It is not really charge, but either amplitude (mV) or integral (mV x ns).
-/// See ChargeSpectrum() and GetIntWindow().
+/// See ChargeSpectrum() and GetIntWindow(). \n
+/// Can be normalised to the number of photoelectrons by defining the calibration values in PrintChargeSpectrum_cal.
 /// 
 /// \image html PrintChargeSpectrum.png "Simple example of the integrated signals for a single channel. The resulting integrated signals are fitted with a Landau-Gauss convolution (-> energy deposition of a minimum ionizing particle in a thin absorber). Code in example." width=75%
 /// 
@@ -1879,8 +1888,14 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 
 			auto his = ChargeSpectrum(i, windowlow, windowhi, start, end, default_rangestart, default_rangeend, default_nbins);
 			his->GetYaxis()->SetTitle("#Entries");
-			if (windowlow + windowhi > 0.)	his->GetXaxis()->SetTitle("Integral in mV#timesns");
-			else							his->GetXaxis()->SetTitle("Amplitude in mV");
+			if (windowlow + windowhi > 0.) his->GetXaxis()->SetTitle("Integral in mV#timesns");
+			else his->GetXaxis()->SetTitle("Amplitude in mV");
+			
+			if (i < static_cast<int>(PrintChargeSpectrum_cal.size()) && PrintChargeSpectrum_cal[i][0] != 1) {
+				cout << "Charge spectrum for channel index " << i << " will be normalized using a gain of "
+					<< PrintChargeSpectrum_cal[i][0] << " and a pedestal value of " << PrintChargeSpectrum_cal[i][1] << endl;
+				his->GetXaxis()->SetTitle("Number of photoelectrons");
+			}
 
 			//store the mean integral of each channel --> used for correction factors of phi_ew analysis
 			mean_integral.push_back(his->GetMean());

@@ -360,5 +360,10 @@ public:
 	int tWF_CF_lo = 320;
 	/// @brief End of range of bins where the signal is expected for ReadRun::Shift_WFs_in_file_loop
 	int tWF_CF_hi = 500;
+
+	/// @brief Calibration values to normalize charge spectrum to number of photoelectrons
+	/// Chennels must be ordered as in plot_active_channels.\n
+	/// The first entry must be the gain and the second the position of the pedestal.
+	vector<vector<float>> PrintChargeSpectrum_cal = vector(nChannelsWC, vector<float>(2, 1));
 };
 #endif
