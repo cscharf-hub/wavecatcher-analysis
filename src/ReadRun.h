@@ -202,7 +202,7 @@ public:
 	double* gety(int);							// y values for waveform index
 	double* gety(int, int);						// y values for waveform(channel, event)
 
-	static float LinearInterpolation(float, float, float, float, float); // linear interpolation
+	static pair<float, bool> LinearInterpolation(float, float, float, float, float); // linear interpolation
 	
 	int GetEventIndex(unsigned int);			// get index of a triggered event (finds the correct event if files are not read sequentially)
 	int GetChannelIndex(int);		// get index of a certain channel

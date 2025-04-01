@@ -1224,10 +1224,10 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 		}
 
 		// do interpolation for cf
-		float interpol_bin = .0;
-		interpol_bin = LinearInterpolation(cf, static_cast<float>(i), static_cast<float>(i + 1), yvals[i], yvals[i + 1]);
+		pair<float, bool> lin_interpol_res = {0, true};
+		lin_interpol_res = LinearInterpolation(cf, static_cast<float>(i), static_cast<float>(i + 1), yvals[i], yvals[i + 1]);
 		// go to center of bin
-		interpol_bin += .5;
+		float interpol_bin = lin_interpol_res.first + .5;
 
 		if (use_spline) { // use spline interpolation with tolerance epsilon*bin_size
 			double epsilon = 1e-4;
@@ -1262,6 +1262,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 		timing_results[j].push_back(cf);													// constant fraction
 		timing_results[j].push_back(static_cast<float>(start_at) * SP);						// starting time
 		timing_results[j].push_back(static_cast<float>(end_at) * SP);						// end time
+		timing_results[j].push_back(static_cast<float>(lin_interpol_res.second));			// flag will be 1 if linear interpolation worked
 		delete[] yvals;
 
 		Helpers::PrintProgressBar(j, nwf);
@@ -2146,7 +2147,7 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 				} while (his->GetBinContent(max_n) >= cf_r * max && max_n > from_n);
 				max_n++;
 
-				h1->Fill(LinearInterpolation(cf_r * max, his->GetXaxis()->GetBinCenter(max_n - 1), his->GetXaxis()->GetBinCenter(max_n), his->GetBinContent(max_n - 1), his->GetBinContent(max_n)));
+				h1->Fill(LinearInterpolation(cf_r * max, his->GetXaxis()->GetBinCenter(max_n - 1), his->GetXaxis()->GetBinCenter(max_n), his->GetBinContent(max_n - 1), his->GetBinContent(max_n)).first);
 			}
 			else { // 10%-90% rise time
 				// search backwards from maximum
@@ -2158,8 +2159,8 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 					if (n90 == -1 && his->GetBinContent(max_n) >= .9 * max && his->GetBinContent(max_n - 1) <= .9 * max) n90 = max_n;
 				} while (his->GetBinContent(max_n) <= max && max_n > from_n);
 
-				float t10 = LinearInterpolation(.1 * max, his->GetXaxis()->GetBinCenter(n10 - 1), his->GetXaxis()->GetBinCenter(n10), his->GetBinContent(n10 - 1), his->GetBinContent(n10));
-				float t90 = LinearInterpolation(.9 * max, his->GetXaxis()->GetBinCenter(n90 - 1), his->GetXaxis()->GetBinCenter(n90), his->GetBinContent(n90 - 1), his->GetBinContent(n90));
+				float t10 = LinearInterpolation(.1 * max, his->GetXaxis()->GetBinCenter(n10 - 1), his->GetXaxis()->GetBinCenter(n10), his->GetBinContent(n10 - 1), his->GetBinContent(n10)).first;
+				float t90 = LinearInterpolation(.9 * max, his->GetXaxis()->GetBinCenter(n90 - 1), his->GetXaxis()->GetBinCenter(n90), his->GetBinContent(n90 - 1), his->GetBinContent(n90)).first;
 
 				h1->Fill(t90 - t10);
 			}
@@ -2464,12 +2465,12 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 	his->Draw();
 
 	double skewness = his->GetSkewness();
-
+	
 	if (do_fit == 1 || (do_fit == 2 && abs(skewness) < .15)) {
 		// gauss (default)
 		TFitResultPtr fresults = his->Fit("gaus", fitoption.c_str(), "same", fitrangestart, fitrangeend);
 		timing_fit_results.push_back(fresults);
-		if (do_fit == 2) cout << "\nWARNING: Print_GetTimingCFD_diff\nFITTING GAUSS INSTEAD OF GAUSS x EXP CONVOLUTION BC SYMMETRY\n";
+		if (do_fit == 2) cout << "\nWARNING: Print_GetTimingCFD_diff\nFITTING GAUSS INSTEAD OF GAUSS x EXP CONVOLUTION BC SYMMETRY" << endl;
 	}
 	else if (do_fit == 2) {
 		// gauss x exp convolution (effective delay from random light path and/or self-absorption and reemission)
@@ -2498,7 +2499,20 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 
 		// for the phi_ew-analysis: print out the time value of the maximum of the best fit --> used to determine timing cuts
 		float t_of_maximum = expgconv->GetMaximumX(-5, 5);
-		cout << "Maximum of the fit is at t=" << t_of_maximum << " ns" << endl;
+		cout << "Maximum of the fit is at t=" << t_of_maximum << " ns and the ";
+
+		double max_val = expgconv->GetMaximum();
+		double fwhm_x1 = expgconv->GetX(max_val / 2, fitrangestart, fitrangeend);
+		double fwhm_x2 = expgconv->GetX(max_val / 2, fwhm_x1 + 1e-3, fitrangeend);
+		double fwhm = fwhm_x2 - fwhm_x1;
+		auto fwhm_line = new TLine(fwhm_x1, max_val/2, fwhm_x2, max_val/2);
+		fwhm_line->SetLineColor(2); fwhm_line->SetLineWidth(2);
+		fwhm_line->Draw("same");
+		cout << "FWHM=" << fwhm << " ns" << endl;
+
+		// TLatex l;
+		// l.SetTextSize(0.025);
+   		// l.DrawLatex(t_of_maximum/(rangeend - rangestart), 0.4, Form("FWHM = %.2f ns", fwhm));
 
 		auto mean = new TLine(expgconv->GetParameter(2), 1e-2, expgconv->GetParameter(2), his->GetMaximum());
 		mean->SetLineColor(1); mean->SetLineWidth(2);
@@ -2641,12 +2655,12 @@ bool ReadRun::PlotChannel(int i) {
 /// @param y1 Y1
 /// @param y2 Y2
 /// @return x value at "ym"
-float ReadRun::LinearInterpolation(float ym, float x1, float x2, float y1, float y2) {
-	if (y1 == y2) return (x1 + x2) / 2.;
+pair<float, bool> ReadRun::LinearInterpolation(float ym, float x1, float x2, float y1, float y2) {
+	if (y1 == y2) return {(x1 + x2) / 2., false};
 	else if (y1 > ym) {
 		cout << "\nError in LinearInterpolation: Value ym=" << ym << " out of range (" << y1 << "|" << y2 << ").\n"
 			<< "Will return x1. Increase window for search.\n";
-		return x1;
+		return {x1, false};
 	}
-	else return x1 + (ym - y1) * (x2 - x1) / (y2 - y1);
+	else return {x1 + (ym - y1) * (x2 - x1) / (y2 - y1), true};
 }
