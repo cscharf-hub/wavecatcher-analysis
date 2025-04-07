@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Set everything according to https://github.com/conda-forge/root-feedstock
+printf "In case of problems please follow the instructions at https://github.com/conda-forge/root-feedstock"
+
 conda config --add channels conda-forge
 conda config --set channel_priority strict
 

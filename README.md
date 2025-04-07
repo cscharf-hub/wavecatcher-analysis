@@ -18,7 +18,7 @@ We recommend using CERN ROOT Release 6.24/02 or later[^1].
 It is strongly recommended to install [ROOT](https://root.cern/install/#conda) with [conda](https://docs.conda.io/en/latest/miniconda.html), as this will automatically install all dependencies and set the correct paths.
 You can do so by simply executing the included scripts as explained under [Getting started](#Getting-started).
 
-The compilation needs ```make```, which can be installed with ```sudo apt install make```. 
+The compilation needs ```make```, which can be installed with ```sudo apt install make```. On ARM there can be the error ``` fatal error: 'assert.h' file not found```, which can be fixed by running ```sudo apt install libc6-dev-arm64-cross```.
 
 If you use Windows, you should first install WSL and then Ubuntu from the Microsoft Store[^2]. 
 Once installed, open Ubuntu and install ROOT using conda as described below. 
@@ -31,7 +31,7 @@ Before downloading the repository, navigate to the directory where you want to s
 On WSL, you might prefer to save the analysis in your Windows home folder to make it more easily accessible: ```cd /mnt/c/Users/<your_user_name>/```
 
 ## Doing a custom setup
-To get started, open a Linux shell and download repository:
+To get started, open a Linux shell and download the repository:
 ```
 git clone https://github.com/cscharf-hub/wavecatcher-analysis
 ```
@@ -73,7 +73,7 @@ to run the timing example macro and close root once it has finished. The results
 
 **It is highly advisable to compile your macros** every now and then in order to find bugs. For compilation the includes need to be set correctly and you have to add ```#include <src/ReadRun.h>``` at the beginning of the macro. Now you can compile the macro by adding a ```+``` after the file name:
 ```
- root examples/read_exampledata.cc+ -b -q
+ root -b -x "examples/read_exampledata.cc+(0)" -q
 ```
 
 ## On the CERN infrastructure
