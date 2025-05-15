@@ -86,13 +86,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 	unsigned short output_nbchannels;
 	unsigned short read_channels = 0;
 
-	size_t length_of_waveform = static_cast<size_t>(binNumber) * sizeof(short);
-
 	amplValuessum = new float* [nChannelsWC]; //sum of all wf for each channel
-	for (int i = 0; i < nChannelsWC; i++) {//init
-		amplValuessum[i] = new float[binNumber]();
-	}
-
 	maxSumBin = new int[nChannelsWC];
 
 	//Start reading the raw data from .bin files.
@@ -173,7 +167,16 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 		binNumber = atoi(nsamples_str.data());
 		if (debug_header) printf("    |- data sample  = %d\n", binNumber);
-		if (binNumber != 1024) cout << "\nERROR: Measurement must have 1024 samples.\nCheck WaveCatcher setting!" << endl;
+		if (file_counter == 0 && binNumber != 1024) {
+			cout << "\nWARNING: Measurement must has " << binNumber << " samples, which is non-standard. Please report any bugs!" << endl;
+			cout << "If this was not intentional check the WaveCatcher settings!" << endl;
+		}
+		size_t size_of_waveform = static_cast<size_t>(binNumber) * sizeof(short);
+		if (file_counter == 0) {
+			for (int i = 0; i < nChannelsWC; i++) {//init sum of waveforms
+				amplValuessum[i] = new float[binNumber]();
+			}
+		}
 
 		size_t nchannels_first = 10 + header_line.find("ACQUIRED: ", nsamples_first);
 		size_t nchannels_last = header_line.find_first_of(' ', nchannels_first);
@@ -244,12 +247,15 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 					a_channel_data.channel = a_channel_data_without_measurement.channel;
 					a_channel_data.EventIDsamIndex = a_channel_data_without_measurement.EventIDsamIndex;
 					a_channel_data.FirstCellToPlotsamIndex = a_channel_data_without_measurement.FirstCellToPlotsamIndex;
-					memcpy(a_channel_data.waveform, a_channel_data_without_measurement.waveform, length_of_waveform);
+					// memcpy(a_channel_data.waveform, a_channel_data_without_measurement.waveform, size_of_waveform);
 				}
-
 
 				output_channel = a_channel_data.channel;
 				if (debug_data) printf("- reading channel %d\n", output_channel);
+
+				// read waveform
+				vector<short> waveform(binNumber);
+				input_file.read((char*)waveform.data(), size_of_waveform);
 
 				//---------------------------------------------------------------------------------------------------------------
 				if (ch >= start_at_ch && ch <= end_at_ch) {
@@ -261,7 +267,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 					auto hCh = (TH1F*)testrundata.ConstructedAt(wfcounter);
 					hCh->SetName(name.Data());
 					hCh->SetTitle(title.Data());
-					hCh->SetBins(binNumber, -0.5 * SP, 1023.5 * SP);
+					hCh->SetBins(binNumber, -0.5 * SP, (static_cast<float>(binNumber) - 0.5) * SP);
 
 					int nshift = 0;
 					if (Shift_WFs_in_file_loop) { // shift all waveforms to tWF_CF_bin
@@ -271,30 +277,31 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 						int count_fall = 0;
 
 						// do a mini-baseline correction (needed in case a voltage offset is set in the wavecatcher)
-						short bsln = (a_channel_data.waveform[0] + a_channel_data.waveform[1] + a_channel_data.waveform[3]) / 3;
-						for (int lll = 0; lll < binNumber; lll++) a_channel_data.waveform[lll] -= bsln;
+						short bsln = (waveform[0] + waveform[1] + waveform[3]) / 3;
+						for (int lll = 0; lll < binNumber; lll++) waveform[lll] -= bsln;
 
-						int g_max = TMath::MaxElement(binNumber, a_channel_data.waveform);
-						int g_min = TMath::Abs(TMath::MinElement(binNumber, a_channel_data.waveform));
+						int g_max = *max_element(waveform.begin(), waveform.begin() + binNumber);
+						int g_min = abs(*min_element(waveform.begin(), waveform.begin() + binNumber));
+
 						int global_max = g_max < g_min ? g_min : g_max;
 
 						for (int s = tWF_CF_lo; s < tWF_CF_hi; ++s) {
-							if (max < TMath::Abs(a_channel_data.waveform[s])) {
-								max = TMath::Abs(a_channel_data.waveform[s]);
+							if (max < TMath::Abs(waveform[s])) {
+								max = TMath::Abs(waveform[s]);
 								nmax = s;
 							}
 
 							// stop search if the current maximum is at least 0.5 * global maximum and if there are at 
 							// least three consecutive bins where the waveform amplitude is decreasing
-							if (max > .5 * global_max && s - nmax < 4 && TMath::Abs(a_channel_data.waveform[s + 2]) + TMath::Abs(a_channel_data.waveform[s + 3]) < TMath::Abs(a_channel_data.waveform[s]) + TMath::Abs(a_channel_data.waveform[s + 1])) count_fall++;
+							if (max > .5 * global_max && s - nmax < 4 && TMath::Abs(waveform[s + 2]) + TMath::Abs(waveform[s + 3]) < TMath::Abs(waveform[s]) + TMath::Abs(waveform[s + 1])) count_fall++;
 							else count_fall = 0;
 							if (count_fall == 3) break;
 						}
 						cf *= max;
 
 						for (int s = nmax; s > tWF_CF_lo; --s) {
-							if (cf >= TMath::Abs(a_channel_data.waveform[s])) {
-								if (cf - TMath::Abs(a_channel_data.waveform[s]) < TMath::Abs(a_channel_data.waveform[s - 1]) - cf) nshift = tWF_CF_bin - s;
+							if (cf >= TMath::Abs(waveform[s])) {
+								if (cf - TMath::Abs(waveform[s]) < TMath::Abs(waveform[s - 1]) - cf) nshift = tWF_CF_bin - s;
 								else nshift = tWF_CF_bin - s - 1;
 								break;
 							}
@@ -309,7 +316,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 						int shiftind = s - nshift;
 						if (shiftind < 0) shiftind += (binNumber - 1);
 						else if (shiftind > binNumber - 1) shiftind -= (binNumber - 1);
-						val = static_cast<float>(a_channel_data.waveform[shiftind]) * DAQ_factor;
+						val = static_cast<float>(waveform[shiftind]) * DAQ_factor;
 
 						// change the polarity for certain channels since our PMTs have negative signals while our SiPMs have positive signals
 						if (s == 0 && change_polarity) {

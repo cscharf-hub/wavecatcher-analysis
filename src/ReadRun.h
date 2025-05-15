@@ -90,7 +90,6 @@ private:
 		int channel;
 		int EventIDsamIndex;
 		int FirstCellToPlotsamIndex;
-		short waveform[1024];
 	};
 
 	struct channel_data_with_measurement
@@ -104,7 +103,6 @@ private:
 		float	RiseTimeInstant;
 		float	FallTimeInstant;
 		float	RawTriggerRate;
-		short waveform[1024];
 	};
 #pragma pack() // byte padding suppression for WaveCatcher data format
 
@@ -276,8 +274,8 @@ public:
 	/// 
 	/// From https://owncloud.lal.in2p3.fr/public.php?service=files&t=56e4a2c53a991cb08f73d03f1ce58ba2 
 	float DAQ_factor = 250. / 4096.;
-	/// @brief Number of bins (always 1024 samples per waveform). Do not change!
-	int binNumber = 1024;
+	/// @brief Number of bins (usually 1024 samples per waveform).
+	int binNumber;
 	/// @brief Wavecatcher hardware max. number of channels (reduce/increase if not using the 64 channel crate)
 	int nChannelsWC = 64;
 
