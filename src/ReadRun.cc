@@ -1096,7 +1096,7 @@ void ReadRun::PrintWFProjection(float from, float to, float rangestart, float ra
 	Helpers::SplitCanvas(wf_projection_c, active_channels, plot_active_channels);
 	int current_canvas = 0;
 
-	int from_n = (from > 0 && from < static_cast<float>(binNumber) * SP) ? static_cast<int>(round(abs(from) / SP)) + 1 : 0;
+	int from_n = (from > 0 && from < static_cast<float>(binNumber) * SP) ? static_cast<int>(round(abs(from) / SP)) + 1 : 1;
 	int to_n = (to > 0 && to < static_cast<float>(binNumber) * SP) ? static_cast<int>(round(abs(to) / SP)) + 1 : binNumber;
 
 	for (int i = 0; i < nchannels; i++) {
