@@ -1230,35 +1230,41 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 			i--;
 		}
 
-		// do interpolation for cf
-		pair<float, bool> lin_interpol_res = {0, true};
-		lin_interpol_res = LinearInterpolation(cf, static_cast<float>(i), static_cast<float>(i + 1), yvals[i], yvals[i + 1]);
-		// go to center of bin
-		float interpol_bin = lin_interpol_res.first + .5;
+		float interpol_bin = 0.;
+		pair<float, bool> lin_interpol_res = {0, false};
+		if (i==0) {
+			cout << "WARNING: CFD failed for Ch" << GetCurrentChannel(j) << ", event " << GetCurrentEvent(j) << endl;
+		}
+		else {
+			// do interpolation for cf
+			lin_interpol_res = LinearInterpolation(cf, static_cast<float>(i), static_cast<float>(i + 1), yvals[i], yvals[i + 1]);
+			// go to center of bin
+			interpol_bin = lin_interpol_res.first + .5;
 
-		if (use_spline) { // use spline interpolation with tolerance epsilon*bin_size
-			double epsilon = 1e-4;
-			double x_low = interpol_bin - .5;
-			double x_high = interpol_bin + .5;
+			if (use_spline) { // use spline interpolation with tolerance epsilon*bin_size
+				double epsilon = 1e-4;
+				double x_low = interpol_bin - .5;
+				double x_high = interpol_bin + .5;
 
-			double* xvals = new double[n_range];
-			for (int k = 0; k < n_range; k++) xvals[k] = static_cast<double>(k) + .5;
+				double* xvals = new double[n_range];
+				for (int k = 0; k < n_range; k++) xvals[k] = static_cast<double>(k) + .5;
 
-			TSpline5* wfspl = 0;
-			wfspl = new TSpline5("wf_spline", xvals, yvals, n_range, "b1e1b2e2", 0., 0., 0., 0.);
-			delete[] xvals;
+				TSpline5* wfspl = 0;
+				wfspl = new TSpline5("wf_spline", xvals, yvals, n_range, "b1e1b2e2", 0., 0., 0., 0.);
+				delete[] xvals;
 
-			// using bisection method: halving search window until cf is less than epsilon bins from spline value
-			while (x_high - x_low > epsilon) {
-				double x_mid = (x_low + x_high) / 2;
-				double f_mid = wfspl->Eval(x_mid);
-				if (f_mid == cf) break;
+				// using bisection method: halving search window until cf is less than epsilon bins from spline value
+				while (x_high - x_low > epsilon) {
+					double x_mid = (x_low + x_high) / 2;
+					double f_mid = wfspl->Eval(x_mid);
+					if (f_mid == cf) break;
 
-				if (f_mid > cf) x_high = x_mid;
-				else x_low = x_mid;
+					if (f_mid > cf) x_high = x_mid;
+					else x_low = x_mid;
+				}
+				interpol_bin = (x_low + x_high) / 2;
+				delete wfspl;
 			}
-			interpol_bin = (x_low + x_high) / 2;
-			delete wfspl;
 		}
 
 		timing_results.push_back(vector<float>());
