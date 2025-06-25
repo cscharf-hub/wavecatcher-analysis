@@ -1197,7 +1197,8 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 	int start_at = max(static_cast<int>(floor(start_at_t / SP)), 0);
 	int end_at = min(static_cast<int>(ceil(end_at_t / SP)), binNumber - 1);
 	int n_range = end_at - start_at;
-
+	
+	if (cf_r <= 0) cf_r = 1;
 	cout << "\nGet timing at " << (cf_r > 0 && cf_r <= 1 ? "CF=" : "threshold=");
 	printf("%.2f between %.2f ns and %.2f ns (%d waveforms):\n", cf_r, start_at_t, end_at_t, nwf);
 
@@ -1221,12 +1222,11 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 
 		if (!find_CF_from_start) {
 			i = n_max;
-			while (yvals[i] > cf && i >= 0) i--;
-			i++;
+			while (i >= 0 && yvals[i] > cf) i--;
 		}
 		else {
 			i = 0;
-			while (yvals[i] < cf && i < n_max) i++;
+			while (i < n_max && yvals[i] < cf) i++;
 			i--;
 		}
 
@@ -2664,9 +2664,9 @@ bool ReadRun::PlotChannel(int i) {
 /// @return x value at "ym"
 pair<float, bool> ReadRun::LinearInterpolation(float ym, float x1, float x2, float y1, float y2) {
 	if (y1 == y2) return {(x1 + x2) / 2., false};
-	else if (y1 > ym) {
-		cout << "\nError in LinearInterpolation: Value ym=" << ym << " out of range (" << y1 << "|" << y2 << ").\n"
-			<< "Will return x1. Increase window for search.\n";
+	else if ((y1 > ym && y2 > ym) || (y1 < ym && y2 < ym)) {
+		cout << "\nError in LinearInterpolation: Value ym=" << ym << " out of range (" << y1 << "|" << y2 << ")." << endl;
+		cout << "Will return x1. Increase window for search." << endl;
 		return {x1, false};
 	}
 	else return {x1 + (ym - y1) * (x2 - x1) / (y2 - y1), true};
