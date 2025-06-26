@@ -1473,7 +1473,7 @@ void ReadRun::IntegralFilter(vector<float> thresholds, vector<bool> highlow, flo
 			currchannel = GetCurrentChannel(j);
 
 			if (currchannel < static_cast<int>(thresholds.size())) {
-				auto his = (TH1F*)(Getwf(j))->Clone(); // use Clone() to not change ranges of original histogram
+				auto his = (TH1F*)(Getwf(j));
 				integral = GetPeakIntegral(his, windowlow, windowhi, start, end, currchannel);
 
 				if (thresholds[currchannel] != 0 && !skip_event[currevent_counter] &&
@@ -1489,7 +1489,6 @@ void ReadRun::IntegralFilter(vector<float> thresholds, vector<bool> highlow, flo
 					skip_event[currevent_counter] = false;
 					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\thas been flagged good by integral:\t" << integral;
 				}
-				delete his;
 			}
 			Helpers::PrintProgressBar(j, nwf);
 		}
