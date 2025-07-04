@@ -237,7 +237,7 @@ void Filters::GausFilter(double*& ar, int nbins, double sigma, double bin_size) 
 	if (nbins_6sigma % 2 == 0) nbins_6sigma++;
 	if (nbins_6sigma > 1) {
 		double gauss_offset = floor(static_cast<double>(nbins_6sigma) / 2.) * bin_size;
-		double gauss[nbins_6sigma];
+		double* gauss = new double[nbins_6sigma];
 		for (int i = 0; i < nbins_6sigma; i++) {
 			gauss[i] = TMath::Gaus(static_cast<double>(i) * bin_size, gauss_offset, sigma);
 		}
@@ -254,6 +254,7 @@ void Filters::GausFilter(double*& ar, int nbins, double sigma, double bin_size) 
 			}
 			if (norm != 0.) ar[i] = res / norm;
 		}
+		delete[] gauss;
 	}
 	delete[] artmp;
 }
@@ -346,8 +347,8 @@ void Filters::Bilateral2Filter(double*& ar, int nbins, int sigma_x, double sigma
 	double weightedSum = 0.;
 	double sumOfWeights = 0.;
 
-	double slope[nbins - 1];
-	double slope_weight[nbins - 1];
+	double* slope = new double[nbins - 1];
+	double* slope_weight = new double[nbins - 1];
 	for (int i = 0; i < nbins - 1; i++) {
 		slope[i] = ar[i + 1] - ar[i];
 		slope_weight[i] = 1. / (1. + pow(.5 * slope[i] / sigma_slope, 2.));
@@ -369,6 +370,8 @@ void Filters::Bilateral2Filter(double*& ar, int nbins, int sigma_x, double sigma
 		if (sumOfWeights != 0) ar[i] = weightedSum / sumOfWeights;
 	}
 	delete[] artmp;
+	delete[] slope;
+	delete[] slope_weight;
 }
 
 /// @brief Median filter
@@ -426,7 +429,7 @@ void Filters::ResponseFilter(double*& ar, int nbins, double sigma1, double sigma
 	// shifted difference of two gauss functions (~smoothed derivative)
 	int nbins_23sigma = static_cast<int>(ceil((2. * sigma1 + 3. * sigma2) / bin_size));
 	int nbins_3sigma = static_cast<int>(ceil(3. * sigma2 / bin_size));
-	double sdog[nbins_23sigma];
+	double* sdog = new double[nbins_23sigma];
 
 	double denom1 = 2. * sigma1 * sigma1;
 	double denom2 = 2. * sigma2 * sigma2;
@@ -448,6 +451,7 @@ void Filters::ResponseFilter(double*& ar, int nbins, double sigma1, double sigma
 		ar[i] = res / norm;
 	}
 	delete[] artmp;
+	delete[] sdog;
 }
 
 /// @brief Shifted second order underdamped filter
@@ -481,7 +485,7 @@ void Filters::SecondOrderUnderdampedFilter(double*& ar, int nbins, double period
 	}
 
 	if (nbins_response % 2 == 0) nbins_response++;
-	double souf[nbins_response];
+	double* souf = new double[nbins_response];
 
 	double exp_factor = -1. / damping;
 	double omega = 2. * M_PI / period;
@@ -507,8 +511,8 @@ void Filters::SecondOrderUnderdampedFilter(double*& ar, int nbins, double period
 
 	// plot the results
 	if (do_plot) {
-		double x[nbins_response];
-		double x_full[nbins];
+		double* x = new double[nbins_response];
+		double* x_full = new double[nbins];
 		for (int i = 0; i < nbins; i++) {
 			x_full[i] = static_cast<double>(i) * bin_size;
 			if (i < nbins_response) x[i] = static_cast<double>(i) * bin_size;
@@ -537,8 +541,12 @@ void Filters::SecondOrderUnderdampedFilter(double*& ar, int nbins, double period
 		c_response->Update(); c_response->Modified();
 		gPad->BuildLegend(.5, .7, .9, .9);
 		c_response->SaveAs("response.png");
+		
+		delete[] x;
+		delete[] x_full;
 	}
 	delete[] artmp;
+	delete[] souf;
 }
 
 /// @brief Shifted second order underdamped filter

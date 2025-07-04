@@ -28,7 +28,8 @@ It should also work on Mac if ROOT was installed using conda, but it is not test
 # Getting started
 
 Before downloading the repository, navigate to the directory where you want to store the analysis code using ```cd```. 
-On WSL, you might prefer to save the analysis in your Windows home folder to make it more easily accessible: ```cd /mnt/c/Users/<your_user_name>/```
+On WSL, you might save the analysis in your Windows home folder to make it more easily accessible: ```cd /mnt/c/Users/<your_user_name>/```
+However, this is not advised because the performance is significantly worse compared to working directly in the linux file system (about 2 times slower for ReadFile()).
 
 ## Doing a custom setup
 To get started, open a Linux shell and download the repository:

@@ -9,6 +9,7 @@
 #include <Math/Functor.h>
 #include <TClonesArray.h>
 #include <TObjString.h>
+#include <TObject.h>
 #include <TLine.h>
 #include <TGraph.h>
 #include <TGraph2D.h>
@@ -56,16 +57,6 @@ using namespace std;
 
 class ReadRun {
 private:
-	/// @brief Index for multiple executions of the same plotting function
-	int PrintChargeSpectrum_cnt;
-	/// @brief Index for multiple executions of the same plotting function
-	int PlotChannelAverages_cnt;
-	/// @brief Index for multiple executions of the same plotting function
-	int PrintWFProjection_cnt;
-	/// @brief Index for multiple executions of the same plotting function
-	int PlotWFHeatmaps_cnt;
-
-
 #pragma pack(1) // byte padding suppression for WaveCatcher data format
 	// structs copied from
 	// WaveCatcher binary -> root converter
@@ -107,13 +98,24 @@ private:
 #pragma pack() // byte padding suppression for WaveCatcher data format
 
 protected:
+	/// @brief Index for multiple executions of the same plotting function
+	int PrintChargeSpectrum_cnt;
+	/// @brief Index for multiple executions of the same plotting function
+	int PlotChannelAverages_cnt;
+	/// @brief Index for multiple executions of the same plotting function
+	int PrintWFProjection_cnt;
+	/// @brief Index for multiple executions of the same plotting function
+	int PlotWFHeatmaps_cnt;
+	
 	/// @brief Primitive check to see if data has been loaded
-    void checkData() const {
+    virtual void checkData(bool isBaselineCorrection = false) const {
+		(void)isBaselineCorrection;
         if (eventnr_storage.empty()) {
-            throw std::runtime_error(
+            throw runtime_error(
 				"Error: No data has been loaded yet!\n \
 				Please call ReadFile() before calling any functions which manipulate data.\n \
-				Aborting execution.");
+				Aborting execution."
+			);
         }
     }
 
@@ -122,7 +124,7 @@ public:
 	TClonesArray* rundata;
 
 	/// @brief Collects sums of all waveforms for each channel
-	float** amplValuessum;
+	vector<vector<float>> amplValuessum;
 
 	/// @brief Events will be stored here in the order they have been read
 	vector<unsigned int> eventnr_storage;
@@ -139,10 +141,10 @@ public:
 	void CorrectBaseline(float, float = -999);
 	void CorrectBaseline_function(TH1F*, float, float, int);
 
-	void CorrectBaselineMinSlopeRMS(vector<float>, double = 0, int = 2, int = 3);
+	void CorrectBaselineMinSlopeRMS(vector<float>, double = 0, int = 2);
 	void CorrectBaselineMinSlopeRMS(int = 100, bool = false, double = 0.5, int = 0, int = 0, int = 2);
 
-	void CorrectBaselineMin(vector<float>, double = 0, int = 2, int = 2);
+	void CorrectBaselineMin(vector<float>, double = 0, int = 2);
 	void CorrectBaselineMin(int = 100, double = 0.5, int = 0, int = 0, int = 2);
 
 	// functions to check baseline correction results
@@ -153,10 +155,8 @@ public:
 	void PrintBaselineCorrectionResults(float = -5, float = 5, int = 200);
 
 	// get timing of peaks
-	void GetTimingCFD(float = .3, float = 100, float = 140, double = 0., bool = true, int = 2, bool = false);
+	void GetTimingCFD(float = .3, float = 100, float = 140, double = 0., bool = true, int = 2, bool = false, bool = false);
 	void SkipEventsTimeDiffCut(int, int, double, double, bool = false);
-
-	void FractionEventsAboveThreshold(float = 4, bool = true, bool = true, double = 0., double = 0., bool = false);
 
 	// average all waveforms to simplify peak ID
 	void SmoothAll(double, int);
@@ -165,7 +165,7 @@ public:
 	void ShiftAllToAverageCF();
 
 	// functions for charge spectrum
-	int* GetIntWindow(TH1F*, float, float, float, float, int = 0);
+	array<int, 3> GetIntWindow(TH1F*, float, float, float, float, int = 0);
 	float GetPeakIntegral(TH1F*, float, float, float, float, int = 0);
 	void PrintChargeSpectrumWF(float, float, float = 0, float = 300, int = 1, float = 0., float = 0., float = 0., float = 0.);
 	TH1F* ChargeSpectrum(int, float, float, float = 0, float = 300, float = -50, float = 600, int = 750);
@@ -195,30 +195,33 @@ public:
 	
 	// helper functions
 	TH1F* Getwf(int);							// waveform number
-	TH1F* Getwf(int, int, int = 1);				// channel, eventnr, color
+	virtual TH1F* Getwf(int, int, int = 1);		// channel, eventnr, color
 	double* getx(double = 0.);					// x values
 	double* gety(int);							// y values for waveform index
 	double* gety(int, int);						// y values for waveform(channel, event)
 
-	static pair<float, bool> LinearInterpolation(float, float, float, float, float); // linear interpolation
+	static pair<float, bool> LinearInterpolation(float, float, float, float, float, bool = false); // linear interpolation
 	
-	int GetEventIndex(unsigned int);			// get index of a triggered event (finds the correct event if files are not read sequentially)
-	int GetChannelIndex(int);		// get index of a certain channel
-	int GetCurrentChannel(int);		// get index of channel for a certain waveform
-	int GetCurrentEvent(int);		// get index of event for a certain waveform
+	virtual int GetWaveformIndex(int, int);	// get index of waveform from channel and event
+	int GetEventIndex(unsigned int);		// get index of a triggered event (finds the correct event if files are not read sequentially)
+	int GetChannelIndex(int);				// get index of a certain channel
+	virtual int GetCurrentChannel(int);		// get index of channel for a certain waveform
+	virtual int GetCurrentEvent(int);		// get index of event for a certain waveform
 	
-	bool PlotChannel(int);			// check if channel should be plotted
+	bool PlotChannel(int);					// check if channel should be plotted
+	
+	float PolarityCheck(bool, int, int); 	// check if channel should be inverted
 	
 
 	/// @brief Constructor of the class
-	/// @param max_no_of_bin_files_to_read Number of last .bin file to be read in.\n
+	/// @param last_bin_file Number of last .bin file to be read in.\n
 	/// Set it to =>1 in order to constrain the number of .bin files to be read from the target folder.\n
 	/// Intended for quick tests on a fraction of the full dataset or for batch reading if combined with min_no_of_bin_files_to_read.
-	/// @param min_no_of_bin_files_to_read Number first of .bin file to be read in. \n
+	/// @param first_bin_file Number first of .bin file to be read in. \n
 	/// Can be used to batch read large datasets in chunks of files.
-	ReadRun(int max_no_of_bin_files_to_read = 0, int min_no_of_bin_files_to_read = 0);
+	ReadRun(int last_bin_file = 0, int first_bin_file = 0);
 	
-	void ReadFile(string, bool = false, int = 9, string = "out.root", bool = false);
+	virtual void ReadFile(string, bool = false, int = 9, string = "out.root", bool = false, long long = -1);
 
 	virtual ~ReadRun();
 
@@ -229,12 +232,12 @@ public:
 
 	/// @brief Number of last .bin file to be read in. 
 	///
-	/// Can be used to test analysis on a small sample of the data or for batch reading if combined with MinNoOfBinFilesToRead.
-	int MaxNoOfBinFilesToRead;
+	/// Can be used to test analysis on a small sample of the data or for batch reading if combined with FirstBinFileToRead.
+	int LastBinFileToRead;
 	/// @brief Number first of .bin file to be read in. 
 	///
 	/// Can be used to batch read large datasets in chunks of files.
-	int MinNoOfBinFilesToRead;
+	int FirstBinFileToRead;
 
 
 	/// @brief Can be used to discard the original event numbering of the data
@@ -258,7 +261,7 @@ public:
 	int end_read_at_channel = -1;
 
 	/// @brief Number of triggered events in data
-	int nevents;
+	int nevents = 0;
 	/// @brief Number of active channels in data
 	int nchannels;
 	/// @brief Total number of waveforms read from data: number of active channels x number of events
@@ -282,7 +285,7 @@ public:
 	/// @brief Stores bin numbers where the sum of waveforms have their maximum
 	/// 
 	/// Can be used for fixed integration window relative to maximum of the sum of all waveforms per channel (ReadRun::amplValuessum)
-	int* maxSumBin;
+	vector<int> maxSumBin;
 
 	/// @brief Stores the numbers of the active channels
 	vector<int> active_channels;
@@ -307,12 +310,13 @@ public:
 	/// 
 	/// To identify events to be filtered use functions IntegralFilter(), SkipEventsPerChannel(), and SkipEventsTimeDiffCut().
 	vector<bool> skip_event;
-	int Nevents_good();
+	virtual int Nevents_good(int = 0);
 
 	void SkipEventsPerChannel(vector<float>, float = 0, float = 0, bool = false);  // in case you want to have indiviual thresholds in individual channels
 	void IntegralFilter(vector<float>, vector<bool>, float, float, float = 50, float = 250, bool = false, bool = false); // Same as SkipEventsPerChannel() but filtering all events with integrals <(>) threshold
 	void PrintSkippedEvents();
 	void UnskipAll();
+	virtual bool SkipEvent(int, int = -1);
 
 	/// @brief Stores baseline correction results for CorrectBaseline() and related functions
 	vector<vector<float>> baseline_correction_result;

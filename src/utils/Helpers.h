@@ -12,6 +12,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <algorithm>
 
 using namespace std;
 
@@ -28,15 +29,30 @@ public:
 
 	// set consistent ranges
 	static void SetRangeCanvas(TCanvas*&, double, double, double = -999, double = -999);
+	// check if user input makes sense
+	static void filterChannelUserInput(vector<int>&, const vector<int>);
 	// split canvas into pads to display all active channels on one canvas
 	static void SplitCanvas(TCanvas*&, vector<int>, vector<int>);
 
 	// get y values of a histogram
-	static double* gety(TH1F*);
-	// get y values of a histogram for a dedicated x range
-	static double* gety(TH1F*, int, int);
+	template <typename HistType>
+    static double* gety(HistType* his);
 
-	// shift a TH1F in x
-	static void ShiftTH1F(TH1F*&, int = 0);
+	// get y values of a histogram for a dedicated x range
+	template <typename HistType>
+	static double* gety(HistType*, int, int);
+
+	// shift a TH1 in x
+	template <typename HistType>
+	static void ShiftTH1(HistType*&, int);
+
+	/// @brief Returns true if vector vec contains value val
+	/// @tparam T Type of the elements
+	/// @param vec Vector to search for ->
+	/// @param val Value 
+	template<typename T>
+	static bool Contains(const vector<T>& vec, const T& val) {
+    	return find(vec.begin(), vec.end(), val) != vec.end();
+	}
 };
 #endif

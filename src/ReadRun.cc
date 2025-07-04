@@ -21,15 +21,15 @@
 #include "ReadRun.h"
 
 /// @brief Constructor of the class
-ReadRun::ReadRun(int max_no_of_bin_files_to_read, int min_no_of_bin_files_to_read) {
+ReadRun::ReadRun(int last_bin_file, int first_bin_file) {
 
 	cout << "\ninitializing ..." << endl;
 
-	if (max_no_of_bin_files_to_read > 0) {
-		cout << "will read " << max_no_of_bin_files_to_read - min_no_of_bin_files_to_read << " .bin files from file number " 
-			<< min_no_of_bin_files_to_read << " to file number " << max_no_of_bin_files_to_read << endl;
+	if (last_bin_file > 0) {
+		cout << "will read " << last_bin_file - first_bin_file << " .bin files from file number " 
+			<< first_bin_file << " to file number " << last_bin_file << endl;
 	}
-	if (min_no_of_bin_files_to_read > 0) discard_original_eventnr = true;
+	if (first_bin_file > 0) discard_original_eventnr = true;
 
 	ROOT::EnableImplicitMT();
 	TH1::AddDirectory(kFALSE);
@@ -39,8 +39,8 @@ ReadRun::ReadRun(int max_no_of_bin_files_to_read, int min_no_of_bin_files_to_rea
 	PlotChannelAverages_cnt = 0;
 	PrintWFProjection_cnt = 0;
 	PlotWFHeatmaps_cnt = 0;
-	MaxNoOfBinFilesToRead = max_no_of_bin_files_to_read;
-	MinNoOfBinFilesToRead = min_no_of_bin_files_to_read;
+	LastBinFileToRead = last_bin_file;
+	FirstBinFileToRead = first_bin_file;
 
 	root_out = new TFile();	// init results file
 }
@@ -63,8 +63,9 @@ ReadRun::ReadRun(int max_no_of_bin_files_to_read, int min_no_of_bin_files_to_rea
 /// If negative number all channels \f$ \leq \f$ ```abs(change_sign_from_to_ch_num)``` will be inverted if ```change_polarity``` is ```true```.
 /// @param out_file_name Name of the ```.root``` file which stores the results, e. g. ```results.root```.
 /// @param debug Set ```true``` to increase the verbosity.
-void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_to_ch_num, string out_file_name, bool debug) {
-
+/// @param max_nevents_to_read Maximum number of events to be read per file. For quick testing of analysis on subset of the data.
+void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_to_ch_num, string out_file_name, bool debug, long long max_nevents_to_read) {
+	if (max_nevents_to_read <= 0) max_nevents_to_read = static_cast<long long>(1e9);
 	if (path.back() != '/') path += '/'; // add '/' to path if not present
 	// save output path
 	data_path = path;
@@ -86,24 +87,20 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 	unsigned short output_nbchannels;
 	unsigned short read_channels = 0;
 
-	amplValuessum = new float* [nChannelsWC]; //sum of all wf for each channel
-	maxSumBin = new int[nChannelsWC];
-
 	//Start reading the raw data from .bin files.
 	stringstream inFileList;
 	inFileList << Helpers::ListFiles(path.c_str(), ".bin"); //all *.bin* files in folder path
 	if (debug) cout << inFileList.str() << endl;
 	string fileName;
-	int file_counter = -1;
+	int file_counter = 0;
 	int wfcounter = 0;
 	int event_counter = 0;
 
+	// file loop
 	while (inFileList >> fileName) {
-		// file loop
-		file_counter++;
 		// read only fraction/batch of the .bin files for testing or to reduce memory usage
-		if (MinNoOfBinFilesToRead > 0 && MinNoOfBinFilesToRead < MaxNoOfBinFilesToRead && file_counter < MinNoOfBinFilesToRead) continue;
-		if (MaxNoOfBinFilesToRead > 0 && file_counter >= MaxNoOfBinFilesToRead) break;
+		if (FirstBinFileToRead > 0 && FirstBinFileToRead < LastBinFileToRead && file_counter < FirstBinFileToRead) continue;
+		if (LastBinFileToRead > 0 && file_counter > LastBinFileToRead) break;
 
 		fileName = path + fileName;
 		ifstream input_file(fileName.c_str(), ios::binary | ios::in);
@@ -168,15 +165,12 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 		binNumber = atoi(nsamples_str.data());
 		if (debug_header) printf("    |- data sample  = %d\n", binNumber);
 		if (file_counter == 0 && binNumber != 1024) {
-			cout << "\nWARNING: Measurement must has " << binNumber << " samples, which is non-standard. Please report any bugs!" << endl;
+			cout << "\nWARNING: Measurement has " << binNumber << " samples, which is non-standard. Please report any bugs!" << endl;
 			cout << "If this was not intentional check the WaveCatcher settings!" << endl;
 		}
 		size_t size_of_waveform = static_cast<size_t>(binNumber) * sizeof(short);
-		if (file_counter == 0) {
-			for (int i = 0; i < nChannelsWC; i++) {//init sum of waveforms
-				amplValuessum[i] = new float[binNumber]();
-			}
-		}
+
+		if (file_counter == 0) amplValuessum.resize(nChannelsWC, vector<float>(binNumber, 0.));
 
 		size_t nchannels_first = 10 + header_line.find("ACQUIRED: ", nsamples_first);
 		size_t nchannels_last = header_line.find_first_of(' ', nchannels_first);
@@ -236,7 +230,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 			for (int ch = 0; ch < output_nbchannels; ++ch) { // channel loop
 				channel_data_with_measurement a_channel_data;
 				channel_data_without_measurement a_channel_data_without_measurement;
-
+				
 				if (has_measurement) { // read with 'channel_data_with_measurement' struct
 					input_file.read((char*)(&a_channel_data), sizeof(channel_data_with_measurement));
 				}
@@ -247,19 +241,18 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 					a_channel_data.channel = a_channel_data_without_measurement.channel;
 					a_channel_data.EventIDsamIndex = a_channel_data_without_measurement.EventIDsamIndex;
 					a_channel_data.FirstCellToPlotsamIndex = a_channel_data_without_measurement.FirstCellToPlotsamIndex;
-					// memcpy(a_channel_data.waveform, a_channel_data_without_measurement.waveform, size_of_waveform);
 				}
 
 				output_channel = a_channel_data.channel;
-				if (debug_data) printf("- reading channel %d\n", output_channel);
-
+				if (debug_data) cout << "- reading channel " << output_channel << endl;
+				
 				// read waveform
 				vector<short> waveform(binNumber);
 				input_file.read((char*)waveform.data(), size_of_waveform);
 
 				//---------------------------------------------------------------------------------------------------------------
 				if (ch >= start_at_ch && ch <= end_at_ch) {
-
+					
 					if (event_counter == 0) active_channels.push_back(static_cast<int>(output_channel));
 
 					TString name(Form("ch%02d_%05d", output_channel, an_event.EventNumber));
@@ -268,6 +261,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 					hCh->SetName(name.Data());
 					hCh->SetTitle(title.Data());
 					hCh->SetBins(binNumber, -0.5 * SP, (static_cast<float>(binNumber) - 0.5) * SP);
+					hCh->SetDirectory(nullptr);
 
 					int nshift = 0;
 					if (Shift_WFs_in_file_loop) { // shift all waveforms to tWF_CF_bin
@@ -309,7 +303,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 					}
 
 					// loop to fill waveform histograms
-					bool change_pol_ch = false;
+					float polarity = PolarityCheck(change_polarity, output_channel, change_sign_from_to_ch_num);
 					float val = 0;
 					for (int s = 0; s < binNumber; ++s) {
 						// shift all waveforms
@@ -319,24 +313,13 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 						val = static_cast<float>(waveform[shiftind]) * DAQ_factor;
 
 						// change the polarity for certain channels since our PMTs have negative signals while our SiPMs have positive signals
-						if (s == 0 && change_polarity) {
-							if ((output_channel >= change_sign_from_to_ch_num)
-								|| (change_sign_from_to_ch_num < 0 && output_channel <= abs(change_sign_from_to_ch_num))) {
-								change_pol_ch = true;
-							}
-							else if (!switch_polarity_for_channels.empty()
-								&& find(switch_polarity_for_channels.begin(), switch_polarity_for_channels.end(), output_channel) 
-								!= switch_polarity_for_channels.end()) {
-								change_pol_ch = true;
-							}
-						}
-						if (change_pol_ch == true) val *= -1;
+						val *= polarity;
 
 						// fill waveforms
 						hCh->SetBinContent(s + 1, val);
 
 						// channel sums
-						amplValuessum[ch][s] += val;
+						amplValuessum[output_channel][s] += val;
 					}
 
 					// baseline correction
@@ -353,9 +336,14 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 			if (!discard_original_eventnr) eventnr_storage.push_back(output_event); // Stores the current WaveCatcher event number
 			else eventnr_storage.push_back(event_counter);
 			event_counter++;
+			if (event_counter >= max_nevents_to_read) {
+				cout << "Stopped reading events after max_nevents_to_read=" << max_nevents_to_read << endl;
+				break;
+			}
 		} // while an_event
 
 		input_file.close();
+		file_counter++;
 	} // for file_id
 
 	// in case there are empty channels, nchannels is the number of channels which contain data
@@ -363,13 +351,17 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 	// get bins where the sum spectrum has its maximum for runs with fixed trigger delay and fixed 
 	// integration window relative to the max of the sum spectrum (not working for DC measurement)
-	for (int ch = 0; ch < nchannels; ch++) {
-		float max = 0.;
-		for (int i = 0; i < binNumber; i++) {
-			if (amplValuessum[ch][i] > max) {
-				max = amplValuessum[ch][i];
-				maxSumBin[ch] = i;
+	for (int ch = 0; ch < nChannelsWC; ch++) {
+		if (Helpers::Contains(active_channels, ch)) {
+			float max = 0.;
+			int i_max = 0;
+			for (int i = 0; i < binNumber; i++) {
+				if (amplValuessum[ch][i] > max) {
+					max = amplValuessum[ch][i];
+					i_max = i;
+				}
 			}
+			maxSumBin.push_back(i_max);
 		}
 	}
 
@@ -412,7 +404,7 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
 			double* yv = new double[binNumber];
-			for (int k = 0; k < binNumber; k++) yv[k] = static_cast<double>(amplValuessum[i][k]);
+			for (int k = 0; k < binNumber; k++) yv[k] = static_cast<double>(amplValuessum[active_channels[i]][k]);
 
 			if (smooth) Filters::SmoothArray(yv, binNumber, sigma, smooth_method);
 
@@ -465,7 +457,7 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 	mgav->SetTitle("channel averages; t [ns]; amplitude [mV]");
 	if (normalize) mgav->SetTitle("channel averages; t[ns]; amplitude[arb.]");
 
-	double max = 0., min = 0.;
+	double max_val = 0., min_val = 0.;
 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
@@ -473,23 +465,23 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 			double* yv = new double[binNumber]();
 
 			for (int j = 0; j < nevents; j++) {
-				if (!skip_event[j]) {
+				if (!SkipEvent(j, i)) {
 					double* y_tmp = gety(i, j);
 					for (int k = 0; k < binNumber; k++) yv[k] += y_tmp[k];
 					delete[] y_tmp;
 				}
 			}
 
-			double norm = static_cast<double>(Nevents_good());
+			double norm = max(1., static_cast<double>(Nevents_good(i)));
 			for (int k = 0; k < binNumber; k++) yv[k] /= norm;
 
 			auto gr = new TGraph(binNumber, xv, yv);
 			delete[] yv;
 
 			double tmp_min = TMath::MinElement(gr->GetN(), gr->GetY());
-			if (tmp_min < min) min = tmp_min;
+			if (tmp_min < min_val) min_val = tmp_min;
 			double tmp_max = TMath::MaxElement(gr->GetN(), gr->GetY());
-			if (tmp_max > max) max = tmp_max;
+			if (tmp_max > max_val) max_val = tmp_max;
 			if (normalize) {
 				for (int j = 0; j < gr->GetN(); j++) gr->SetPointY(j, gr->GetPointY(j) / tmp_max);
 			}
@@ -509,7 +501,7 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 	auto avc = new TCanvas(cname.c_str(), cname.c_str(), 600, 400);
 	mgav->Draw("AL");
 	if (normalize) mgav->GetYaxis()->SetRangeUser(-0.2, 1);
-	else mgav->GetYaxis()->SetRangeUser(min, max);
+	else mgav->GetYaxis()->SetRangeUser(min_val, max_val);
 	avc->BuildLegend(0.85, 0.70, .99, .95);
 	root_out->WriteObject(mgav, ("channelaverages" + to_string(PlotChannelAverages_cnt)).c_str());
 	root_out->WriteObject(avc, ("channelaverages_c" + to_string(PlotChannelAverages_cnt)).c_str());
@@ -537,7 +529,7 @@ TH2F* ReadRun::WFHeatmapChannel(int channel_index, float ymin, float ymax, int n
 	h2->GetZaxis()->SetTitle("entries");
 
 	for (int j = 0; j < nevents; j++) {
-		if (!skip_event[j]) {
+		if (!SkipEvent(j, channel_index)) {
 			auto his = Getwf(channel_index, j);
 			for (int i = 0; i < binNumber; i++) h2->Fill(his->GetBinCenter(i), his->GetBinContent(i));
 		}
@@ -604,16 +596,18 @@ void ReadRun::PlotWFHeatmaps(float ymin, float ymax, int n_bins_y, string z_opt,
 /// @param method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
 /// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::SmoothAll(double sigma, int method) {
-	cout << "\nSmoothing all non-skipped waveforms:" << endl;
+	cout << "Smoothing all non-skipped waveforms..." << endl;
+
+	#pragma omp parallel for
 	for (int j = 0; j < nwf; j++) {
-		if (!skip_event[GetCurrentEvent(j)]) {
+		if (!SkipEvent(GetCurrentEvent(j), GetCurrentChannel(j))) {
 			auto his = Getwf(j);
 			double* yvals = Helpers::gety(his);
 			Filters::SmoothArray(yvals, binNumber, sigma, method, SP);
 			for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i - 1]);
 			delete[] yvals;
 		}
-		Helpers::PrintProgressBar(j, nwf);
+		// Helpers::PrintProgressBar(j, nwf);
 	}
 }
 
@@ -626,15 +620,17 @@ void ReadRun::SmoothAll(double sigma, int method) {
 /// "Gaus": Use 3 sigma gaussian kernel smoothing. Preferred method, fast. 
 void ReadRun::SmoothAll(double sigma, string method) {
 	cout << "\nSmoothing all non-skipped waveforms:" << endl;
+
+	#pragma omp parallel for
 	for (int j = 0; j < nwf; j++) {
-		if (!skip_event[GetCurrentEvent(j)]) {
+		if (!SkipEvent(GetCurrentEvent(j), GetCurrentChannel(j))) {
 			auto his = Getwf(j);
 			double* yvals = Helpers::gety(his);
 			Filters::SmoothArray(yvals, binNumber, sigma, method, SP);
 			for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, yvals[i - 1]);
 			delete[] yvals;
 		}
-		Helpers::PrintProgressBar(j, nwf);
+		// Helpers::PrintProgressBar(j, nwf);
 	}
 }
 
@@ -646,7 +642,9 @@ void ReadRun::SmoothAll(double sigma, string method) {
 /// @param sigma2 Second.
 /// @param factor Factor for negative part (0 < factor < 1). 
 void ReadRun::FilterAll(double sigma1, double sigma2, double factor) {
-	cout << "\nFiltering all waveforms" << endl;
+	cout << "\nFiltering all waveforms..." << endl;
+
+	#pragma omp parallel for
 	for (int j = 0; j < nwf; j++) {
 		auto his = Getwf(j);
 		double* yvals = Helpers::gety(his);
@@ -654,7 +652,7 @@ void ReadRun::FilterAll(double sigma1, double sigma2, double factor) {
 		else Filters::SecondOrderUnderdampedFilter(yvals, binNumber, sigma1, sigma2, abs(factor), SP);
 		for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, yvals[i - 1]);
 		delete[] yvals;
-		Helpers::PrintProgressBar(j, nwf);
+		// Helpers::PrintProgressBar(j, nwf);
 	}
 }
 
@@ -664,7 +662,6 @@ void ReadRun::FilterAll(double sigma1, double sigma2, double factor) {
 /// **Before** calling this function, please call GetTimingCFD() with suitable parameters for your data. \n
 /// Additionally, PrintChargeSpectrumWF() should be called **before** calling this function since the 
 /// timing reference (blue line) won't be shifted.
-/// 
 void ReadRun::ShiftAllToAverageCF() {
 	cout << "\nShifting all waveforms to the average constant fraction time for each channel:" << endl;
 
@@ -674,24 +671,26 @@ void ReadRun::ShiftAllToAverageCF() {
 	double* timing_mean = new double[nchannels]();
 
 	for (int j = 0; j < nwf; j++) {
-		if (!skip_event[GetCurrentEvent(j)]) timing_mean[GetCurrentChannel(j)] += timing_results[j][0];
+		int curr_ch = GetCurrentChannel(j);
+		if (!SkipEvent(GetCurrentEvent(j), curr_ch)) timing_mean[curr_ch] += timing_results[j][0];
 	}
-
-	double norm = static_cast<double>(Nevents_good());
 
 	int* timing_mean_n = new int[nchannels];
 	for (int i = 0; i < nchannels; i++) {
+		double norm = max(1., static_cast<double>(Nevents_good(i)));
 		timing_mean_n[i] = static_cast<int>(round(timing_mean[i] / norm));
 	}
 	delete[] timing_mean;
 
+	#pragma omp parallel for
 	for (int j = 0; j < nwf; j++) {
-		if (!skip_event[GetCurrentEvent(j)]) {
-			int shift = static_cast<int>(timing_results[j][0]) - timing_mean_n[GetCurrentChannel(j)];
+		int curr_ch = GetCurrentChannel(j);
+		if (!SkipEvent(GetCurrentEvent(j), curr_ch)) {
+			int shift = static_cast<int>(timing_results[j][0]) - timing_mean_n[curr_ch];
 			auto his = Getwf(j);
-			Helpers::ShiftTH1F(his, shift);
+			Helpers::ShiftTH1(his, shift);
 		}
-		Helpers::PrintProgressBar(j, nwf);
+		// Helpers::PrintProgressBar(j, nwf);
 	}
 	delete[] timing_mean_n;
 }
@@ -712,7 +711,7 @@ void ReadRun::ShiftAllToAverageCF() {
 /// @param tCut Time denoting the end or the beginning (if "tCutEnd" is set) of the integration window.
 /// @param tCutEnd Time denoting the end of the integration window.
 void ReadRun::CorrectBaseline(float tCut, float tCutEnd) {
-	checkData();
+	checkData(true);
 
 	cout << "\nPerforming simple baseline correction in fixed time window."
 		<< "This method is only suitable for measurements without dark counts!" << endl;
@@ -723,9 +722,12 @@ void ReadRun::CorrectBaseline(float tCut, float tCutEnd) {
 	}
 	else {
 		cout << "Baseline correction (" << nwf << " waveforms):" << endl;
+		baseline_correction_result.resize(nwf, vector<float>(4));
+
+		#pragma omp parallel for
 		for (int j = 0; j < nwf; j++) {
 			CorrectBaseline_function(Getwf(j), tCut, tCutEnd, j);
-			Helpers::PrintProgressBar(j, nwf);
+			// Helpers::PrintProgressBar(j, nwf);
 		}
 	}
 }
@@ -754,11 +756,10 @@ void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int
 	}
 
 	if (!Using_BaselineCorrection_in_file_loop) {
-		baseline_correction_result.push_back(vector<float>());
-		baseline_correction_result[nwaveform].push_back(corr);
-		baseline_correction_result[nwaveform].push_back(0);
-		baseline_correction_result[nwaveform].push_back(tCut);
-		baseline_correction_result[nwaveform].push_back(tCutEnd);
+		baseline_correction_result[nwaveform][0] = corr;
+		baseline_correction_result[nwaveform][1] = 0;
+		baseline_correction_result[nwaveform][2] = tCut;
+		baseline_correction_result[nwaveform][3] = tCutEnd;
 	}
 }
 
@@ -773,7 +774,7 @@ void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int
 /// \f$\left( \sum \Delta y_i \right)^2 \to 0\f$ if the region is constant or oscillating around a constant value. 
 /// The second term penalizes monotonic regions with a small, but rather constant slope (e. g. tails). \n \n 
 /// 
-/// Slow, but versatile since it searches for the optimal baseline candidate region in a defined range. \n 
+/// Slower, but versatile since it searches for the optimal baseline candidate region in a defined range. \n 
 /// Will prefer constant sections of the waveform for the estimation of the baseline. \n
 /// Not well suited if there is not constant baseline in the signal, which can happen if the dark count rate 
 /// is so high that dark counts overlap (e. g. an array of SiPMs) or if the baseline level fluctuates. 
@@ -787,26 +788,24 @@ void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int
 /// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss
 /// @param smooth_method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
 /// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
-/// @param increment Increment for search in bins per step. Default value is 3 (=0.9375 ns).
-void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int smooth_method, int increment) {
-	checkData();
+void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int smooth_method) {
+	checkData(true);
 
 	cout << "\nBaseline correction (minimum slope variation method, " << nwf << " waveforms):" << endl;
 	if (window.empty()) cout << "\nWarning: Window not set in CorrectBaselineMinSlopeRMS. Will use default values." << endl;
 	if (sigma != 0.) cout << "\nNotification: Using smoothing in CorrectBaselineMinSlopeRMS." << endl;
-	if (increment < 1) increment = 1;
 
 	int nbins_average = !window.empty() ? static_cast<int>(round(abs(window[0]) / SP)) : static_cast<int>(50. / SP);
 	int start_search_at = static_cast<int>(window.size()) > 1 ? static_cast<int>(round(abs(window[1]) / SP)) : 0;
 	int end_search_at = static_cast<int>(window.size()) > 2 ? 
-		min(static_cast<int>(round(abs(window[2]) / SP)), binNumber - 1) : binNumber - 1;
+						min(static_cast<int>(round(abs(window[2]) / SP)), binNumber - 1) : binNumber - 1;
 
 	int end_search_loop_at = end_search_at - start_search_at - nbins_average;
 
 	// if no valid static search window is specified, it will be dynamic from 0 ns up to 8 ns before the global maximum
 	bool search_relative_to_local_max = false;
 	int min_distance_from_max = static_cast<int>(8. / SP);
-	if (start_search_at < 0 || end_search_loop_at < increment) {
+	if (start_search_at < 0) {
 		search_relative_to_local_max = true;
 		start_search_at = 0;
 		cout << "\nNotification: Using dynamic search window in CorrectBaselineMinSlopeRMS." << endl;
@@ -814,61 +813,74 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 
 	int nbins_search = end_search_at - start_search_at;
 
-	float minchange = 1.e99;
-	float sum = 0, change = 0, minsumsq = 0, sqsum = 0, minsqsum = 0, corr = 0;
-	int iintwindowstart = 0, imax = 0;
+	baseline_correction_result.resize(nwf, vector<float>(6));
 
+	#pragma omp parallel for
 	for (int j = 0; j < nwf; j++) {
-		minchange = 1.e99;
-		minsumsq = 0, sqsum = 0, minsqsum = 0, corr = 0;
-		iintwindowstart = 0;
+		float minchange = 1.e99;
+		float sum = 0, sumsum = 0, change = 0, minsumsq = 0, sqsum = 0, minsqsum = 0, corr = 0;
+		int iintwindowstart = 0, imax = 0;
+		int nbins_search_ = nbins_search;
+		int end_search_at_ = end_search_at;
+		int end_search_loop_at_ = end_search_loop_at;
 
 		auto his = Getwf(j);
 		if (search_relative_to_local_max) {
-			imax = GetIntWindow(his, 0, 0, static_cast<float>(nbins_search + min_distance_from_max) * SP,
-				static_cast<float>(end_search_at) * SP)[1];
-			end_search_at = imax - min_distance_from_max;
-			nbins_search = end_search_at;
-			end_search_loop_at = nbins_search - nbins_average;
+			imax = GetIntWindow(his, 0, 0, static_cast<float>(nbins_search_ + min_distance_from_max) * SP,
+								static_cast<float>(end_search_at_) * SP)[1];
+			end_search_at_ = imax - min_distance_from_max;
+			nbins_search_ = end_search_at_; // starts at 0
+			end_search_loop_at_ = nbins_search_ - nbins_average;
 		}
 
-		double* yvals = Helpers::gety(his, start_search_at, end_search_at);
+		double* yvals = Helpers::gety(his, start_search_at, end_search_at_);
 		// smoothing suppresses variations in slope due to noise, so the method is potentially more sensitive to excluding peaks
-		if (sigma > 0) Filters::SmoothArray(yvals, nbins_search, sigma, smooth_method);
+		if (sigma > 0) Filters::SmoothArray(yvals, nbins_search_, sigma, smooth_method);
 		//calculate slope
-		double slope[nbins_search - 1];
-		for (int i = 0; i < nbins_search - 1; i++) slope[i] = yvals[i + 1] - yvals[i];
+		nbins_search_--;
+		double* slope = new double[nbins_search_];
+		double* slope_sq = new double[nbins_search_];
+		for (int i = 0; i < nbins_search_; i++) {
+			slope[i] = yvals[i + 1] - yvals[i];
+			slope_sq[i] = slope[i] * slope[i];
+			if (i < nbins_average) { // init
+				sum += slope[i];
+				sqsum += slope_sq[i];
+			}
+		}
 		delete[] yvals;
 
 		//find window for correction
-		for (int i = 0; i < end_search_loop_at; i += increment) { // recommendend max. 3 bins (~1 ns) 
-			sum = 0., sqsum = 0., change = 0.;
-
-			for (int k = i; k < nbins_average + i; k += increment) { // recommendend max. 3 bins (~1 ns)
-				sum += slope[k];
-				sqsum += (slope[k] * slope[k]);
-			}
-			change = sqsum + sum * sum;
+		for (int i = 0; i < end_search_loop_at_; i++) {
+			sumsum = sum * sum;
+			change = sqsum + sumsum;
 
 			if (change < minchange) {
 				minchange = change;
 				iintwindowstart = i + start_search_at;
-				minsumsq = sum * sum;
+				minsumsq = sumsum;
 				minsqsum = sqsum;
 			}
+
+			sum -= slope[i];
+			sum += slope[i + nbins_average];
+			sqsum -= slope_sq[i];
+			sqsum += slope_sq[i + nbins_average];
 		}
+		delete[] slope;
+		delete[] slope_sq;
+
 		// do correction
 		corr = his->Integral(iintwindowstart + 1, iintwindowstart + nbins_average + 1) / static_cast<float>(nbins_average + 1);
 		for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, his->GetBinContent(i) - corr);
 
-		baseline_correction_result.push_back(vector<float>());
-		baseline_correction_result[j].push_back(corr);
-		baseline_correction_result[j].push_back(minchange);
-		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart) * SP);
-		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart + nbins_average) * SP);
-		baseline_correction_result[j].push_back(minsumsq);
-		baseline_correction_result[j].push_back(minsqsum);
-		Helpers::PrintProgressBar(j, nwf);
+		baseline_correction_result[j][0] = corr;
+		baseline_correction_result[j][1] = minchange;
+		baseline_correction_result[j][2] = static_cast<float>(iintwindowstart) * SP;
+		baseline_correction_result[j][3] = static_cast<float>(iintwindowstart + nbins_average) * SP;
+		baseline_correction_result[j][4] = minsumsq;
+		baseline_correction_result[j][5] = minsqsum;
+		// Helpers::PrintProgressBar(j, nwf);
 	}
 }
 /// @example read_exampledata.cc
@@ -907,15 +919,13 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 /// @param smooth_method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
 /// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, double sigma, int max_bin_for_baseline, int start_at, int smooth_method) {
-	checkData();
-
 	cout << "Notification: This is a deprecated version of CorrectBaselineMinSlopeRMS. "
 		<< "It will be removed in future releases. Parameter bool smooth=" << smooth << " will be ignored." << endl;
 	vector<float> window;
 	window.push_back(static_cast<float>(nIntegrationWindow) * SP);
 	window.push_back(static_cast<float>(start_at) * SP);
 	window.push_back(static_cast<float>(max_bin_for_baseline) * SP);
-	CorrectBaselineMinSlopeRMS(window, sigma, smooth_method, 3);
+	CorrectBaselineMinSlopeRMS(window, sigma, smooth_method);
 }
 /// @example read_exampledata.cc
 /// @example read_exampledata.py
@@ -936,31 +946,29 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 /// Results will be visualized for each event in PrintChargeSpectrumWF().
 /// 
 /// @param window Vector containing {length for averaging, search start, search end} in ns. 
-/// Example: {20, 10, 90} would search for the best baseline candidate from 10 ns to 90 ns, averaging over 20 ns.
+/// Example: {20, 10, 90} would search for the best baseline candidate from 10 ns to 90 ns, averaging over 20 ns. 
 /// @param sigma Number of bins before and after central bin for running average OR gauss sigma in ns for gauss 
 /// kernel and convolution. Set to 0 for no smoothing. Use with care!
 /// @param smooth_method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
 /// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
-/// @param increment Increment for search in bins per step. Default value is 3 (=0.9375 ns).
-void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_method, int increment) {
-	checkData();
+void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_method) {
+	checkData(true);
 
 	cout << "\nBaseline correction (minimal sum method, " << nwf << " waveforms):" << endl;
 	if (window.empty()) cout << "\nWarning: Window not set in CorrectBaselineMin. Will use default values." << endl;
 	if (sigma != 0.) cout << "\nNotification: Using smoothing in CorrectBaselineMin." << endl;
-	if (increment < 1) increment = 1;
 
-	int nbins_average = !window.empty() ? static_cast<int>(round(abs(window[0]) / SP)) : static_cast<int>(50. / SP);
-	int start_search_at = static_cast<int>(window.size()) > 1 ? static_cast<int>(round(abs(window[1]) / SP)) : 0;
+	int nbins_average = !window.empty() ? static_cast<int>(round(abs(window[0]) / SP)) : static_cast<int>(10. / SP);
+	int start_search_at = static_cast<int>(window.size()) > 1 ? static_cast<int>(round(window[1] / SP)) : 0;
 	int end_search_at = static_cast<int>(window.size()) > 2 ? 
-		min(static_cast<int>(round(abs(window[2]) / SP)), binNumber - 1) : binNumber - 1;
+		min(static_cast<int>(round(window[2] / SP)), binNumber - 1) : binNumber - 1;
 
 	int end_search_loop_at = end_search_at - start_search_at - nbins_average;
 
 	// if no valid static search window is specified, it will be dynamic from 0 ns up to 8 ns before the global maximum
 	bool search_relative_to_local_max = false;
 	int min_distance_from_max = static_cast<int>(8. / SP);
-	if (start_search_at < 0 || end_search_loop_at < increment) {
+	if (start_search_at < 0 || end_search_loop_at < 0) {
 		search_relative_to_local_max = true;
 		start_search_at = 0;
 		cout << "\nNotification: Using dynamic search window in CorrectBaselineMin." << endl;
@@ -968,49 +976,49 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 
 	int nbins_search = end_search_at - start_search_at;
 
-	float minchange = 1e9;
-	float sum = 0, corr = 0;
-	int iintwindowstart = 0, imax = 0;
+	baseline_correction_result.resize(nwf, vector<float>(4));
 
+	#pragma omp parallel for
 	for (int j = 0; j < nwf; j++) {
-		minchange = 1.e9;
-		corr = 0;
-		iintwindowstart = 0;
+		float minchange = 1e9;
+		float sum = 0, corr = 0;
+		int iintwindowstart = 0, imax = 0;
+		int nbins_search_ = nbins_search;
+		int end_search_at_ = end_search_at;
+		int end_search_loop_at_ = end_search_loop_at;
 
 		auto his = Getwf(j);
 		if (search_relative_to_local_max) {
-			imax = GetIntWindow(his, 0, 0, (float)(nbins_search + min_distance_from_max) * SP, (float)(end_search_at)*SP)[1];
-			end_search_at = imax - min_distance_from_max;
-			nbins_search = end_search_at;
-			end_search_loop_at = nbins_search - nbins_average;
+			imax = GetIntWindow(his, 0, 0, static_cast<float>(nbins_search_ + min_distance_from_max) * SP, static_cast<float>(end_search_at_)*SP)[1];
+			end_search_at_ = imax - min_distance_from_max;
+			nbins_search_ = end_search_at_;
+			end_search_loop_at_ = nbins_search_ - nbins_average;
 		}
 
-		double* yvals = Helpers::gety(his, start_search_at, end_search_at);
+		double* yvals = Helpers::gety(his, start_search_at, end_search_at_);
 		// smoothing suppresses variations in slope due to noise, so the method is potentially more sensitive to excluding peaks
-		if (sigma > 0) Filters::SmoothArray(yvals, nbins_search, sigma, smooth_method);
+		if (sigma > 0) Filters::SmoothArray(yvals, nbins_search_, sigma, smooth_method);
 		//find window for correction
-		for (int i = 0; i < end_search_loop_at; i += increment) { // recommendend max. 2 bins or min. method
-			sum = 0;
-			for (int k = i; k < nbins_average + i; k += increment) { // recommendend max. 2 bins
-				sum += yvals[k];
-			}
-
+		for (int i = 0; i < nbins_average; i++) sum += yvals[i]; // init
+		for (int i = 0; i < end_search_loop_at_; i++) {
 			if (sum < minchange) {
 				minchange = sum;
 				iintwindowstart = i + start_search_at;
 			}
+
+			sum -= yvals[i];
+			sum += yvals[i + nbins_average];
 		}
 		// do correction
 		corr = his->Integral(iintwindowstart + 1, iintwindowstart + nbins_average + 1) / static_cast<float>(nbins_average + 1);
 		for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, his->GetBinContent(i) - corr);
 		delete[] yvals;
 
-		baseline_correction_result.push_back(vector<float>());
-		baseline_correction_result[j].push_back(corr);
-		baseline_correction_result[j].push_back(minchange);
-		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart) * SP);
-		baseline_correction_result[j].push_back(static_cast<float>(iintwindowstart + nbins_average) * SP);
-		Helpers::PrintProgressBar(j, nwf);
+		baseline_correction_result[j][0] = corr;
+		baseline_correction_result[j][1] = minchange;
+		baseline_correction_result[j][2] = static_cast<float>(iintwindowstart) * SP;
+		baseline_correction_result[j][3] = static_cast<float>(iintwindowstart + nbins_average) * SP;
+		// Helpers::PrintProgressBar(j, nwf);
 	}
 }
 
@@ -1040,14 +1048,12 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 /// @param smooth_method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
 /// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_bin_for_baseline, int start_at, int smooth_method) {
-	checkData();
-
 	cout << "Notification: This is a deprecated version of CorrectBaselineMin. It will be removed in future releases." << endl;
 	vector<float> window;
 	window.push_back(static_cast<float>(nIntegrationWindow) * SP);
 	window.push_back(static_cast<float>(start_at) * SP);
 	window.push_back(static_cast<float>(max_bin_for_baseline) * SP);
-	CorrectBaselineMin(window, sigma, smooth_method, 2);
+	CorrectBaselineMin(window, sigma, smooth_method);
 }
 /// @example timing_example.cc
 
@@ -1062,7 +1068,7 @@ TH1F* ReadRun::WFProjectionChannel(int channel_index, int from_n, int to_n, floa
 	auto h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
 
 	for (int j = 0; j < nevents; j++) {
-		if (!skip_event[j]) {
+		if (!SkipEvent(j, channel_index)) {
 			auto his = Getwf(channel_index, j);
 			for (int i = from_n; i <= to_n; i++) h1->Fill(his->GetBinContent(i));
 		}
@@ -1129,9 +1135,17 @@ TH1F* ReadRun::BaselineCorrectionResults(int channel_index, int which, float ran
 	TString name(Form("channel__%02d", active_channels[channel_index]));
 	auto h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
 
+	float average_baseline = 0.;
+	int counter = 0;
 	for (int j = 0; j < nevents; j++) {
-		if (!skip_event[j]) h1->Fill(baseline_correction_result[j * nchannels + channel_index][which]);
+		if (!SkipEvent(j, channel_index)) {
+			float current_baseline = baseline_correction_result[GetWaveformIndex(j, channel_index)][which];
+			average_baseline += current_baseline;
+			counter++;
+			h1->Fill(current_baseline);
+		}
 	}
+	cout << "Mean baseline ch" << active_channels[channel_index] << ": " << average_baseline / max(1.f, static_cast<float>(counter)) << endl;
 	return h1;
 }
 
@@ -1143,6 +1157,7 @@ TH1F* ReadRun::BaselineCorrectionResults(int channel_index, int which, float ran
 /// @param rangeend Plot x range end.
 /// @param nbins Number of bins in range.
 void ReadRun::PrintBaselineCorrectionResults(float rangestart, float rangeend, int nbins) {
+	checkData();
 	gStyle->SetOptFit(111);
 	float default_rangestart = -10;
 	float default_rangeend = 20;
@@ -1192,7 +1207,8 @@ void ReadRun::PrintBaselineCorrectionResults(float rangestart, float rangeend, i
 /// @param use_spline If false will use linear interpolation between the two bins closest to cf_r. \n
 /// If true will use a 5th order spline and bisection method for interpolation. 
 /// Performs a bit better in most cases compared to only linear interpolation. 
-void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double sigma, bool find_CF_from_start, int smooth_method, bool use_spline) {
+/// @param verbose Print additional warnings when CFD fails
+void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double sigma, bool find_CF_from_start, int smooth_method, bool use_spline, bool verbose) {
 
 	int start_at = max(static_cast<int>(floor(start_at_t / SP)), 0);
 	int end_at = min(static_cast<int>(ceil(end_at_t / SP)), binNumber - 1);
@@ -1202,6 +1218,9 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 	cout << "\nGet timing at " << (cf_r > 0 && cf_r <= 1 ? "CF=" : "threshold=");
 	printf("%.2f between %.2f ns and %.2f ns (%d waveforms):\n", cf_r, start_at_t, end_at_t, nwf);
 
+	timing_results.resize(nwf, vector<float>(8));
+	
+	#pragma omp parallel for
 	for (int j = 0; j < nwf; j++) {
 		double* yvals = Helpers::gety(Getwf(j), start_at, end_at); // get range where to search for CFD for timing
 
@@ -1222,7 +1241,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 
 		if (!find_CF_from_start) {
 			i = n_max;
-			while (i >= 0 && yvals[i] > cf) i--;
+			while (i > 0 && yvals[i] > cf) i--;
 		}
 		else {
 			i = 0;
@@ -1233,7 +1252,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 		float interpol_bin = 0.;
 		pair<float, bool> lin_interpol_res = {0, false};
 		if (i==0) {
-			cout << "WARNING: CFD failed for Ch" << GetCurrentChannel(j) << ", event " << GetCurrentEvent(j) << endl;
+			if (verbose) cout << "WARNING: CFD failed for Ch" << GetCurrentChannel(j) << ", event " << GetCurrentEvent(j) << endl;
 		}
 		else {
 			// do interpolation for cf
@@ -1266,19 +1285,17 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 				delete wfspl;
 			}
 		}
-
-		timing_results.push_back(vector<float>());
-		timing_results[j].push_back(interpol_bin);											// the bin we looked for
-		timing_results[j].push_back((interpol_bin + static_cast<float>(start_at)) * SP);	// cfd-time we looked for
-		timing_results[j].push_back(max);													// maximum value
-		timing_results[j].push_back(n_max);													// bin of maximum
-		timing_results[j].push_back(cf);													// constant fraction
-		timing_results[j].push_back(static_cast<float>(start_at) * SP);						// starting time
-		timing_results[j].push_back(static_cast<float>(end_at) * SP);						// end time
-		timing_results[j].push_back(static_cast<float>(lin_interpol_res.second));			// flag will be 1 if linear interpolation worked
+		timing_results[j][0] = interpol_bin;											// the bin we looked for
+		timing_results[j][1] = (interpol_bin + static_cast<float>(start_at)) * SP;		// cfd-time we looked for
+		timing_results[j][2] = max;														// maximum value
+		timing_results[j][3] = n_max;													// bin of maximum
+		timing_results[j][4] = cf;														// constant fraction
+		timing_results[j][5] = static_cast<float>(start_at) * SP;						// starting time
+		timing_results[j][6] = static_cast<float>(end_at) * SP;							// end time
+		timing_results[j][7] = static_cast<float>(lin_interpol_res.second);				// flag will be 1 if linear interpolation worked
 		delete[] yvals;
 
-		Helpers::PrintProgressBar(j, nwf);
+		// Helpers::PrintProgressBar(j, nwf);
 	}
 }
 /// @example timing_example.cc
@@ -1304,94 +1321,33 @@ void ReadRun::SkipEventsTimeDiffCut(int first_channel_abs, int second_channel_ab
 	int counter = 0;
 	int first_channel = GetChannelIndex(first_channel_abs);
 	int second_channel = GetChannelIndex(second_channel_abs);
-	int timing_results_size = static_cast<int>(timing_results.size());
 
 	// call GetTimingCFD() in case it was not initialized
 	if (static_cast<int>(timing_results.size()) == 0) GetTimingCFD();
 
 	// loop through events, calculate timing difference between channels and compare with cuts
-	for (int j = 0; j < nwf; j += nchannels) {
-		if (!skip_event[GetCurrentEvent(j)]) {
-			float time_diff = timing_results[j + second_channel][1] - timing_results[j + first_channel][1];
+	#pragma omp parallel for reduction(+:counter)
+	for (int j = 0; j < nevents; j++) {
+		if (!SkipEvent(j, first_channel) && !SkipEvent(j, second_channel)) {
+			const int ind_first = GetWaveformIndex(j, first_channel);
+			const int ind_second = GetWaveformIndex(j, second_channel);
+			if (max(ind_first, ind_second) >= static_cast<int>(timing_results.size())) continue;
 
-			if (j <= timing_results_size && (time_diff < time_diff_min || time_diff > time_diff_max)) {
-				int currevent = eventnr_storage[GetCurrentEvent(j)];
+			float time_diff = timing_results[ind_first][1] - timing_results[ind_second][1];
+
+			if (time_diff < time_diff_min || time_diff > time_diff_max) {
+				int currevent = eventnr_storage[j];
 				if (verbose) cout << "\nevent:\t" << currevent << "\tchannels:\t" << first_channel_abs << " & " << second_channel_abs << "\ttime diff:\t" << time_diff;
-				skip_event[GetCurrentEvent(j)] = true;
+				skip_event[j] = true;
 				counter++;
 			}
 		}
-		Helpers::PrintProgressBar(j, nwf);
+		// Helpers::PrintProgressBar(j, nevents);
 	}
 	cout << "\t" << counter << " events will be cut out of " << nevents << endl;
 }
 /// @example timing_example.cc
 
-/// @brief Find events with max/min above/below a certain threshold
-/// 
-/// Needs to be called before the charge spectrum etc functions. \n 
-/// Baseline correction should be called before this function.
-/// 
-/// @param threshold Threshold in mV.
-/// @param max If true uses max, else uses min.
-/// @param greater If true looks for events with max/min>threshold, else looks for events with max/min<threshold.
-/// @param from Start search at "from" in ns.
-/// @param to End search at "to" in ns.
-/// @param verbose Set true for extra verbosity.
-void ReadRun::FractionEventsAboveThreshold(float threshold, bool max, bool greater, double from, double to, bool verbose) {
-
-	int occurences = 0;
-	int occurences2ch = 0;
-	int o2ch = 0;
-	int currchannel = 0;
-	int currevent = 0;
-	int lastevent = 0;
-	if (plot_active_channels.empty()) plot_active_channels = active_channels;
-	vector<int> counter_abovethr(static_cast<int>(plot_active_channels.size()));
-	// DORAMAS: It stores a counter of events above threshold for each channel that will be plotted
-
-	cout << "\nSearching for fraction of events with " << (max ? "max" : "min") << (greater ? " > " : " < ") << threshold << " mV:" << endl;
-
-	for (int j = 0; j < nwf; j++) {
-		auto his = (TH1F*)(Getwf(j))->Clone(); // use Clone() to not change ranges of original histogram
-
-		// set range where to search for amplitudes above threshold
-		if (from >= 0 && to > 0) {
-			his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
-		}
-
-		currchannel = j - nchannels * GetCurrentEvent(j);
-		if (find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[currchannel]) != plot_active_channels.end()) {
-			if ((max && greater && his->GetMaximum() > threshold) || (max && !greater && his->GetMaximum() < threshold) || (!max && greater && his->GetMinimum() > threshold) || (!max && !greater && his->GetMinimum() < threshold)) {
-				currevent = eventnr_storage[GetCurrentEvent(j)];
-
-				if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel];
-
-				// We must use 'distance' to make sure the position in 'counter_above' matches with the corresponding channel's position at 'plot_active_channels'
-				counter_abovethr[distance(plot_active_channels.begin(), find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[currchannel]))] += 1;
-				// This is to detect events w/ at least two channels above threshold
-				if (lastevent != currevent) occurences += 1;
-				if (lastevent == currevent && o2ch != occurences) {
-					occurences2ch += 1;
-					o2ch = occurences;
-				}
-				lastevent = currevent;
-			}
-		}
-		delete his;
-		Helpers::PrintProgressBar(j, nwf);
-	}
-
-	//  Loop to show the fraction of events above threshold for each channel that will be plotted
-	for (int i = 0; i < static_cast<int>(plot_active_channels.size()); i++) {
-		cout << "Fraction of events in channel " << plot_active_channels[i] << " above threshold: "
-			<< 100. * static_cast<float>(counter_abovethr[i]) / static_cast<float>(nevents) << "%\n";
-	}
-
-	cout << "Fraction of events w/ at least 2 channels above threshold: "
-		<< 100. * static_cast<float>(occurences2ch) / static_cast<float>(nevents) << "%\n"
-		<< "For a total of " << nevents << " events" << endl;
-}
 
 /// @brief Skip events above/below individual thresholds per channel
 /// 
@@ -1411,26 +1367,37 @@ void ReadRun::SkipEventsPerChannel(vector<float> thresholds, float rangestart, f
 	cout << "\n Removing events with individual amplitude threshold per channel:" << endl;
 	int counter = 0;
 	int n_thrshld = static_cast<int>(thresholds.size());
-	int currchannel = 0;
 
+	#pragma omp parallel for reduction(+:counter)
 	for (int j = 0; j < nwf; j++) {
-		if (!skip_event[GetCurrentEvent(j)]) {
-			currchannel = j - nchannels * GetCurrentEvent(j);
-			if (currchannel < n_thrshld) {
-				auto his = (TH1F*)(Getwf(j))->Clone(); // use Clone() to not change ranges of original histogram
-				if (rangestart != 0 && rangeend != 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(rangestart), his->GetXaxis()->FindBin(rangeend));
+		int current_event = GetCurrentEvent(j);
+		int current_channel = GetCurrentChannel(j);
+		if (current_event >= 0 && !SkipEvent(current_event, current_channel)) {
+			if (current_channel < n_thrshld) {
+				const float current_threshold = thresholds[current_channel];
+				if (current_threshold == 0.) continue;
 
-				if (thresholds[currchannel] != 0. && !skip_event[GetCurrentEvent(j)] && ((thresholds[currchannel] > 0 && his->GetMaximum() > thresholds[currchannel]) || (thresholds[currchannel] < 0 && his->GetMinimum() < thresholds[currchannel]))) {
+				auto his = (TH1F*)(Getwf(j));
+				
+				int bin_start = his->GetXaxis()->FindBin(rangestart) - 1; 	//TH1 starts at 1
+				int bin_end = his->GetXaxis()->FindBin(rangeend); 			// gety ends at bin_end - 1
+				double* yvals = Helpers::gety(his, bin_start, bin_end);
 
-					int currevent = eventnr_storage[GetCurrentEvent(j)];
-					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel];
-					skip_event[GetCurrentEvent(j)] = true;
+				double max_val = *max_element(yvals, yvals + (bin_end - bin_start));
+				double min_val = *min_element(yvals, yvals + (bin_end - bin_start));
+				delete[] yvals;
+				
+				if ((current_threshold > 0	&& max_val > current_threshold) || 
+					(current_threshold < 0 && min_val < current_threshold)) {
+
+					int currevent = eventnr_storage[current_event];
+					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[current_channel] << "\tthreshold\t" << current_threshold;
+					skip_event[current_event] = true;
 					counter++;
 				}
-				delete his;
 			}
 		}
-		Helpers::PrintProgressBar(j, nwf);
+		// Helpers::PrintProgressBar(j, nwf);
 	}
 
 	cout << "\t" << counter << " events will be cut out of " << nevents << endl;
@@ -1445,55 +1412,60 @@ void ReadRun::SkipEventsPerChannel(vector<float> thresholds, float rangestart, f
 /// @param thresholds Vector should contain a threshold for each active channel saved in the data, in ascending order (ch0, ch1 ...). 
 /// Negative thresholds mean events below threshold will be cut. A threshold of 0 means the channel will not be evaluated. 
 /// If only one value is given this value will be used for all active channels.
-/// @param highlow  Vector should contain a bool for each active channel. True means events with integrals above threshold will be cut, 
-/// false means below threshold. If only one value is given this value will be used for all active channels.
+/// @param g_thr  Vector should contain a bool for each active channel. True means events with integrals greater than the threshold will be cut, 
+/// false means less than threshold. If only one value is given this value will be used for all active channels.
 /// @param windowlow Integration time left to the maximum of the peak.
 /// @param windowhi Integration time right to the maximum of the peak.
 /// @param start Range for finding maximum.
 /// @param end Range for finding maximum.
-/// @param use_AND_condition If set true it will overrule previously applied cuts and un-skip events that pass integral criterium.
+/// @param use_AND_condition If set true, events skipped by previously applied cuts will be un-skipped if they pass integral criterium (true && false => false, true && true => true).
 /// @param verbose Set true for extra verbosity.
-void ReadRun::IntegralFilter(vector<float> thresholds, vector<bool> highlow, float windowlow, float windowhi, float start, float end, bool use_AND_condition, bool verbose) {
+void ReadRun::IntegralFilter(vector<float> thresholds, vector<bool> g_thr, float windowlow, float windowhi, float start, float end, bool use_AND_condition , bool verbose) {
 
-	if (thresholds.empty() || highlow.empty()) cout << "\nError: thresholds or highlow are empty";
+	if (thresholds.empty() || g_thr.empty()) cout << "\nERROR: thresholds or g_thr are empty in ReadRun::IntegralFilter().";
 	while (thresholds.size() <= active_channels.size()) { thresholds.push_back(thresholds[0]); }
-	while (highlow.size() <= active_channels.size()) { highlow.push_back(highlow[0]); }
+	while (g_thr.size() <= active_channels.size()) { g_thr.push_back(g_thr[0]); }
 
 	cout << "\n\nRemoving events with individual integral threshold per channel:" << endl;
 	int counter = 0;
-	float integral = 0;
-	int currevent_counter = 0;
-	int currchannel = 0;
-	int currevent = 0;
+	int n_thresholds = static_cast<int>(thresholds.size());
 
+	#pragma omp parallel for reduction(+:counter)
 	for (int j = 0; j < nwf; j++) {
-		currevent_counter = GetCurrentEvent(j);
+		int currevent_counter = GetCurrentEvent(j);
+		if (currevent_counter < 0) continue;
+		
+		if ((use_AND_condition && skip_event[currevent_counter]) || !skip_event[currevent_counter]) {
+			int current_channel = GetCurrentChannel(j);
+			if (current_channel >= n_thresholds) continue;
+			
+			float current_threshold = thresholds[current_channel];
+			if (current_threshold == 0.) continue;
 
-		if (use_AND_condition || !skip_event[currevent_counter]) {
-			currchannel = GetCurrentChannel(j);
+			auto his = (TH1F*)(Getwf(j));
+			auto integral = GetPeakIntegral(his, windowlow, windowhi, start, end, current_channel);
 
-			if (currchannel < static_cast<int>(thresholds.size())) {
-				auto his = (TH1F*)(Getwf(j));
-				integral = GetPeakIntegral(his, windowlow, windowhi, start, end, currchannel);
-
-				if (thresholds[currchannel] != 0 && !skip_event[currevent_counter] &&
-					((highlow[currchannel] && integral > thresholds[currchannel]) || (!highlow[currchannel] && integral < thresholds[currchannel]))) {
-					currevent = eventnr_storage[currevent_counter];
-					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\tthreshold\t" << thresholds[currchannel] << "\tintegral:\t" << integral;
+			int currevent = eventnr_storage[currevent_counter];
+			// skip if above/below thresholds
+			if ((g_thr[current_channel] && integral > current_threshold) || (!g_thr[current_channel] && integral < current_threshold)) {
+				if (!skip_event[currevent_counter]) {
+					if (verbose) cout << "Event:\t" << currevent << "\tchannel:\t" << active_channels[current_channel] << "\tthreshold\t" << thresholds[current_channel] << "\tintegral:\t" << integral << endl;
 					skip_event[currevent_counter] = true;
-					while (floor((j + 1) / nchannels) == currevent_counter) j++;
+					// go to last wf of current event
+					while (GetCurrentEvent(++j) == currevent_counter); 
+					j--;
 					counter++;
 				}
-				else if (use_AND_condition && thresholds[currchannel] != 0 && skip_event[currevent_counter] && !highlow[currchannel]) {
-					currevent = eventnr_storage[currevent_counter];
-					skip_event[currevent_counter] = false;
-					if (verbose) cout << "\nevent:\t" << currevent << "\tchannel:\t" << active_channels[currchannel] << "\thas been flagged good by integral:\t" << integral;
-				}
 			}
-			Helpers::PrintProgressBar(j, nwf);
+			else if (use_AND_condition) { // don't skip if not
+				skip_event[currevent_counter] = false;
+				if (verbose) cout << "Event:\t" << currevent << "\tchannel:\t" << active_channels[current_channel] << "\thas been flagged good by integral:\t" << integral << endl;
+				counter--;
+			}
+			// Helpers::PrintProgressBar(j, nwf); // not thread safe
 		}
 	}
-	cout << "\t" << counter << " events will be cut out of " << nevents << endl;
+	cout << counter << " additional events will be cut out of " << nevents << " (" << static_cast<float>(100*counter/nevents) << "%)" << endl;
 }
 /// @example timing_example.cc
 /// @example read_exampledata.cc
@@ -1502,26 +1474,39 @@ void ReadRun::IntegralFilter(vector<float> thresholds, vector<bool> highlow, flo
 /// @brief Prints a list of all skipped events into the terminal for diagnostics
 void ReadRun::PrintSkippedEvents() {
 	int counter = 0;
+	stringstream buffer;
 	for (int j = 0; j < static_cast<int>(skip_event.size()); j++) {
 		if (skip_event[j]) {
 			int currevent = eventnr_storage[j];
-			cout << "\nevent:\t" << currevent;
+			buffer << "Event:\t" << currevent << endl;
 			counter++;
 		}
 	}
-	cout << "\n\ntotal number of skipped events:\t" << counter << "\tout of:\t" << nevents << endl;
+	cout << buffer.str().c_str();
+	cout << "Total number of skipped events:\t" << counter << "\tout of:\t" << nevents << endl;
 }
 
 /// @brief Sets skip_event flag to false for all events, removing any previous cuts
 void ReadRun::UnskipAll() {
-	for (int j = 0; j < static_cast<int>(skip_event.size()); j++) skip_event[j] = false;
+	const int skip_event_size = static_cast<int>(skip_event.size());
+	for (int j = 0; j < skip_event_size; j++) skip_event[j] = false;
 	cout << "\n\nAll event cuts were removed" << endl;
 }
 
+/// @brief Check if event should be skipped
+/// @param event_index Index of the event
+/// @param channel_index Index of the channel (see override for ReadSampic)
+bool ReadRun::SkipEvent(int event_index, int channel_index) {
+	(void)channel_index; // avoid unused parameter warning
+	if (event_index >= static_cast<int>(skip_event.size())) return true;
+	else return skip_event[event_index];
+}
+
 /// @brief Number of good events that are not skipped
-int ReadRun::Nevents_good() {
+/// @param channel Not used here, used in class ReadSampic::ReadSampic
+int ReadRun::Nevents_good(int channel_index) {
 	int nevents_good = 0;
-	for (int i = 0; i < nevents; i++) if (!skip_event[i]) nevents_good++;
+	for (int i = 0; i < nevents; i++) if (!SkipEvent(i, channel_index)) nevents_good++;
 	return nevents_good;
 }
 
@@ -1543,10 +1528,10 @@ int ReadRun::Nevents_good() {
 /// @param end Range for finding maximum.
 /// @param channel Channel index in case the integration should be around the maximum of the sum of all waveforms
 /// @return Array { max, \f$ n_{t,start} \f$ , \f$ n_{t,end} \f$ }
-int* ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float start, float end, int channel) {
+array<int, 3> ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float start, float end, int channel) {
 
 	int istart, iend;
-	int* foundindices = new int[3]();
+	array<int, 3> foundindices = {0, 0, 0};
 
 	if (start < 0 || end < 0) {							// fixed integration window relative to maximum of sum spectrum for each channel
 		foundindices[1] = his->GetXaxis()->FindBin(his->GetXaxis()->GetBinCenter(maxSumBin[channel]) - windowlow);
@@ -1562,8 +1547,7 @@ int* ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float sta
 		foundindices[0] = istart;
 
 		if (istart < 1 || iend > his->GetNbinsX()) {
-			cout << "\nError: start or end out of range" << endl;
-			return 0;
+			cout << "\nError: Start=" << istart << " or end=" << iend << " of GetIntWindow() out of range. Fix integration window." << endl;
 		}
 
 		float max = -9.e99;
@@ -1598,11 +1582,10 @@ int* ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, float sta
 /// @param channel_index Channel index in case the integration should be around the maximum of the sum of all waveforms.
 /// @return Integral/amplitude.
 float ReadRun::GetPeakIntegral(TH1F* his, float windowlow, float windowhi, float start, float end, int channel_index) {
-	int* windowind = GetIntWindow(his, windowlow, windowhi, start, end, channel_index);	// find integration window
+	auto windowind = GetIntWindow(his, windowlow, windowhi, start, end, channel_index);	// find integration window
 	string integral_option(""); // For amplitude -> unit[mV].
 	if (windowind[1] != windowind[2]) integral_option = "width"; // 'width' (bin width) for integral -> unit[mV x ns].
 	float integral = his->Integral(windowind[1], windowind[2], integral_option.c_str());
-	delete[] windowind;
 	return integral;
 }
 
@@ -1625,27 +1608,18 @@ float ReadRun::GetPeakIntegral(TH1F* his, float windowlow, float windowhi, float
 void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start, float end, int eventnr, float ymin, float ymax, float xmin, float xmax) {
 
 	gStyle->SetOptStat(0);
-
 	TString name(Form("waveforms_event__%05d", eventnr));
 	auto intwinc = new TCanvas(name.Data(), name.Data(), 600, 400);
 	Helpers::SplitCanvas(intwinc, active_channels, plot_active_channels);
 	int event_index = GetEventIndex(eventnr);
-
+	
 	int current_canvas = 0;
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
 			intwinc->cd(++current_canvas);
 
 			auto his = Getwf(i, event_index);
-			int* windowind = GetIntWindow(his, windowlow, windowhi, start, end, i);
-			// create lines to indicate the integration window
-			TLine* low = new TLine(his->GetXaxis()->GetBinCenter(windowind[1]), -5, his->GetXaxis()->GetBinCenter(windowind[1]), 10);
-			low->SetLineColor(2);
-			TLine* hi = new TLine(his->GetXaxis()->GetBinCenter(windowind[2]), -2, his->GetXaxis()->GetBinCenter(windowind[2]), 3);
-			hi->SetLineColor(2);
-			TLine* zero = new TLine(0, 0, 320, 0); // draw line at x=0 to check if baseline correction worked
-			zero->SetLineColor(1);
-			delete[] windowind;
+			int wf_index = GetWaveformIndex(event_index, i);
 
 			// drawing and formatting
 			gPad->SetTopMargin(.01);
@@ -1656,34 +1630,45 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 			his->Draw("HIST");
 			his->SetStats(0);
 
-			low->Draw("same");
-			hi->Draw("same");
-			zero->Draw("same");
+			if (wf_index !=  -1) {
+				// create lines to indicate the integration window
+				auto windowind = GetIntWindow(his, windowlow, windowhi, start, end, i);
+				TLine* low = new TLine(his->GetXaxis()->GetBinCenter(windowind[1]), -5, his->GetXaxis()->GetBinCenter(windowind[1]), 10);
+				low->SetLineColor(2);
+				TLine* hi = new TLine(his->GetXaxis()->GetBinCenter(windowind[2]), -2, his->GetXaxis()->GetBinCenter(windowind[2]), 3);
+				hi->SetLineColor(2);
+				TLine* zero = new TLine(0, 0, 320, 0); // draw line at x=0 to check if baseline correction worked
+				zero->SetLineColor(1);
 
-			// draw baseline parameters
-			if (static_cast<int>(baseline_correction_result.size()) > event_index * nchannels + i) {
-				TLine* baselinel = new TLine(baseline_correction_result[event_index * nchannels + i][2], -1, baseline_correction_result[event_index * nchannels + i][2], 1);
-				baselinel->SetLineColor(6);
-				baselinel->SetLineWidth(2);
-				TLine* baselineh = new TLine(baseline_correction_result[event_index * nchannels + i][3], -1, baseline_correction_result[event_index * nchannels + i][3], 1);
-				baselineh->SetLineColor(6);
-				baselineh->SetLineWidth(2);
-				TLine* baseline = new TLine(baseline_correction_result[event_index * nchannels + i][2], 0, baseline_correction_result[event_index * nchannels + i][3], 0);
-				baseline->SetLineColor(6);
-				TLine* correction_value = new TLine(baseline_correction_result[event_index * nchannels + i][2], baseline_correction_result[event_index * nchannels + i][0], baseline_correction_result[event_index * nchannels + i][3], baseline_correction_result[event_index * nchannels + i][0]);
-				correction_value->SetLineColor(2);
+				low->Draw("same");
+				hi->Draw("same");
+				zero->Draw("same");			
 
-				baselinel->Draw("same");
-				baselineh->Draw("same");
-				baseline->Draw("same");
-				correction_value->Draw("same");
-			}
+				// draw baseline and CFD parameters
+				if (wf_index < static_cast<int>(baseline_correction_result.size())) {
+					TLine* baselinel = new TLine(baseline_correction_result[wf_index][2], -1, baseline_correction_result[wf_index][2], 1);
+					baselinel->SetLineColor(6);
+					baselinel->SetLineWidth(2);
+					TLine* baselineh = new TLine(baseline_correction_result[wf_index][3], -1, baseline_correction_result[wf_index][3], 1);
+					baselineh->SetLineColor(6);
+					baselineh->SetLineWidth(2);
+					TLine* baseline = new TLine(baseline_correction_result[wf_index][2], 0, baseline_correction_result[wf_index][3], 0);
+					baseline->SetLineColor(6);
+					TLine* correction_value = new TLine(baseline_correction_result[wf_index][2], baseline_correction_result[wf_index][0], baseline_correction_result[wf_index][3], baseline_correction_result[wf_index][0]);
+					correction_value->SetLineColor(2);
 
-			if (static_cast<int>(timing_results.size()) > event_index * nchannels + i) {
-				TLine* timing = new TLine(timing_results[event_index * nchannels + i][1], -10, timing_results[event_index * nchannels + i][1], 100);
-				timing->SetLineColor(9);
-				timing->SetLineWidth(2);
-				timing->Draw("same");
+					baselinel->Draw("same");
+					baselineh->Draw("same");
+					baseline->Draw("same");
+					correction_value->Draw("same");
+				}
+				
+				if (wf_index < static_cast<int>(timing_results.size())) {
+					TLine* timing = new TLine(timing_results[wf_index][1], -10, timing_results[wf_index][1], 100);
+					timing->SetLineColor(9);
+					timing->SetLineWidth(2);
+					timing->Draw("same");
+				}
 			}
 
 			if (ymin != 0. && ymax != 0.) his->GetYaxis()->SetRangeUser(ymin, ymax); // fix y range for better comparison 
@@ -1708,8 +1693,12 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 /// @param negative_vals If true will save negative values. If false will set negative values to 0.
 float* ReadRun::ChargeList(int channel_index, float windowlow, float windowhi, float start, float end, bool negative_vals) {
 	float* charge_list = new float[nevents]();
+
+	#pragma omp parallel for
 	for (int j = 0; j < nevents; j++) {
-		auto his = Getwf(j * nchannels + channel_index);
+		if (GetWaveformIndex(j, channel_index) == -1) continue;
+
+		auto his = Getwf(j, channel_index);
 		charge_list[j] = GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index);
 		if (!negative_vals && charge_list[j] < 0.) charge_list[j] = 0.;
 	}
@@ -1789,6 +1778,7 @@ void ReadRun::ChargeCorrelation(float windowlow, float windowhi, float start, fl
 	float* charge2 = ChargeList(GetChannelIndex(channel2), windowlow, windowhi, start, end);
 
 	auto charge_corr = new TH2F(name.str().c_str(), title.str().c_str(), nbins, rangestart, rangeend, nbins, rangestart, rangeend);
+	
 	for (int i = 0; i < nevents; i++) {
 		if (!ignore_skipped_events || !skip_event[i]) charge_corr->Fill(charge1[i], charge2[i]);
 	}
@@ -1819,7 +1809,7 @@ void ReadRun::ChargeCorrelation(float windowlow, float windowhi, float start, fl
 TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins) {
 
 	TString name(Form("channel__%02d", active_channels[channel_index]));
-	TH1F* h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
+	auto h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
 
 	float pedestal = 0;
 	float gain = 1;
@@ -1828,12 +1818,27 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 		if (PrintChargeSpectrum_cal[channel_index][1] != 1) pedestal = PrintChargeSpectrum_cal[channel_index][1];
 	}
 
-	for (int j = 0; j < nevents; j++) {
-		if (!skip_event[j]) {
-			auto his = Getwf(channel_index, j);
-			h1->Fill((GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index) - pedestal) / gain); 
+	#pragma omp parallel
+	{
+		auto h1_tmp = new TH1F("", "", nbins, rangestart, rangeend);
+		#pragma omp for
+		for (int j = 0; j < nevents; j++) {
+			if (!SkipEvent(j, channel_index)) {
+				auto his = Getwf(channel_index, j);
+				float integral_value = GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index);
+				h1->Fill((integral_value - pedestal) / gain); 
+			}
 		}
+		h1->Add(h1_tmp);
+		delete h1_tmp;
 	}
+	// for (int j = 0; j < nevents; j++) {
+	// 	if (!SkipEvent(j, channel_index)) {
+	// 		auto his = Getwf(channel_index, j);
+	// 		h1->Fill((GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index) - pedestal) / gain); 
+	// 	}
+	// }
+	
 	return h1;
 }
 
@@ -1873,6 +1878,7 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins, float fitrangestart, float fitrangeend, int max_channel_nr_to_fit, int which_fitf, bool use_log_y) {
 	// print ReadRun::ChargeSpectrum for all channels optimized for SiPM signals
 	checkData();
+	cout << "Creating charge spectrum ..." << endl;
 	
 	gStyle->SetOptStat("ne");
 	gStyle->SetOptFit(1111);
@@ -1883,8 +1889,6 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 	string ctitle("\"charge\" spectra" + to_string(PrintChargeSpectrum_cnt++));
 	auto chargec = new TCanvas(ctitle.c_str(), ctitle.c_str(), 600, 400);
 	Helpers::SplitCanvas(chargec, active_channels, plot_active_channels);
-
-	cout << "\n\nThere is data recorded in " << active_channels.size() << " channels \n\n\n";
 	int current_canvas = 0;
 
 	float default_rangestart = -2000;
@@ -2140,10 +2144,10 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 
 	TString name(Form("timedist_ch%02d", active_channels[channel_index]));
 	auto h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
-
+	
 	for (int j = 0; j < nevents; j++) {
-		if (!skip_event[j]) {
-			auto his = (TH1F*)(Getwf(j * nchannels + channel_index));
+		if (!SkipEvent(j, channel_index)) {
+			auto his = (TH1F*)(Getwf(GetWaveformIndex(j, channel_index)));
 
 			int from_n = his->GetXaxis()->FindBin(from);
 
@@ -2230,11 +2234,11 @@ void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangee
 /// @example read_exampledata.cc
 /// @example read_exampledata.py
 
-/// @brief Finds maximum amplitude for a given channel in time window ["from", "to"] and creates 3d map of waveforms ordered by maxima
-/// 
-/// Use PrintMaxDist() to plot all channels.
-/// Use only for small datasets as it will contain all of the data
-/// 
+/// @brief Finds maximum amplitude for a given channel in time window ["from", "to"] and creates 3d map of waveforms ordered by maxima on z axis.
+///
+/// Use PrintMaxDist() to plot all channels. \n
+/// Use only for small datasets (<100k waveforms) as it will contain all individual points of all waveforms.
+///
 /// @return TGraph2D of all histograms ordered by maximum amplitude
 TGraph2D* ReadRun::MaxDist(int channel_index, float from, float to) {
 	// find maximum amplitude for a given channel in time window [from, to] and return 3d histogram with the number of bins nbinsy,z
@@ -2242,25 +2246,35 @@ TGraph2D* ReadRun::MaxDist(int channel_index, float from, float to) {
 	TString name(Form("maxdist_ch%02d", active_channels[channel_index]));
 	TGraph2D* g3d = new TGraph2D((binNumber + 2) * nevents);
 	g3d->SetTitle("waveforms; t [ns]; max. amplitude [mv]; amplitude [mV]");
+	g3d->SetMarkerStyle(7);
+	double* xvals = getx();
 
 	for (int j = 0; j < nevents; j++) {
-		if (!skip_event[j]) {
-			auto his = (TH1F*)(Getwf(j * nchannels + channel_index))->Clone();
-			if (from >= 0 && to > 0) his->GetXaxis()->SetRange(his->GetXaxis()->FindBin(from), his->GetXaxis()->FindBin(to));
-			double max = his->GetMaximum();
-			for (int i = 0; i < binNumber; i++) g3d->SetPoint(j * binNumber + i, his->GetXaxis()->GetBinCenter(i), max, his->GetBinContent(i));
-			delete his;
+		if (!SkipEvent(j, channel_index)) {
+			auto his = (TH1F*)(Getwf(GetWaveformIndex(j, channel_index)));
+
+			int bin_from = his->GetXaxis()->FindBin(from) - 1;
+			int bin_to = his->GetXaxis()->FindBin(to);
+			double max_val = his->GetBinContent(bin_from);
+			for (int i = bin_from + 1; i < bin_to; ++i) {
+				double val = his->GetBinContent(i);
+				if (val > max_val) max_val = val;
+			}
+			
+			for (int i = 0; i < binNumber; i++) g3d->SetPoint(j * binNumber + i, xvals[i], max_val, his->GetBinContent(i+1));
 		}
 	}
+	delete[] xvals;
 	root_out->WriteObject(g3d, name.Data());
 	return g3d;
 }
 
-/// @brief Finds maximum amplitude for a given channel in time window ["from", "to"] and creates 3d map of waveforms ordered by maxima
+
+/// @brief Finds maximum amplitude for a given channel in time window ["from", "to"] and creates 3d map of waveforms ordered by maxima on z axis.
 /// 
-/// Prints MaxDist() for all channels.
-/// Use only for small datasets as it will contain all of the data
-/// 
+/// Prints MaxDist() for all channels. \n
+/// Use only for small datasets (<100k waveforms) as it will contain all individual points of all waveforms.
+///
 /// @param from From
 /// @param to To 
 void ReadRun::PrintMaxDist(float from, float to) {
@@ -2274,7 +2288,7 @@ void ReadRun::PrintMaxDist(float from, float to) {
 		if (PlotChannel(i)) {
 			max_dist_c->cd(++current_canvas);
 			auto g3d = MaxDist(i, from, to);
-			g3d->Draw();
+			g3d->Draw("AP");
 		}
 	}
 	max_dist_c->Update();
@@ -2291,9 +2305,11 @@ TH1F* ReadRun::His_GetTimingCFD(int channel_index, float rangestart, float range
 	if (nbins == -999) nbins = static_cast<int>((rangeend - rangestart) / SP);
 
 	TString name(Form("GetTimingCFD_ch%02d", active_channels[channel_index]));
-	auto h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
-	for (int j = 0; j < nevents; j++) if (!skip_event[j]) h1->Fill(timing_results[j * nchannels + channel_index][1]);
-	return h1;
+	auto his = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
+	for (int j = 0; j < nevents; j++) {
+		if (!SkipEvent(j, channel_index)) his->Fill(timing_results[GetWaveformIndex(j, channel_index)][1]);
+	}
+	return his;
 }
 
 /// @brief Plot results of GetTimingCFD()
@@ -2331,9 +2347,9 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, i
 
 			if (set_errors) {
 				int end = his->GetNbinsX();
-				for (int i = 1; i <= end; i++) {
-					if (his->GetBinContent(i) < 2) his->SetBinError(i, 1);
-					else his->SetBinError(i, sqrt(his->GetBinContent(i)));
+				for (int k = 1; k <= end; k++) {
+					if (his->GetBinContent(k) < 2) his->SetBinError(k, 1);
+					else his->SetBinError(k, sqrt(his->GetBinContent(k)));
 				}
 			}
 
@@ -2394,23 +2410,30 @@ TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels
 	name << ">";
 
 	// fill histogram
-	auto h1 = new TH1F(name.str().c_str(), name.str().c_str(), nbins, rangestart, rangeend);
+	auto his = new TH1F(name.str().c_str(), name.str().c_str(), nbins, rangestart, rangeend);
 	for (int j = 0; j < nevents; j++) {
-		if (!skip_event[j]) {
+		if (!SkipEvent(j)) {
 			float mean1 = 0., mean2 = 0., cnt1 = 0., cnt2 = 0.;
 			for (int i : channels1) {
-				mean1 += timing_results[j * nchannels + i][1];
-				cnt1 += 1.;
+				int wf_index = GetWaveformIndex(j, i);
+				if (wf_index >= 0) {
+					mean1 += timing_results[GetWaveformIndex(j, i)][1];
+					cnt1 += 1.;
+				}
 			}
 			for (int i : channels2) {
-				mean2 += timing_results[j * nchannels + i][1];
-				cnt2 += 1.;
+				int wf_index = GetWaveformIndex(j, i);
+				if (wf_index >= 0) {
+					mean2 += timing_results[GetWaveformIndex(j, i)][1];
+					cnt2 += 1.;
+				}
 			}
-			h1->Fill(mean2 / cnt2 - mean1 / cnt1);
+
+			if (cnt1 != 0. && cnt2 !=0.) his->Fill(mean2 / cnt2 - mean1 / cnt1);
 		}
 	}
 
-	return h1;
+	return his;
 }
 
 /// @brief Plot timing difference between the mean timings of two channel ranges
@@ -2557,7 +2580,6 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 /// @param wf_nr Waveform number
 /// @return Waveform histogram 
 TH1F* ReadRun::Getwf(int wf_nr) {
-	checkData();
 	return (TH1F*)rundata->At(wf_nr);
 }
 
@@ -2567,7 +2589,6 @@ TH1F* ReadRun::Getwf(int wf_nr) {
 /// @param color Choose color of histogram
 /// @return Waveform histogram 
 TH1F* ReadRun::Getwf(int channelnr, int eventnr, int color) {
-	checkData();
 	TH1F* his;
 	his = (TH1F*)rundata->At(eventnr * nchannels + channelnr);
 	his->SetLineColor(color);
@@ -2601,6 +2622,14 @@ double* ReadRun::gety(int waveform_index) {
 double* ReadRun::gety(int channelnr, int eventnr) {
 	auto his = Getwf(channelnr, eventnr);
 	return Helpers::gety(his);
+}
+
+/// @brief Returns index of a certain event number (if data files are read in parallel threads)
+/// @param eventnr Event number as stored in the data.
+/// @param channel_index Channel index as stored in the data.
+/// @return Corresponding waveform number in the internal data structure.
+int ReadRun::GetWaveformIndex(int eventnr, int channel_index) {
+	return max(0, min(nwf - 1, eventnr * nchannels + channel_index));
 }
 
 /// @brief Returns index of a certain event number (if data files are read in parallel threads)
@@ -2653,7 +2682,7 @@ int ReadRun::GetCurrentEvent(int waveform_index) {
 /// @brief Check if a channel index should be plotted according to ReadRun::plot_active_channels
 /// @param i Channel index.
 bool ReadRun::PlotChannel(int i) {
-	if (plot_active_channels.empty() || find(plot_active_channels.begin(), plot_active_channels.end(), active_channels[i]) != plot_active_channels.end()) return true;
+	if (plot_active_channels.empty() || Helpers::Contains(plot_active_channels, active_channels[i])) return true;
 	else return false;
 }
 
@@ -2666,13 +2695,34 @@ bool ReadRun::PlotChannel(int i) {
 /// @param x2 X2
 /// @param y1 Y1
 /// @param y2 Y2
+/// @param verbose Set true for printing errors
 /// @return x value at "ym"
-pair<float, bool> ReadRun::LinearInterpolation(float ym, float x1, float x2, float y1, float y2) {
+pair<float, bool> ReadRun::LinearInterpolation(float ym, float x1, float x2, float y1, float y2, bool verbose) {
 	if (y1 == y2) return {(x1 + x2) / 2., false};
 	else if ((y1 > ym && y2 > ym) || (y1 < ym && y2 < ym)) {
-		cout << "\nError in LinearInterpolation: Value ym=" << ym << " out of range (" << y1 << "|" << y2 << ")." << endl;
-		cout << "Will return x1. Increase window for search." << endl;
+		if (verbose){
+			cout << "\nError in LinearInterpolation: Value ym=" << ym << " out of range (" << y1 << "|" << y2 << ")." << endl;
+			cout << "Will return x1. Increase window for search." << endl;
+		}
 		return {x1, false};
 	}
 	else return {x1 + (ym - y1) * (x2 - x1) / (y2 - y1), true};
+}
+
+/// @brief Check whether or not the polarity should be changed during reading. \n
+/// For parameters see ReadFile(). 
+float ReadRun::PolarityCheck(bool change_polarity, int current_channel, int change_sign_from_to_ch_num) {
+	float pol = 1.;
+	if (!switch_polarity_for_channels.empty()) {
+		if (Helpers::Contains(switch_polarity_for_channels, current_channel)) {
+			pol = -1.;
+		}
+	}
+	else if (change_polarity && 
+			((current_channel >= change_sign_from_to_ch_num) || 
+			(change_sign_from_to_ch_num < 0 && current_channel <= abs(change_sign_from_to_ch_num)))) 
+	{
+		pol = -1.;
+	}
+	return pol;
 }
