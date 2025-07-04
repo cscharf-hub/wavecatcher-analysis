@@ -262,8 +262,9 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 					if (event_counter == 0) active_channels.push_back(static_cast<int>(output_channel));
 
-					TString name(Form("ch%02d_%05d", output_channel, an_event.EventNumber));
-					TString title(Form("ch%d, event %d;t [ns];U [mV]", output_channel, an_event.EventNumber));
+					int event_nr_saved = !discard_original_eventnr ? an_event.EventNumber : event_counter;
+					TString name(Form("ch%02d_%05d", output_channel, event_nr_saved));
+					TString title(Form("ch%d, event %d;t [ns];U [mV]", output_channel, event_nr_saved));
 					auto hCh = (TH1F*)testrundata.ConstructedAt(wfcounter);
 					hCh->SetName(name.Data());
 					hCh->SetTitle(title.Data());
