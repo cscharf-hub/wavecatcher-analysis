@@ -21,7 +21,7 @@
 /// @param debug Set ```true``` to increase the verbosity.
 /// @param max_nfs_to_read Maximum number of events to be read per file. For quick testing of analysis on subset of the data.
 void ReadSampic::ReadFile(string path, bool change_polarity, int change_sign_from_to_ch_num, string out_file_name, bool debug, long long max_nfs_to_read) {
-	if (max_nfs_to_read == 0) max_nfs_to_read = static_cast<long long>(1e9);
+	if (max_nfs_to_read <= 0) max_nfs_to_read = static_cast<long long>(1e9);
 	eventsBuilt = false;
 	if (path.back() != '/') path += '/';
 	data_path = path;
@@ -71,7 +71,8 @@ void ReadSampic::ReadFile(string path, bool change_polarity, int change_sign_fro
 				size_t pos = line.find("DATA_IN_FILE_TYPE:");
     			if (pos != string::npos) has_measurement = stoi(line.substr(pos + 18));
 				if (line.substr(0, line.length() - 5) != data_settings.substr(0, data_settings.length() - 5)) {
-					cout << "\nWARNING: Unexpected DATA STRUCTURE INFO line.\n Found " << line.c_str() << "\ninstead of " << data_settings.c_str() << endl;
+					cout << "\nWARNING: Unexpected DATA STRUCTURE INFO line.\n Found " << line.c_str() << endl;
+					cout << "instead of " << data_settings.c_str() << endl;
 				}
 				if (has_measurement == 1) cout << "Using HitStructInfoForWaveformAndMeasurements_t." << endl;
 				else cout << "Using HitStructInfoForWaveformOnly_t." << endl;
@@ -94,7 +95,9 @@ void ReadSampic::ReadFile(string path, bool change_polarity, int change_sign_fro
 		HitStructInfoForWaveformOnly_t hitDataNoMeas;
 		HitInfoReduced currentHitInfo;
 		float WFlength = 64;
-		while (has_measurement ? input_file.read((char *)(&hitData), sizeof(hitData)) : input_file.read((char *)(&hitDataNoMeas), sizeof(hitDataNoMeas))) {
+		while (has_measurement ? 
+				input_file.read((char *)(&hitData), sizeof(hitData)) : 
+				input_file.read((char *)(&hitDataNoMeas), sizeof(hitDataNoMeas))) {
 			//waveform loop
 			
 			if (!has_measurement) {
@@ -198,7 +201,7 @@ void ReadSampic::PlotWF(int wfNumber, float ymin, float ymax) {
 /// It currently constructs the events from the first waveform above the set amplitude threshold. \n
 /// ToDo: \n
 /// - Add option to create event from most coincidences, not from first \n
-/// - Add option for integral threshold?
+/// - Add option for integral threshold? (Would require parameters for integration window -> separate function?)
 /// @param coincidence_time_window Event time window in ns. All hits within time window will be added to event. \n
 /// Starts at the beginning of the first channel above threshold and will include all channels 
 /// which start recording before the end of the coincidence time window. This means the peak might 
@@ -206,7 +209,7 @@ void ReadSampic::PlotWF(int wfNumber, float ymin, float ymax) {
 /// signal inside the time window you would need to subtract the length of a waveform (depends on SAMPIC settings) from the time window. \n
 /// Must be shorter than the dead time of SAMPIC (<1000 ns).
 /// @param thresholds Vector of thresholds for all channels in ascending order (lowest channel number in data is the first entry). \n
-/// If you specify only a single value {val}, it will be used for all channels.
+/// If you specify only a single value {val}, it will be used for all channels. The amplitude must be larger than the specified threshold.
 /// @param channels Vector of channels to be used. If left empty {} all channels will be used. 
 /// Provide the actual channel numbers from SAMPIC (e. g. {10, 28}).
 /// @param min_coincidences Minimum number of channels above threshold. Events will be constructed if at least
@@ -260,7 +263,7 @@ void ReadSampic::EventBuilder(double coincidence_time_window, vector<float> thre
 
 		if (include_all_channels || Helpers::Contains(channels, hitInfo[i].Channel)) {
 			int i_ch = GetChannelIndex(hitInfo[i].Channel);
-			if (hitInfo[i].Max > thresholds[i_ch] || hitInfo[i].Min < thresholds[i_ch]) {
+			if (hitInfo[i].Max > thresholds[i_ch]) {
 				hitInfo[i].IsEventCandidate = true;
 				n_canditates++;
 			}
