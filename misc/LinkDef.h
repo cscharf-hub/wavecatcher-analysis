@@ -8,7 +8,6 @@
 #pragma link C++ class CosmicsBox+;
 #pragma link C++ class FFT_WF+;
 #pragma link C++ class Experimental+;
-#pragma link C++ class Freiburg_DAQ+;
 #pragma link C++ class ReadSampic+;
 #pragma link C++ class Legacy_functions+;
 

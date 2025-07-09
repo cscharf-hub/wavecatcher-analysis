@@ -24,8 +24,8 @@ DICTH           =${DICTB}.h
 DICT            =${DICTB}.cc
 DICTO           =${DICTB}.o
 
-HDRS            =src/PMT.h src/CosmicsBox.h src/FFT_WF.h src/Experimental.h src/Freiburg_DAQ.h src/ReadSampic.h src/Legacy_functions.h src/utils/Helpers.h src/utils/Filters.h src/ReadRun.h 
-OBJS            =src/PMT.o src/CosmicsBox.o src/FFT_WF.o src/Experimental.o src/Freiburg_DAQ.o src/ReadSampic.o src/Legacy_functions.o src/utils/Helpers.o src/utils/Filters.o src/ReadRun.o $(DICTO)
+HDRS            =src/PMT.h src/CosmicsBox.h src/FFT_WF.h src/Experimental.h src/ReadSampic.h src/Legacy_functions.h src/utils/Helpers.h src/utils/Filters.h src/ReadRun.h 
+OBJS            =src/PMT.o src/CosmicsBox.o src/FFT_WF.o src/Experimental.o src/ReadSampic.o src/Legacy_functions.o src/utils/Helpers.o src/utils/Filters.o src/ReadRun.o $(DICTO)
 
 LIBSLIN			=$(shell root-config --glibs)
 
