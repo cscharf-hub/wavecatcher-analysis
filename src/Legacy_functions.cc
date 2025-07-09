@@ -4,7 +4,7 @@
 /// 
 /// Needs to be called before the charge spectrum etc functions. \n 
 /// Baseline correction should be called before this function.
-/// **Sequential Clone() loop makes this inefficient**
+/// **Sequential Clone() loop makes this inefficient. Please let me know if the function is still in use and should be updated.**
 /// 
 /// @param threshold Threshold in mV.
 /// @param max If true uses max, else uses min.

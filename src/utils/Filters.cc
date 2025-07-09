@@ -172,6 +172,7 @@ void Filters::SmoothArray(double*& ar, int nbins, double sigma, string method, d
 }
 /// @example use_functions_wo_measurement.cc
 
+
 /// @brief Apply smoothing array of double with length nbins
 /// @param method If 0: Use running average (box kernel smoothing). Simple, very fast. \n 
 /// If 1: Use 5 sigma FFT gaussian smoothing. This method is not central and will shift peaks. Very slow. \n

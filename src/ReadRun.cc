@@ -51,7 +51,7 @@ ReadRun::ReadRun(int last_bin_file, int first_bin_file) {
 ///   - Change polarity of range of channels with parameters (explained below). \n 
 ///   - Shift all waveforms to a constant fraction such they all start at the same time (-> see ReadRun::Shift_WFs_in_file_loop ) \n 
 ///   - Simple baseline correction by calling CorrectBaseline() before calling ReadFile(). \n 
-/// Stores the data as ROOT histograms in ```TClonesArray rundata```. \n \n 
+/// Stores the data as vectors in ```vector<vector<float>> rundata```. \n \n 
 /// 
 /// Reader modified from WaveCatcher binary -> root converter by manu chauveau@cenbg.in2p3.fr \n 
 /// 
@@ -66,17 +66,17 @@ ReadRun::ReadRun(int last_bin_file, int first_bin_file) {
 /// @param max_nevents_to_read Maximum number of events to be read per file. For quick testing of analysis on subset of the data.
 void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_to_ch_num, string out_file_name, bool debug, long long max_nevents_to_read) {
 	if (max_nevents_to_read <= 0) max_nevents_to_read = static_cast<long long>(1e9);
-	if (path.back() != '/') path += '/'; // add '/' to path if not present
-	// save output path
+	rundata.reserve(1'000'000);						// reserve space for 1M waveforms
+	if (path.back() != '/') path += '/';
 	data_path = path;
-
-	if (out_file_name == "") out_file_name = "out.root";
+	
+	// save results to root file
+	if (out_file_name.empty()) out_file_name = "out.root";
 	printf("+++ saving analysis results in '%s' ...\n\n", out_file_name.c_str());
 	root_out = TFile::Open(out_file_name.c_str(), "recreate");
 
-	rundata = new TClonesArray("TH1F", maxNWF); //raw data will be stored here as TH1F
-	rundata->BypassStreamer(kFALSE);			//kFALSE: potentially faster read & write
-	TClonesArray& testrundata = *rundata;
+	// invert channels
+	auto polarity_map = PolarityMap(change_polarity, change_sign_from_to_ch_num);
 
 	// verbosity
 	bool debug_header = debug;
@@ -168,7 +168,9 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 			cout << "\nWARNING: Measurement has " << binNumber << " samples, which is non-standard. Please report any bugs!" << endl;
 			cout << "If this was not intentional check the WaveCatcher settings!" << endl;
 		}
-		size_t size_of_waveform = static_cast<size_t>(binNumber) * sizeof(short);
+		size_t waveform_bytes = static_cast<size_t>(binNumber) * sizeof(short);
+		vector<short> waveform(binNumber);
+		vector<float> waveform_f(binNumber);
 
 		if (file_counter == 0) amplValuessum.resize(nChannelsWC, vector<float>(binNumber, 0.));
 
@@ -247,84 +249,25 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 				if (debug_data) cout << "- reading channel " << output_channel << endl;
 				
 				// read waveform
-				vector<short> waveform(binNumber);
-				input_file.read((char*)waveform.data(), size_of_waveform);
+				input_file.read((char*)waveform.data(), waveform_bytes);
 
 				//---------------------------------------------------------------------------------------------------------------
 				if (ch >= start_at_ch && ch <= end_at_ch) {
-					
 					if (event_counter == 0) active_channels.push_back(static_cast<int>(output_channel));
 
-					TString name(Form("ch%02d_%05d", output_channel, an_event.EventNumber));
-					TString title(Form("ch%d, event %d;t [ns];U [mV]", output_channel, an_event.EventNumber));
-					auto hCh = (TH1F*)testrundata.ConstructedAt(wfcounter);
-					hCh->SetName(name.Data());
-					hCh->SetTitle(title.Data());
-					hCh->SetBins(binNumber, -0.5 * SP, (static_cast<float>(binNumber) - 0.5) * SP);
-					hCh->SetDirectory(nullptr);
-
-					int nshift = 0;
-					if (Shift_WFs_in_file_loop) { // shift all waveforms to tWF_CF_bin
-						float max = 0.;
-						int nmax = 0;
-						float cf = tWF_CF;
-						int count_fall = 0;
-
-						// do a mini-baseline correction (needed in case a voltage offset is set in the wavecatcher)
-						short bsln = (waveform[0] + waveform[1] + waveform[3]) / 3;
-						for (int lll = 0; lll < binNumber; lll++) waveform[lll] -= bsln;
-
-						int g_max = *max_element(waveform.begin(), waveform.begin() + binNumber);
-						int g_min = abs(*min_element(waveform.begin(), waveform.begin() + binNumber));
-
-						int global_max = g_max < g_min ? g_min : g_max;
-
-						for (int s = tWF_CF_lo; s < tWF_CF_hi; ++s) {
-							if (max < TMath::Abs(waveform[s])) {
-								max = TMath::Abs(waveform[s]);
-								nmax = s;
-							}
-
-							// stop search if the current maximum is at least 0.5 * global maximum and if there are at 
-							// least three consecutive bins where the waveform amplitude is decreasing
-							if (max > .5 * global_max && s - nmax < 4 && TMath::Abs(waveform[s + 2]) + TMath::Abs(waveform[s + 3]) < TMath::Abs(waveform[s]) + TMath::Abs(waveform[s + 1])) count_fall++;
-							else count_fall = 0;
-							if (count_fall == 3) break;
-						}
-						cf *= max;
-
-						for (int s = nmax; s > tWF_CF_lo; --s) {
-							if (cf >= TMath::Abs(waveform[s])) {
-								if (cf - TMath::Abs(waveform[s]) < TMath::Abs(waveform[s - 1]) - cf) nshift = tWF_CF_bin - s;
-								else nshift = tWF_CF_bin - s - 1;
-								break;
-							}
-						}
-					}
+					float factor = DAQ_factor;
+					if (polarity_map[static_cast<int>(output_channel)]) factor = -factor;
 
 					// loop to fill waveform histograms
-					float polarity = PolarityCheck(change_polarity, output_channel, change_sign_from_to_ch_num);
-					float val = 0;
-					for (int s = 0; s < binNumber; ++s) {
-						// shift all waveforms
-						int shiftind = s - nshift;
-						if (shiftind < 0) shiftind += (binNumber - 1);
-						else if (shiftind > binNumber - 1) shiftind -= (binNumber - 1);
-						val = static_cast<float>(waveform[shiftind]) * DAQ_factor;
-
-						// change the polarity for certain channels since our PMTs have negative signals while our SiPMs have positive signals
-						val *= polarity;
-
-						// fill waveforms
-						hCh->SetBinContent(s + 1, val);
-
-						// channel sums
-						amplValuessum[output_channel][s] += val;
+					for (int i = 0; i < binNumber; i++) {
+						waveform_f[i] = static_cast<float>(waveform[i]) * factor;
+						amplValuessum[static_cast<int>(output_channel)][i] += waveform_f[i];
 					}
+					rundata.push_back(waveform_f);
 
 					// baseline correction
 					if (Using_BaselineCorrection_in_file_loop) {
-						CorrectBaseline_function(hCh, tCutg, tCutEndg, wfcounter);
+						CorrectBaseline_function(rundata[wfcounter], tCutg, tCutEndg, wfcounter);
 					}
 
 					wfcounter++;
@@ -373,7 +316,6 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 /// @brief Destructor
 ReadRun::~ReadRun() {
-	//delete rundata;
 	//plot_active_channels.clear();
 	if (root_out->IsOpen()) root_out->Close();
 	cout << "\ndeleting nothing currently..." << endl;
@@ -451,28 +393,27 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 /// 
 /// @param normalize If true will normalize the maximum to 1.
 void ReadRun::PlotChannelAverages(bool normalize) {
-
-	double* xv = getx(0);
+	float* xv = new float[binNumber];
+	for (int i = 0; i < binNumber; i++) xv[i] = IndexToTime(i);
+	
 	auto mgav = new TMultiGraph();
 	mgav->SetTitle("channel averages; t [ns]; amplitude [mV]");
 	if (normalize) mgav->SetTitle("channel averages; t[ns]; amplitude[arb.]");
 
-	double max_val = 0., min_val = 0.;
+	float max_val = 0., min_val = 0.;
 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
 
-			double* yv = new double[binNumber]();
+			float* yv = new float[binNumber]();
 
 			for (int j = 0; j < nevents; j++) {
 				if (!SkipEvent(j, i)) {
-					double* y_tmp = gety(i, j);
-					for (int k = 0; k < binNumber; k++) yv[k] += y_tmp[k];
-					delete[] y_tmp;
+					for (int k = 0; k < binNumber; k++) yv[k] += rundata[GetWaveformIndex(j, i)][k];
 				}
 			}
 
-			double norm = max(1., static_cast<double>(Nevents_good(i)));
+			float norm = max(1.f, static_cast<float>(Nevents_good(i)));
 			for (int k = 0; k < binNumber; k++) yv[k] /= norm;
 
 			auto gr = new TGraph(binNumber, xv, yv);
@@ -601,13 +542,12 @@ void ReadRun::SmoothAll(double sigma, int method) {
 	#pragma omp parallel for
 	for (int j = 0; j < nwf; j++) {
 		if (!SkipEvent(GetCurrentEvent(j), GetCurrentChannel(j))) {
-			auto his = Getwf(j);
-			double* yvals = Helpers::gety(his);
-			Filters::SmoothArray(yvals, binNumber, sigma, method, SP);
-			for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, yvals[i - 1]);
-			delete[] yvals;
+			vector<double> tmp_(rundata[j].begin(), rundata[j].end());
+			double* tmp_wf = tmp_.data();
+
+			Filters::SmoothArray(tmp_wf, binNumber, sigma, method, SP);
+			for (int i = 0; i < binNumber; ++i) rundata[j][i] = static_cast<float>(tmp_[i]);
 		}
-		// Helpers::PrintProgressBar(j, nwf);
 	}
 }
 
@@ -624,13 +564,12 @@ void ReadRun::SmoothAll(double sigma, string method) {
 	#pragma omp parallel for
 	for (int j = 0; j < nwf; j++) {
 		if (!SkipEvent(GetCurrentEvent(j), GetCurrentChannel(j))) {
-			auto his = Getwf(j);
-			double* yvals = Helpers::gety(his);
-			Filters::SmoothArray(yvals, binNumber, sigma, method, SP);
-			for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, yvals[i - 1]);
-			delete[] yvals;
+			vector<double> tmp_(rundata[j].begin(), rundata[j].end());
+			double* tmp_wf = tmp_.data();
+
+			Filters::SmoothArray(tmp_wf, binNumber, sigma, method, SP);
+			for (int i = 0; i < binNumber; ++i) rundata[j][i] = static_cast<float>(tmp_[i]);
 		}
-		// Helpers::PrintProgressBar(j, nwf);
 	}
 }
 
@@ -646,13 +585,12 @@ void ReadRun::FilterAll(double sigma1, double sigma2, double factor) {
 
 	#pragma omp parallel for
 	for (int j = 0; j < nwf; j++) {
-		auto his = Getwf(j);
-		double* yvals = Helpers::gety(his);
-		if (factor > 0 && factor <= 1) Filters::ResponseFilter(yvals, binNumber, sigma1, sigma2, factor, SP);
-		else Filters::SecondOrderUnderdampedFilter(yvals, binNumber, sigma1, sigma2, abs(factor), SP);
-		for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, yvals[i - 1]);
-		delete[] yvals;
-		// Helpers::PrintProgressBar(j, nwf);
+		vector<double> tmp_(rundata[j].begin(), rundata[j].end());
+		double* tmp_wf = tmp_.data();
+
+		if (factor > 0 && factor <= 1) Filters::ResponseFilter(tmp_wf, binNumber, sigma1, sigma2, factor, SP);
+		else Filters::SecondOrderUnderdampedFilter(tmp_wf, binNumber, sigma1, sigma2, abs(factor), SP);
+		for (int i = 0; i < binNumber; ++i) rundata[j][i] = static_cast<float>(tmp_[i]);
 	}
 }
 
@@ -687,10 +625,10 @@ void ReadRun::ShiftAllToAverageCF() {
 		int curr_ch = GetCurrentChannel(j);
 		if (!SkipEvent(GetCurrentEvent(j), curr_ch)) {
 			int shift = static_cast<int>(timing_results[j][0]) - timing_mean_n[curr_ch];
-			auto his = Getwf(j);
-			Helpers::ShiftTH1(his, shift);
+			shift = shift % binNumber;
+    		if (shift < 0) shift += binNumber;
+    		rotate(rundata[j].begin(), rundata[j].begin() + shift, rundata[j].end());
 		}
-		// Helpers::PrintProgressBar(j, nwf);
 	}
 	delete[] timing_mean_n;
 }
@@ -726,8 +664,7 @@ void ReadRun::CorrectBaseline(float tCut, float tCutEnd) {
 
 		#pragma omp parallel for
 		for (int j = 0; j < nwf; j++) {
-			CorrectBaseline_function(Getwf(j), tCut, tCutEnd, j);
-			// Helpers::PrintProgressBar(j, nwf);
+			CorrectBaseline_function(rundata[j], tCut, tCutEnd, j);
 		}
 	}
 }
@@ -736,30 +673,32 @@ void ReadRun::CorrectBaseline(float tCut, float tCutEnd) {
 /// 
 /// See CorrectBaseline()
 /// 
-void ReadRun::CorrectBaseline_function(TH1F* his, float tCut, float tCutEnd, int nwaveform) {
+void ReadRun::CorrectBaseline_function(vector<float>& waveform, float tCut, float tCutEnd, int waveform_index) {
 	int iCut, iCutEnd;
 	float corr = 0;
 
-	iCut = his->GetXaxis()->FindBin(tCut);
+	iCut = TimeToIndex(tCut);
 
 	if (tCutEnd <= 0) { //
-		corr = his->Integral(1, iCut) / static_cast<float>(iCut);
+		for (int i=0; i<=iCut; i++) corr += waveform[i];
+		corr /= static_cast<float>(iCut);
 	}
 	else {
-		iCutEnd = his->GetXaxis()->FindBin(tCutEnd);
-		corr = his->Integral(iCut, iCutEnd) / static_cast<float>(iCutEnd - iCut + 1);
+		iCutEnd = TimeToIndex(tCutEnd);
+		for (int i=iCut; i<=iCutEnd; i++) corr += waveform[i]; 
+		corr /= static_cast<float>(iCutEnd - iCut + 1);
 	}
 
 	// write corrected values to histograms
 	if (tCut >= 0) {
-		for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, his->GetBinContent(i) - corr);
+		for (int i = 0; i < binNumber; i++) waveform[i] -= corr;
 	}
 
 	if (!Using_BaselineCorrection_in_file_loop) {
-		baseline_correction_result[nwaveform][0] = corr;
-		baseline_correction_result[nwaveform][1] = 0;
-		baseline_correction_result[nwaveform][2] = tCut;
-		baseline_correction_result[nwaveform][3] = tCutEnd;
+		baseline_correction_result[waveform_index][0] = corr;
+		baseline_correction_result[waveform_index][1] = 0;
+		baseline_correction_result[waveform_index][2] = tCut;
+		baseline_correction_result[waveform_index][3] = tCutEnd;
 	}
 }
 
@@ -795,16 +734,15 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 	if (window.empty()) cout << "\nWarning: Window not set in CorrectBaselineMinSlopeRMS. Will use default values." << endl;
 	if (sigma != 0.) cout << "\nNotification: Using smoothing in CorrectBaselineMinSlopeRMS." << endl;
 
-	int nbins_average = !window.empty() ? static_cast<int>(round(abs(window[0]) / SP)) : static_cast<int>(50. / SP);
-	int start_search_at = static_cast<int>(window.size()) > 1 ? static_cast<int>(round(abs(window[1]) / SP)) : 0;
-	int end_search_at = static_cast<int>(window.size()) > 2 ? 
-						min(static_cast<int>(round(abs(window[2]) / SP)), binNumber - 1) : binNumber - 1;
+	int nbins_average = !window.empty() ? TimeToIndex(window[0]) : TimeToIndex(50.);
+	int start_search_at = static_cast<int>(window.size()) > 1 ? TimeToIndex(window[1]) : 0;
+	int end_search_at = static_cast<int>(window.size()) > 2 ? TimeToIndex(window[2]) : binNumber - 1;
 
 	int end_search_loop_at = end_search_at - start_search_at - nbins_average;
 
 	// if no valid static search window is specified, it will be dynamic from 0 ns up to 8 ns before the global maximum
 	bool search_relative_to_local_max = false;
-	int min_distance_from_max = static_cast<int>(8. / SP);
+	int min_distance_from_max = TimeToIndex(8.);
 	if (start_search_at < 0) {
 		search_relative_to_local_max = true;
 		start_search_at = 0;
@@ -824,16 +762,14 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 		int end_search_at_ = end_search_at;
 		int end_search_loop_at_ = end_search_loop_at;
 
-		auto his = Getwf(j);
 		if (search_relative_to_local_max) {
-			imax = GetIntWindow(his, 0, 0, static_cast<float>(nbins_search_ + min_distance_from_max) * SP,
-								static_cast<float>(end_search_at_) * SP)[1];
+			imax = GetIntWindow(rundata[j], 0, 0, nbins_search_ + min_distance_from_max, end_search_at_)[1];
 			end_search_at_ = imax - min_distance_from_max;
 			nbins_search_ = end_search_at_; // starts at 0
 			end_search_loop_at_ = nbins_search_ - nbins_average;
 		}
 
-		double* yvals = Helpers::gety(his, start_search_at, end_search_at_);
+		double* yvals = Helpers::gety(rundata[j], start_search_at, end_search_at_);
 		// smoothing suppresses variations in slope due to noise, so the method is potentially more sensitive to excluding peaks
 		if (sigma > 0) Filters::SmoothArray(yvals, nbins_search_, sigma, smooth_method);
 		//calculate slope
@@ -871,16 +807,16 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 		delete[] slope_sq;
 
 		// do correction
-		corr = his->Integral(iintwindowstart + 1, iintwindowstart + nbins_average + 1) / static_cast<float>(nbins_average + 1);
-		for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, his->GetBinContent(i) - corr);
+		for (int i=iintwindowstart; i<=iintwindowstart + nbins_average; i++) corr += rundata[j][i];
+		corr /= static_cast<float>(nbins_average + 1);
+		for (int i = 0; i < binNumber; i++) rundata[j][i] -= corr;
 
 		baseline_correction_result[j][0] = corr;
 		baseline_correction_result[j][1] = minchange;
-		baseline_correction_result[j][2] = static_cast<float>(iintwindowstart) * SP;
-		baseline_correction_result[j][3] = static_cast<float>(iintwindowstart + nbins_average) * SP;
+		baseline_correction_result[j][2] = IndexToTime(iintwindowstart);
+		baseline_correction_result[j][3] = IndexToTime(iintwindowstart + nbins_average);
 		baseline_correction_result[j][4] = minsumsq;
 		baseline_correction_result[j][5] = minsqsum;
-		// Helpers::PrintProgressBar(j, nwf);
 	}
 }
 /// @example read_exampledata.cc
@@ -922,9 +858,9 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 	cout << "Notification: This is a deprecated version of CorrectBaselineMinSlopeRMS. "
 		<< "It will be removed in future releases. Parameter bool smooth=" << smooth << " will be ignored." << endl;
 	vector<float> window;
-	window.push_back(static_cast<float>(nIntegrationWindow) * SP);
-	window.push_back(static_cast<float>(start_at) * SP);
-	window.push_back(static_cast<float>(max_bin_for_baseline) * SP);
+	window.push_back(IndexToTime(nIntegrationWindow));
+	window.push_back(IndexToTime(start_at));
+	window.push_back(IndexToTime(max_bin_for_baseline));
 	CorrectBaselineMinSlopeRMS(window, sigma, smooth_method);
 }
 /// @example read_exampledata.cc
@@ -958,16 +894,15 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 	if (window.empty()) cout << "\nWarning: Window not set in CorrectBaselineMin. Will use default values." << endl;
 	if (sigma != 0.) cout << "\nNotification: Using smoothing in CorrectBaselineMin." << endl;
 
-	int nbins_average = !window.empty() ? static_cast<int>(round(abs(window[0]) / SP)) : static_cast<int>(10. / SP);
-	int start_search_at = static_cast<int>(window.size()) > 1 ? static_cast<int>(round(window[1] / SP)) : 0;
-	int end_search_at = static_cast<int>(window.size()) > 2 ? 
-		min(static_cast<int>(round(window[2] / SP)), binNumber - 1) : binNumber - 1;
+	int nbins_average = !window.empty() ? TimeToIndex(window[0]) : TimeToIndex(10.);
+	int start_search_at = static_cast<int>(window.size()) > 1 ? TimeToIndex(window[1]) : 0;
+	int end_search_at = static_cast<int>(window.size()) > 2 ? TimeToIndex(window[2]) : binNumber - 1;
 
 	int end_search_loop_at = end_search_at - start_search_at - nbins_average;
 
 	// if no valid static search window is specified, it will be dynamic from 0 ns up to 8 ns before the global maximum
 	bool search_relative_to_local_max = false;
-	int min_distance_from_max = static_cast<int>(8. / SP);
+	int min_distance_from_max = TimeToIndex(8.);
 	if (start_search_at < 0 || end_search_loop_at < 0) {
 		search_relative_to_local_max = true;
 		start_search_at = 0;
@@ -987,15 +922,14 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 		int end_search_at_ = end_search_at;
 		int end_search_loop_at_ = end_search_loop_at;
 
-		auto his = Getwf(j);
 		if (search_relative_to_local_max) {
-			imax = GetIntWindow(his, 0, 0, static_cast<float>(nbins_search_ + min_distance_from_max) * SP, static_cast<float>(end_search_at_)*SP)[1];
+			imax = GetIntWindow(rundata[j], 0, 0, nbins_search_ + min_distance_from_max, end_search_at_)[1];
 			end_search_at_ = imax - min_distance_from_max;
 			nbins_search_ = end_search_at_;
 			end_search_loop_at_ = nbins_search_ - nbins_average;
 		}
 
-		double* yvals = Helpers::gety(his, start_search_at, end_search_at_);
+		double* yvals = Helpers::gety(rundata[j], start_search_at, end_search_at_);
 		// smoothing suppresses variations in slope due to noise, so the method is potentially more sensitive to excluding peaks
 		if (sigma > 0) Filters::SmoothArray(yvals, nbins_search_, sigma, smooth_method);
 		//find window for correction
@@ -1009,16 +943,17 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 			sum -= yvals[i];
 			sum += yvals[i + nbins_average];
 		}
-		// do correction
-		corr = his->Integral(iintwindowstart + 1, iintwindowstart + nbins_average + 1) / static_cast<float>(nbins_average + 1);
-		for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, his->GetBinContent(i) - corr);
 		delete[] yvals;
+		
+		// do correction
+		for (int i=iintwindowstart; i<=iintwindowstart + nbins_average; i++) corr += rundata[j][i];
+		corr /= static_cast<float>(nbins_average + 1);
+		for (int i = 0; i < binNumber; i++) rundata[j][i] -= corr;
 
 		baseline_correction_result[j][0] = corr;
 		baseline_correction_result[j][1] = minchange;
-		baseline_correction_result[j][2] = static_cast<float>(iintwindowstart) * SP;
-		baseline_correction_result[j][3] = static_cast<float>(iintwindowstart + nbins_average) * SP;
-		// Helpers::PrintProgressBar(j, nwf);
+		baseline_correction_result[j][2] = IndexToTime(iintwindowstart);
+		baseline_correction_result[j][3] = IndexToTime(iintwindowstart + nbins_average);
 	}
 }
 
@@ -1050,9 +985,9 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_bin_for_baseline, int start_at, int smooth_method) {
 	cout << "Notification: This is a deprecated version of CorrectBaselineMin. It will be removed in future releases." << endl;
 	vector<float> window;
-	window.push_back(static_cast<float>(nIntegrationWindow) * SP);
-	window.push_back(static_cast<float>(start_at) * SP);
-	window.push_back(static_cast<float>(max_bin_for_baseline) * SP);
+	window.push_back(IndexToTime(nIntegrationWindow));
+	window.push_back(IndexToTime(start_at));
+	window.push_back(IndexToTime(max_bin_for_baseline));
 	CorrectBaselineMin(window, sigma, smooth_method);
 }
 /// @example timing_example.cc
@@ -1063,14 +998,15 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_b
 /// 
 /// @return Histogram of the projections of non-skipped waveforms for one channel.
 TH1F* ReadRun::WFProjectionChannel(int channel_index, int from_n, int to_n, float rangestart, float rangeend, int nbins) {
+	from_n = CheckBoundsX(from_n);
+	to_n = CheckBoundsX(to_n);
 
 	TString name(Form("channel__%02d", active_channels[channel_index]));
 	auto h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
-
+	
 	for (int j = 0; j < nevents; j++) {
 		if (!SkipEvent(j, channel_index)) {
-			auto his = Getwf(channel_index, j);
-			for (int i = from_n; i <= to_n; i++) h1->Fill(his->GetBinContent(i));
+			for (int i = from_n; i <= to_n; i++) h1->Fill(rundata[GetWaveformIndex(j, channel_index)][i]);
 		}
 	}
 	return h1;
@@ -1102,8 +1038,8 @@ void ReadRun::PrintWFProjection(float from, float to, float rangestart, float ra
 	Helpers::SplitCanvas(wf_projection_c, active_channels, plot_active_channels);
 	int current_canvas = 0;
 
-	int from_n = (from > 0 && from < static_cast<float>(binNumber) * SP) ? static_cast<int>(round(abs(from) / SP)) + 1 : 1;
-	int to_n = (to > 0 && to < static_cast<float>(binNumber) * SP) ? static_cast<int>(round(abs(to) / SP)) + 1 : binNumber;
+	int from_n = TimeToIndex(from);
+	int to_n = TimeToIndex(to);
 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
@@ -1210,8 +1146,8 @@ void ReadRun::PrintBaselineCorrectionResults(float rangestart, float rangeend, i
 /// @param verbose Print additional warnings when CFD fails
 void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double sigma, bool find_CF_from_start, int smooth_method, bool use_spline, bool verbose) {
 
-	int start_at = max(static_cast<int>(floor(start_at_t / SP)), 0);
-	int end_at = min(static_cast<int>(ceil(end_at_t / SP)), binNumber - 1);
+	int start_at = CheckBoundsX(TimeToIndex(start_at_t));
+	int end_at = CheckBoundsX(TimeToIndex(end_at_t));
 	int n_range = end_at - start_at;
 	
 	if (cf_r <= 0) cf_r = 1;
@@ -1222,7 +1158,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 	
 	#pragma omp parallel for
 	for (int j = 0; j < nwf; j++) {
-		double* yvals = Helpers::gety(Getwf(j), start_at, end_at); // get range where to search for CFD for timing
+		double* yvals = Helpers::gety(rundata[j], start_at, end_at); // get range where to search for CFD for timing
 
 		if (sigma > 0.) Filters::SmoothArray(yvals, n_range, sigma, smooth_method); // smoothing to suppress noise, will also change timing so use with care!
 
@@ -1290,12 +1226,10 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 		timing_results[j][2] = max;														// maximum value
 		timing_results[j][3] = n_max;													// bin of maximum
 		timing_results[j][4] = cf;														// constant fraction
-		timing_results[j][5] = static_cast<float>(start_at) * SP;						// starting time
-		timing_results[j][6] = static_cast<float>(end_at) * SP;							// end time
+		timing_results[j][5] = IndexToTime(start_at);									// starting time
+		timing_results[j][6] = IndexToTime(end_at);								        // end time
 		timing_results[j][7] = static_cast<float>(lin_interpol_res.second);				// flag will be 1 if linear interpolation worked
 		delete[] yvals;
-
-		// Helpers::PrintProgressBar(j, nwf);
 	}
 }
 /// @example timing_example.cc
@@ -1342,7 +1276,6 @@ void ReadRun::SkipEventsTimeDiffCut(int first_channel_abs, int second_channel_ab
 				counter++;
 			}
 		}
-		// Helpers::PrintProgressBar(j, nevents);
 	}
 	cout << "\t" << counter << " events will be cut out of " << nevents << endl;
 }
@@ -1368,6 +1301,9 @@ void ReadRun::SkipEventsPerChannel(vector<float> thresholds, float rangestart, f
 	int counter = 0;
 	int n_thrshld = static_cast<int>(thresholds.size());
 
+	int bin_start = CheckBoundsX(TimeToIndex(rangestart));
+	int bin_end = CheckBoundsX(TimeToIndex(rangeend));
+
 	#pragma omp parallel for reduction(+:counter)
 	for (int j = 0; j < nwf; j++) {
 		int current_event = GetCurrentEvent(j);
@@ -1377,15 +1313,12 @@ void ReadRun::SkipEventsPerChannel(vector<float> thresholds, float rangestart, f
 				const float current_threshold = thresholds[current_channel];
 				if (current_threshold == 0.) continue;
 
-				auto his = (TH1F*)(Getwf(j));
-				
-				int bin_start = his->GetXaxis()->FindBin(rangestart) - 1; 	//TH1 starts at 1
-				int bin_end = his->GetXaxis()->FindBin(rangeend); 			// gety ends at bin_end - 1
-				double* yvals = Helpers::gety(his, bin_start, bin_end);
+				auto max_it = max_element(rundata[j].begin() + bin_start, rundata[j].begin() + bin_end);
+				auto min_it = min_element(rundata[j].begin() + bin_start, rundata[j].begin() + bin_end);
 
-				double max_val = *max_element(yvals, yvals + (bin_end - bin_start));
-				double min_val = *min_element(yvals, yvals + (bin_end - bin_start));
-				delete[] yvals;
+				float max_val = (max_it != rundata[j].end()) ? *max_it : 0.;
+				float min_val = (min_it != rundata[j].end()) ? *min_it : 0.;
+
 				
 				if ((current_threshold > 0	&& max_val > current_threshold) || 
 					(current_threshold < 0 && min_val < current_threshold)) {
@@ -1397,7 +1330,6 @@ void ReadRun::SkipEventsPerChannel(vector<float> thresholds, float rangestart, f
 				}
 			}
 		}
-		// Helpers::PrintProgressBar(j, nwf);
 	}
 
 	cout << "\t" << counter << " events will be cut out of " << nevents << endl;
@@ -1442,8 +1374,7 @@ void ReadRun::IntegralFilter(vector<float> thresholds, vector<bool> g_thr, float
 			float current_threshold = thresholds[current_channel];
 			if (current_threshold == 0.) continue;
 
-			auto his = (TH1F*)(Getwf(j));
-			auto integral = GetPeakIntegral(his, windowlow, windowhi, start, end, current_channel);
+			auto integral = GetPeakIntegral(rundata[j], windowlow, windowhi, start, end, current_channel);
 
 			int currevent = eventnr_storage[currevent_counter];
 			// skip if above/below thresholds
@@ -1462,7 +1393,6 @@ void ReadRun::IntegralFilter(vector<float> thresholds, vector<bool> g_thr, float
 				if (verbose) cout << "Event:\t" << currevent << "\tchannel:\t" << active_channels[current_channel] << "\thas been flagged good by integral:\t" << integral << endl;
 				counter--;
 			}
-			// Helpers::PrintProgressBar(j, nwf); // not thread safe
 		}
 	}
 	cout << counter << " additional events will be cut out of " << nevents << " (" << static_cast<float>(100*counter/nevents) << "%)" << endl;
@@ -1498,7 +1428,7 @@ void ReadRun::UnskipAll() {
 /// @param channel_index Index of the channel (see override for ReadSampic)
 bool ReadRun::SkipEvent(int event_index, int channel_index) {
 	(void)channel_index; // avoid unused parameter warning
-	if (event_index >= static_cast<int>(skip_event.size())) return true;
+	if (event_index >= static_cast<int>(skip_event.size()) || event_index < 0) return true;
 	else return skip_event[event_index];
 }
 
@@ -1566,6 +1496,91 @@ array<int, 3> ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, 
 	return foundindices;
 }
 
+/// @brief Determine indices for integration window for peaks
+/// 
+/// Default usage: Find maximum in range ("start", "end") and return bin numbers for [0] the max, 
+/// [1] t_max - "windowlow", and [2] t_max + "windowhi". \n
+/// If ("start" < 0 || "end" < 0) doesn't return max and integration window is fixed relative to the maximum of the sum of all waveforms: \n
+/// t(max(sum_spectrum[channel])) +/- "windowhi"/"windowlow" \n 
+/// If ("windowlow" == "start" && "windowhi" == "end") doesn't return max and sets fixed integration
+/// window from "start" until "end" for all channels.
+/// 
+/// @param waveform Waveform to integrate.
+/// @param windowlow Integration time left to the maximum of the peak.
+/// @param windowhi Integration time right to the maximum of the peak.
+/// @param start Range for finding maximum.
+/// @param end Range for finding maximum.
+/// @param channel Channel index in case the integration should be around the maximum of the sum of all waveforms
+/// @return Array { max, \f$ n_{t,start} \f$ , \f$ n_{t,end} \f$ }
+array<int, 3> ReadRun::GetIntWindow(const vector<float>& waveform, float windowlow, float windowhi, float start, float end, int channel) {
+
+	array<int, 3> foundindices = {0, 0, 0};
+
+	if (start < 0 || end < 0) {							// fixed integration window relative to maximum of sum spectrum for each channel
+		foundindices[1] = maxSumBin[channel] - TimeToIndex(windowlow);
+		foundindices[2] = maxSumBin[channel] - TimeToIndex(windowhi);
+	}
+	else if (windowlow == start && windowhi == end) {	// fixed integration window for all channels
+		foundindices[1] = TimeToIndex(windowlow);
+		foundindices[2] = TimeToIndex(windowlow);
+	}
+	else {												// fixed integration window relative to maximum of each individual waveform
+		int istart = TimeToIndex(start);
+		int iend = TimeToIndex(end);
+		foundindices[0] = istart;
+
+		if (istart < 1 || iend > binNumber) {
+			cout << "\nError: Start=" << istart << " or end=" << iend << " of GetIntWindow() out of range. Fix integration window." << endl;
+		}
+
+		auto max_it = max_element(waveform.begin() + istart, waveform.begin() + iend);
+		foundindices[0] = static_cast<int>(distance(waveform.begin(), max_it));
+
+		foundindices[1] = foundindices[0] - TimeToIndex(windowlow);
+		foundindices[2] = foundindices[0] + TimeToIndex(windowhi);
+	}
+	return foundindices;
+}
+
+/// @brief Determine indices for integration window for peaks with bin indices
+/// 
+/// @param waveform Waveform to integrate.
+/// @param windowlow Integration time left to the maximum of the peak in bins.
+/// @param windowhi Integration time right to the maximum of the peak in bins.
+/// @param start Range for finding maximum in bins.
+/// @param end Range for finding maximum in bins.
+/// @param channel Channel index in case the integration should be around the maximum of the sum of all waveforms
+/// @return Array { max, \f$ n_{t,start} \f$ , \f$ n_{t,end} \f$ }
+array<int, 3> ReadRun::GetIntWindow(const vector<float>& waveform, int windowlow, int windowhi, int start, int end, int channel) {
+
+	array<int, 3> foundindices = {0, 0, 0};
+
+	if (start < 0 || end < 0) {							// fixed integration window relative to maximum of sum spectrum for each channel
+		foundindices[1] = maxSumBin[channel] - windowlow;
+		foundindices[2] = maxSumBin[channel] - windowhi;
+	}
+	else if (windowlow == start && windowhi == end) {	// fixed integration window for all channels
+		foundindices[1] = windowlow;
+		foundindices[2] = windowlow;
+	}
+	else {												// fixed integration window relative to maximum of each individual waveform
+		int istart = start;
+		int iend = end;
+		foundindices[0] = istart;
+
+		if (istart < 1 || iend > binNumber) {
+			cout << "\nError: Start=" << istart << " or end=" << iend << " of GetIntWindow() out of range. Fix integration window." << endl;
+		}
+
+		auto max_it = max_element(waveform.begin() + istart, waveform.begin() + iend);
+		foundindices[0] = static_cast<int>(distance(waveform.begin(), max_it));
+
+		foundindices[1] = foundindices[0] - windowlow;
+		foundindices[2] = foundindices[0] + windowhi;
+	}
+	return foundindices;
+}
+
 /// @brief Calculate the integral around a peak with several options explained in GetIntWindow().
 /// 
 /// Calculated over an integer number of bins. \n
@@ -1586,6 +1601,29 @@ float ReadRun::GetPeakIntegral(TH1F* his, float windowlow, float windowhi, float
 	string integral_option(""); // For amplitude -> unit[mV].
 	if (windowind[1] != windowind[2]) integral_option = "width"; // 'width' (bin width) for integral -> unit[mV x ns].
 	float integral = his->Integral(windowind[1], windowind[2], integral_option.c_str());
+	return integral;
+}
+
+/// @brief Calculate the integral around a peak with several options explained in GetIntWindow().
+/// 
+/// Calculated over an integer number of bins. \n
+/// If start = end = 0 will return the amplitude of the peak. \n
+/// If start < 0 || end < 0 will return the integral over the fixed integration window around 
+/// the maximum of the sum spectrum for each channel. \n
+/// If windowlow == start && windowhi == end will return the integral over the fixed integration window for all channels.
+/// 
+/// @param waveform Waveform with peak.
+/// @param windowlow Integration time left to the maximum of the peak.
+/// @param windowhi Integration time right to the maximum of the peak.
+/// @param start Range for finding maximum.
+/// @param end Range for finding maximum.
+/// @param channel_index Channel index in case the integration should be around the maximum of the sum of all waveforms.
+/// @return Integral/amplitude.
+float ReadRun::GetPeakIntegral(const vector<float>& waveform, float windowlow, float windowhi, float start, float end, int channel_index) {
+	auto windowind = GetIntWindow(waveform, windowlow, windowhi, start, end, channel_index);	// find integration window
+	float integral = 0;
+	for (int i = windowind[1]; i <= windowind[2]; ++i) integral += waveform[i];					// sum -> unit[mV].
+	if (windowind[1] != windowind[2]) integral *= SP; 											// integral -> unit[mV x ns].
 	return integral;
 }
 
@@ -1683,7 +1721,7 @@ void ReadRun::PrintChargeSpectrumWF(float windowlow, float windowhi, float start
 
 /// @brief Returns array with the individual "charge"/amplitude for all events of one channel
 /// 
-/// See SaveChargeLists() and GetIntWindow().
+/// Missing values evaluate to -999. See SaveChargeLists() and GetIntWindow().
 /// 
 /// @param channel_index Index of the channel.
 /// @param windowlow Integrate from "windowlow" ns from max...
@@ -1696,10 +1734,13 @@ float* ReadRun::ChargeList(int channel_index, float windowlow, float windowhi, f
 
 	#pragma omp parallel for
 	for (int j = 0; j < nevents; j++) {
-		if (GetWaveformIndex(j, channel_index) == -1) continue;
+		int wf_index = GetWaveformIndex(j, channel_index);
+		if (wf_index == -1) {
+			charge_list[j] = -999.;
+			continue;
+		}
 
-		auto his = Getwf(j, channel_index);
-		charge_list[j] = GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index);
+		charge_list[j] = GetPeakIntegral(rundata[wf_index], windowlow, windowhi, start, end, channel_index);
 		if (!negative_vals && charge_list[j] < 0.) charge_list[j] = 0.;
 	}
 	return charge_list;
@@ -1780,6 +1821,7 @@ void ReadRun::ChargeCorrelation(float windowlow, float windowhi, float start, fl
 	auto charge_corr = new TH2F(name.str().c_str(), title.str().c_str(), nbins, rangestart, rangeend, nbins, rangestart, rangeend);
 	
 	for (int i = 0; i < nevents; i++) {
+		if (charge1[i] == -999. || charge2[i] == -999.) continue; // skip if data is missing for one of the channels
 		if (!ignore_skipped_events || !skip_event[i]) charge_corr->Fill(charge1[i], charge2[i]);
 	}
 
@@ -1824,21 +1866,13 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 		#pragma omp for
 		for (int j = 0; j < nevents; j++) {
 			if (!SkipEvent(j, channel_index)) {
-				auto his = Getwf(channel_index, j);
-				float integral_value = GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index);
+				float integral_value = GetPeakIntegral(rundata[GetWaveformIndex(j, channel_index)], windowlow, windowhi, start, end, channel_index);
 				h1->Fill((integral_value - pedestal) / gain); 
 			}
 		}
 		h1->Add(h1_tmp);
 		delete h1_tmp;
 	}
-	// for (int j = 0; j < nevents; j++) {
-	// 	if (!SkipEvent(j, channel_index)) {
-	// 		auto his = Getwf(channel_index, j);
-	// 		h1->Fill((GetPeakIntegral(his, windowlow, windowhi, start, end, channel_index) - pedestal) / gain); 
-	// 	}
-	// }
-	
 	return h1;
 }
 
@@ -1897,7 +1931,6 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 	if (default_rangeend < rangeend) default_rangeend = rangeend;
 
 	int default_nbins = static_cast<int>((default_rangeend - default_rangestart) * nbins / (rangeend - rangestart));
-
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
 			chargec->cd(++current_canvas);
@@ -2141,29 +2174,28 @@ void ReadRun::PrintDCR(float windowlow, float windowhi, float rangestart, float 
 /// See PrintTimeDist() for parameters.
 /// 
 TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestart, float rangeend, int nbins, int which, float cf_r) {
+	int from_n = CheckBoundsX(TimeToIndex(from));
+	int to_n = CheckBoundsX(TimeToIndex(to));
 
 	TString name(Form("timedist_ch%02d", active_channels[channel_index]));
 	auto h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
 	
 	for (int j = 0; j < nevents; j++) {
 		if (!SkipEvent(j, channel_index)) {
-			auto his = (TH1F*)(Getwf(GetWaveformIndex(j, channel_index)));
-
-			int from_n = his->GetXaxis()->FindBin(from);
-
-			int max_n = GetIntWindow(his, 0, 0, from, to)[0];
-			float max = his->GetBinContent(max_n);
+			int wf_index = GetWaveformIndex(j, channel_index);
+			int max_n = GetIntWindow(rundata[wf_index], 0, 0, from_n, to_n)[0];
+			float max_val = rundata[wf_index][max_n];
 
 			if (which == 0) { // time of maximum 
-				h1->Fill(max);
+				h1->Fill(max_val);
 			}
 			else if (which == 1) { // time of 50% CFD
 				do {
 					max_n--;
-				} while (his->GetBinContent(max_n) >= cf_r * max && max_n > from_n);
+				} while (rundata[wf_index][max_n] >= cf_r * max_val && max_n >= from_n);
 				max_n++;
 
-				h1->Fill(LinearInterpolation(cf_r * max, his->GetXaxis()->GetBinCenter(max_n - 1), his->GetXaxis()->GetBinCenter(max_n), his->GetBinContent(max_n - 1), his->GetBinContent(max_n)).first);
+				h1->Fill(LinearInterpolation(cf_r * max_val, IndexToTime(max_n - 1), IndexToTime(max_n), rundata[wf_index][max_n - 1], rundata[wf_index][max_n]).first);
 			}
 			else { // 10%-90% rise time
 				// search backwards from maximum
@@ -2171,12 +2203,12 @@ TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestar
 				int n90 = -1;
 				do {
 					max_n--;
-					if (n10 == -1 && his->GetBinContent(max_n) >= .1 * max && his->GetBinContent(max_n - 1) <= .1 * max) n10 = max_n;
-					if (n90 == -1 && his->GetBinContent(max_n) >= .9 * max && his->GetBinContent(max_n - 1) <= .9 * max) n90 = max_n;
-				} while (his->GetBinContent(max_n) <= max && max_n > from_n);
+					if (n10 == -1 && rundata[wf_index][max_n] >= .1 * max_val && rundata[wf_index][max_n - 1] <= .1 * max_val) n10 = max_n;
+					if (n90 == -1 && rundata[wf_index][max_n] >= .9 * max_val && rundata[wf_index][max_n - 1] <= .9 * max_val) n90 = max_n;
+				} while (rundata[wf_index][max_n] <= max_val && max_n > from_n);
 
-				float t10 = LinearInterpolation(.1 * max, his->GetXaxis()->GetBinCenter(n10 - 1), his->GetXaxis()->GetBinCenter(n10), his->GetBinContent(n10 - 1), his->GetBinContent(n10)).first;
-				float t90 = LinearInterpolation(.9 * max, his->GetXaxis()->GetBinCenter(n90 - 1), his->GetXaxis()->GetBinCenter(n90), his->GetBinContent(n90 - 1), his->GetBinContent(n90)).first;
+				float t10 = LinearInterpolation(.1 * max_val, IndexToTime(n10 - 1), IndexToTime(n10), IndexToTime(n10 - 1), IndexToTime(n10)).first;
+				float t90 = LinearInterpolation(.9 * max_val, IndexToTime(n90 - 1), IndexToTime(n90), IndexToTime(n90 - 1), IndexToTime(n90)).first;
 
 				h1->Fill(t90 - t10);
 			}
@@ -2577,10 +2609,16 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 
 
 /// @brief Helper that returns the waveform histogram for a certain waveform number number 
-/// @param wf_nr Waveform number
+/// @param wfindex Waveform index
 /// @return Waveform histogram 
-TH1F* ReadRun::Getwf(int wf_nr) {
-	return (TH1F*)rundata->At(wf_nr);
+TH1F* ReadRun::Getwf(int wfindex) {
+	int channel = GetCurrentChannel(wfindex);
+	int event_nr = GetCurrentEvent(wfindex);
+	TString name(Form("ch%02d_%05d", channel, event_nr));
+	TString title(Form("ch%d, event %d;t [ns];U [mV]", channel, event_nr));
+	auto his = new TH1F(name.Data(), title.Data(), binNumber, 0, IndexToTime(binNumber - 1));
+	for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, rundata[wfindex][i - 1]);
+	return his;
 }
 
 /// @brief Helper that returns the waveform histogram for a certain channel number and a certain event number
@@ -2589,8 +2627,10 @@ TH1F* ReadRun::Getwf(int wf_nr) {
 /// @param color Choose color of histogram
 /// @return Waveform histogram 
 TH1F* ReadRun::Getwf(int channelnr, int eventnr, int color) {
-	TH1F* his;
-	his = (TH1F*)rundata->At(eventnr * nchannels + channelnr);
+	TString name(Form("ch%02d_%05d", channelnr, eventnr));
+	TString title(Form("ch%d, event %d;t [ns];U [mV]", channelnr, eventnr));
+	auto his = new TH1F(name.Data(), title.Data(), binNumber, 0, IndexToTime(binNumber - 1));
+	for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, rundata[eventnr * nchannels + channelnr][i - 1]);
 	his->SetLineColor(color);
 	his->SetMarkerColor(color);
 	return his;
@@ -2611,8 +2651,9 @@ double* ReadRun::getx(double shift) {
 /// @param waveform_index Waveform index
 /// @return Y values of waveform
 double* ReadRun::gety(int waveform_index) {
-	auto his = Getwf(waveform_index);
-	return Helpers::gety(his);
+	double* waveform = new double[binNumber];
+	for (int i = 0; i < binNumber; i++) waveform[i] = static_cast<double>(rundata[waveform_index][i]);
+	return waveform;
 }
 
 /// @brief Get array of y values for a certain waveform
@@ -2620,8 +2661,10 @@ double* ReadRun::gety(int waveform_index) {
 /// @param eventnr Event number
 /// @return Y values of waveform
 double* ReadRun::gety(int channelnr, int eventnr) {
-	auto his = Getwf(channelnr, eventnr);
-	return Helpers::gety(his);
+	double* waveform = new double[binNumber];
+	int wf_index = GetWaveformIndex(eventnr, channelnr);
+	for (int i = 0; i < binNumber; i++) waveform[i] = static_cast<double>(rundata[wf_index][i]);
+	return waveform;
 }
 
 /// @brief Returns index of a certain event number (if data files are read in parallel threads)
@@ -2709,20 +2752,49 @@ pair<float, bool> ReadRun::LinearInterpolation(float ym, float x1, float x2, flo
 	else return {x1 + (ym - y1) * (x2 - x1) / (y2 - y1), true};
 }
 
-/// @brief Check whether or not the polarity should be changed during reading. \n
+/// @brief Channel map of polarity changes during reading. \n
 /// For parameters see ReadFile(). 
-float ReadRun::PolarityCheck(bool change_polarity, int current_channel, int change_sign_from_to_ch_num) {
-	float pol = 1.;
-	if (!switch_polarity_for_channels.empty()) {
-		if (Helpers::Contains(switch_polarity_for_channels, current_channel)) {
-			pol = -1.;
+vector<bool> ReadRun::PolarityMap(bool change_polarity, int change_sign_from_to_ch_num) {
+	vector<bool> pol(nChannelsWC, false);
+	if (!change_polarity) {
+		return pol;
+	}
+	else if (!switch_polarity_for_channels.empty()) {
+		for (int current_channel=0; current_channel<nChannelsWC; current_channel++) {
+			if (Helpers::Contains(switch_polarity_for_channels, current_channel)) {
+				pol[current_channel] = true;
+			}
 		}
+		return pol;
 	}
-	else if (change_polarity && 
-			((current_channel >= change_sign_from_to_ch_num) || 
-			(change_sign_from_to_ch_num < 0 && current_channel <= abs(change_sign_from_to_ch_num)))) 
-	{
-		pol = -1.;
+	else {
+		for (int current_channel=0; current_channel<nChannelsWC; current_channel++) {
+			if ((current_channel >= change_sign_from_to_ch_num) || 
+				(change_sign_from_to_ch_num < 0 && current_channel <= abs(change_sign_from_to_ch_num))) {
+				pol[current_channel] = true;
+			}
+		}
+		return pol;
 	}
-	return pol;
+}
+
+/// @brief Check if index exists in time of waveforms
+/// @param index Bin number
+/// @return [0, binNumber)
+int ReadRun::CheckBoundsX(int index) {
+    return min(max(0, index), binNumber - 1);
+}
+
+/// @brief Convert time to the bin number of the waveform
+/// @param time Time in ns
+/// @return Bin number between [0, binNumber) corresponding to the time
+int ReadRun::TimeToIndex(float time) {
+   	return CheckBoundsX(static_cast<int>(round(time / SP)));
+}
+
+/// @brief Convert the bin number of the waveform to the time
+/// @param bin_index Bin number
+/// @return Time in ns between [0, binNumber) * SP
+float ReadRun::IndexToTime(int bin_index) {
+	return static_cast<float>(CheckBoundsX(bin_index)) * SP;
 }

@@ -28,12 +28,8 @@ void CosmicsBox::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<i
 	// plotting uncorrected/corrected phi_ew - spectra ; first: map the phi_i to the channels, like Alex did, but with new channel positions
 	// match channel number to channel index (still very specific)
 	int sipmnum = SiPMchannels.size();
-	vector<int> ch_index; for (int i = 0; i < sipmnum; i++) ch_index.push_back(0); // initialize the ch_index vector
-	for (int i = 0; i < static_cast<int>(active_channels.size()); i++) {
-		for (int j = 0; j < sipmnum; j++) {
-			if (active_channels[i] == SiPMchannels[j]) ch_index[j] = i;
-		}
-	}
+	vector<int> ch_index; // initialize the ch_index vector
+	for (const auto& channel : SiPMchannels) ch_index.push_back(GetChannelIndex(channel));
 
 	// compute correction factor
 	vector<float> ly_corr;
@@ -52,19 +48,20 @@ void CosmicsBox::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<i
 	// initialize canvas + histograms
 	gStyle->SetOptStat("emr"); gStyle->SetOptFit(1111); //draws a box with some histogram parameters
 	TString his_name(Form("#phi_ew-spectrum_from_ch%d_to_ch%d", SiPMchannels.front(), SiPMchannels.back()));
-	TCanvas* hisc = new TCanvas(his_name, his_name, 600, 400);
+	auto hisc = new TCanvas(his_name, his_name, 600, 400);
 
 	double min_angle = -180, max_angle = 180; // 360 deg plot range
 	if (periodic) { min_angle = -540; max_angle = 540; } // 1080 deg plot range
-	TH1* his = new TH1F(his_name, his_name, nbins, min_angle, max_angle);
+	auto his = new TH1F(his_name, his_name, nbins, min_angle, max_angle);
 
 	// loop through all events and compute phi_ew
-	float lightyield, anglevaluex, anglevaluey, phi_ew = 0;
 	for (int i = 0; i < nevents; i++) {
+		float anglevaluex = 0., anglevaluey = 0., phi_ew = 0.;
 		if (!skip_event[i]) {
 			for (int j = 0; j < sipmnum; j++) { //loop through all SiPM-channels
-				TH1F* hisly = Getwf(i * nchannels + ch_index[j]);
-				lightyield = GetPeakIntegral(hisly, windowmin, windowmax, maxfrom, maxto, 0); //lightyield as the integral around maximum
+				int wf_index = GetWaveformIndex(i, ch_index[j]);
+				if (wf_index < 0) continue; 
+				float lightyield = GetPeakIntegral(rundata[wf_index], windowmin, windowmax, maxfrom, maxto, 0); //lightyield as the integral around maximum
 				anglevaluex += cos(phi_chx[j] * TMath::Pi() / 180) * lightyield / ly_corr[j]; //x part of vectorial addition
 				anglevaluey += sin(phi_chx[j] * TMath::Pi() / 180) * lightyield / ly_corr[j]; //y part of vectorial addition
 			}
@@ -75,7 +72,6 @@ void CosmicsBox::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<i
 				his->Fill(phi_ew + 360);
 				his->Fill(phi_ew - 360);
 			}
-			anglevaluex = 0, anglevaluey = 0; //reset the x and y parts
 		}
 	}
 
@@ -87,7 +83,7 @@ void CosmicsBox::Print_Phi_ew(vector<int> phi_chx, vector<float> ly_C0, vector<i
 	if (periodic) {
 		Fitf_periodic_gauss fitf;
 		int n_par = 4;
-		TF1* f = new TF1("fitf", fitf, min_angle, max_angle, n_par); 
+		auto f = new TF1("fitf", fitf, min_angle, max_angle, n_par); 
 		f->SetLineColor(2);
 		f->SetNpx(1000);
 

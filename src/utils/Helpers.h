@@ -41,6 +41,7 @@ public:
 	// get y values of a histogram for a dedicated x range
 	template <typename HistType>
 	static double* gety(HistType*, int, int);
+	static double* gety(const vector<float>&, int, int);
 
 	// shift a TH1 in x
 	template <typename HistType>

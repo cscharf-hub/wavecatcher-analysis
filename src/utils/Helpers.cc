@@ -172,6 +172,24 @@ template double* Helpers::gety<TH1F>(TH1F*, int, int);
 template double* Helpers::gety<TH1D>(TH1D*, int, int);
 template double* Helpers::gety<TH1I>(TH1I*, int, int);
 
+/// @brief Get truncated array of y values for a certain waveform
+/// @param waveform Waveform 
+/// @param start_at Truncate from index
+/// @param end_at Truncate to index
+/// @return Truncated Y values of waveform
+double* Helpers::gety(const vector<float>& waveform, int start_at, int end_at) {
+	if (start_at < 0 || end_at > static_cast<int>(waveform.size()) || end_at <= start_at) {
+		cout << "\nError: Helpers::gety out of range" << endl;
+		return nullptr;
+	}
+	const int n_bins_new = end_at - start_at;
+	double* yvals = new double[n_bins_new];
+	for (int i = start_at; i < end_at; i++) {
+		yvals[i - start_at] = static_cast<double>(waveform[i]);
+	}
+	return yvals;
+}
+
 /// @brief Shift a histogram in x \n
 /// The histogram will be cycled, so bins at the end will be attached at the front and vice versa
 /// @tparam HistType Histogram derived from ROOT TH1

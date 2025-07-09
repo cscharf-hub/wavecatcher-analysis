@@ -120,8 +120,8 @@ protected:
     }
 
 public:
-	/// @brief Stores data
-	TClonesArray* rundata;
+	/// @brief Stores waveforms
+	vector<vector<float>> rundata;
 
 	/// @brief Collects sums of all waveforms for each channel
 	vector<vector<float>> amplValuessum;
@@ -139,7 +139,7 @@ public:
 	
 	// baseline correction (shifts all waveforms individually in y)
 	void CorrectBaseline(float, float = -999);
-	void CorrectBaseline_function(TH1F*, float, float, int);
+	void CorrectBaseline_function(vector<float>&, float, float, int);
 
 	void CorrectBaselineMinSlopeRMS(vector<float>, double = 0, int = 2);
 	void CorrectBaselineMinSlopeRMS(int = 100, bool = false, double = 0.5, int = 0, int = 0, int = 2);
@@ -166,7 +166,10 @@ public:
 
 	// functions for charge spectrum
 	array<int, 3> GetIntWindow(TH1F*, float, float, float, float, int = 0);
+	array<int, 3> GetIntWindow(const vector<float>&, float, float, float, float, int = 0);
+	array<int, 3> GetIntWindow(const vector<float>&, int, int, int, int, int = 0);
 	float GetPeakIntegral(TH1F*, float, float, float, float, int = 0);
+	float GetPeakIntegral(const vector<float>&, float, float, float, float, int = 0);
 	void PrintChargeSpectrumWF(float, float, float = 0, float = 300, int = 1, float = 0., float = 0., float = 0., float = 0.);
 	TH1F* ChargeSpectrum(int, float, float, float = 0, float = 300, float = -50, float = 600, int = 750);
 	void PrintChargeSpectrum(float, float, float = 0, float = 300, float = -50, float = 600, int = 750, float = 0., float = 0., int = 99, int = 0, bool = false);
@@ -202,7 +205,7 @@ public:
 
 	static pair<float, bool> LinearInterpolation(float, float, float, float, float, bool = false); // linear interpolation
 	
-	virtual int GetWaveformIndex(int, int);	// get index of waveform from channel and event
+	virtual int GetWaveformIndex(int, int);	// get index of waveform from event and channel
 	int GetEventIndex(unsigned int);		// get index of a triggered event (finds the correct event if files are not read sequentially)
 	int GetChannelIndex(int);				// get index of a certain channel
 	virtual int GetCurrentChannel(int);		// get index of channel for a certain waveform
@@ -210,8 +213,11 @@ public:
 	
 	bool PlotChannel(int);					// check if channel should be plotted
 	
-	float PolarityCheck(bool, int, int); 	// check if channel should be inverted
-	
+	vector<bool> PolarityMap(bool, int); 	// check if channel should be inverted
+
+	int CheckBoundsX(int);					// Check if index exists in time of waveforms
+	int TimeToIndex(float);					// Convert time to the bin number of the waveform
+	float IndexToTime(int);					// Convert the bin number of the waveform to the time
 
 	/// @brief Constructor of the class
 	/// @param last_bin_file Number of last .bin file to be read in.\n
@@ -242,7 +248,8 @@ public:
 
 	/// @brief Can be used to discard the original event numbering of the data
 	/// 
-	/// Set to true if you want to read several runs at once. The events will be numbered in the order they are read in. 
+	/// Set to true **BEFORE** calling ReadFile() if you want to read several runs at once. 
+	/// The events will be numbered in the order they are read in. 
 	/// The original event numbers of the different runs will be lost.
 	/// CAUTION: All .bin files of the different runs need to contain the same number of channels.
 	bool discard_original_eventnr = false;
@@ -348,20 +355,6 @@ public:
 	float tCutg;
 	/// @brief End of time window for baseline correction when using ReadRun::Using_BaselineCorrection_in_file_loop
 	float tCutEndg;
-
-	/// @brief Shift waveforms with CFD so that all events start at the same time
-	/// Call after initializing class and before calling ReadFile(). \n
-	/// Set the constant fraction, the bin to shift the signal to, and the search window with tWF_CF, tWF_CF_bin, and tWF_CF_lo and tWF_CF_hi, respectively.
-	bool Shift_WFs_in_file_loop = false;
-	/// @brief Constant fraction of maximum (between ~0.1 and 1) for ReadRun::Shift_WFs_in_file_loop
-	float tWF_CF = 0.3;
-	/// @brief Time bin all events will be shifted to for ReadRun::Shift_WFs_in_file_loop
-	/// Needs to be 300<"tWF_CF_bin"<500 ("tWF_CF_bin"=375 means all peaks will be shifted to 375*.3125 ns=117.1875 ns)
-	int tWF_CF_bin = 375;
-	/// @brief Start of range of bins where the signal is expected for ReadRun::Shift_WFs_in_file_loop
-	int tWF_CF_lo = 320;
-	/// @brief End of range of bins where the signal is expected for ReadRun::Shift_WFs_in_file_loop
-	int tWF_CF_hi = 500;
 
 	/// @brief Calibration values to normalize charge spectrum to number of photoelectrons
 	/// Chennels must be ordered as in plot_active_channels.\n

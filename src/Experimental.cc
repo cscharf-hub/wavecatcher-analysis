@@ -2,50 +2,60 @@
 
 /// @brief Rebin the data to test bandwidth effects. Will combine an integer number of bins into a new, 
 /// wider bin and divide the new bin content by the integer number to preserve the shape and integral. 
-/// See [ROOT::TH1::Rebin()](https://root.cern.ch/doc/master/classTH1.html).
 /// 
-/// CAUTION: Not tested with all functions. Make sure to adjust bin numbers e. g. in 
-/// CorrectBaselineMinSlopeRMS() and bin size e. g. in SmoothArray(). 
+/// CAUTION: Not tested with all functions. 
 /// 
 /// Please note that PlotChannelSums() is calculated while parsing the data - **before** rebinning. 
 /// Use PlotChannelAverages() instead.
 /// 
 /// @param ngroup Integer number of bins to combine.
-/// @param noise_level Add gaussian noise with ```sigma = noise_level``` to rebinned data.
-/// @param seed Seed for the random number generator.
-void Experimental::RebinAll(int ngroup, float noise_level, unsigned long seed) {
+/// @param sigma_noise Add gaussian noise with ```sigma_noise``` to rebinned data.
+/// @param seed Seed for the noise random number generator.
+void Experimental::RebinAll(int ngroup, float sigma_noise, unsigned long seed) {
 
 	SP *= static_cast<float>(ngroup);
 	binNumber /= ngroup;
 	float norm = 1. / static_cast<float>(ngroup);
 	cout	<< "\nRebinning the data to a new sampling rate of " << 1. / SP 
-		<< " GS/s which corresponds to a bin size of " << SP << " ns and the data now has " << binNumber << " bins" << endl;
+			<< " GS/s which corresponds to a bin size of " << SP 
+			<< " ns and the data now has " << binNumber << " bins" << endl;
 
-	for (int j = 0; j < nwf; j++) {
-		TH1F* his = Getwf(j);
-		his->Rebin(ngroup);
-		his->Scale(norm);
+	#pragma omp parallel for
+    for (int j = 0; j < nwf; j++) {
+        vector<float> &waveform = rundata[j];
+        vector<float> rebinned;
+		unsigned long thread_seed = seed + j;
+    	TRandom3 noise(thread_seed);
 
-		if (noise_level != 0.) {
-			auto noise = new TRandom3();
-			noise->SetSeed(seed);
-			for (int i = 1; i <= his->GetNbinsX(); i++) his->SetBinContent(i, his->GetBinContent(i) + noise->Gaus(0, noise_level));
-		}
-		Helpers::PrintProgressBar(j, nwf);
-	}
+        for (size_t i = 0; i + ngroup <= waveform.size(); i += ngroup) {
+            float sum = 0.;
+            for (int k = 0; k < ngroup; k++) {
+                sum += waveform[i + k];
+            }
+            float avg = sum * norm;
+
+            if (sigma_noise != 0.) {
+                avg += noise.Gaus(0., sigma_noise);
+            }
+            rebinned.push_back(avg);
+        }
+		rundata[j] = rebinned;
+    }
 }
 /// @example timing_example_rebin.cc
 
 /// @brief Derivative of all waveforms
 ///	
-/// Calculates the forward differences. For testing purposes.
+/// Calculates the forward differences. Reduces the number of bins by one for all waveforms. For testing purposes.
 void Experimental::DerivativeAll() {
 	cout << "\nForward derivative of all waveforms:" << endl;
+	binNumber--; // reduce number of bins 
+
+	#pragma omp parallel for
 	for (int j = 0; j < nwf; j++) {
-		TH1F* his = Getwf(j);
-		double* yvals = Helpers::gety(his);
-		for (int i = 1; i <= his->GetNbinsX() - 1; i++) his->SetBinContent(i, yvals[i + 1] - yvals[i]);
-		delete[] yvals;
-		Helpers::PrintProgressBar(j, nwf);
+		vector<float> &waveform = rundata[j];
+        vector<float> derivative;
+		for (int i = 0; i < binNumber; i++) derivative.push_back(waveform[i + 1] - waveform[i]);
+		rundata[j] = derivative;
 	}
 }

@@ -21,25 +21,29 @@
 /// @param debug Set ```true``` to increase the verbosity.
 /// @param max_nfs_to_read Maximum number of events to be read per file. For quick testing of analysis on subset of the data.
 void ReadSampic::ReadFile(string path, bool change_polarity, int change_sign_from_to_ch_num, string out_file_name, bool debug, long long max_nfs_to_read) {
-	if (max_nfs_to_read <= 0) max_nfs_to_read = static_cast<long long>(1e9);
-	eventsBuilt = false;
+	if (max_nfs_to_read <= 0) max_nfs_to_read = static_cast<long long>(1e9);	// default 1B waveforms
+	rundata.reserve(1'000'000);												// reserve space for 1M waveforms
+	hitInfo.reserve(1'000'000);
+	eventsBuilt = false; 														// reset flag
 	if (path.back() != '/') path += '/';
 	data_path = path;
-
+	
+	// save results to root file
 	if (out_file_name.empty()) out_file_name = "out.root";
 	printf("+++ saving analysis results in '%s' ...\n\n", out_file_name.c_str());
 	root_out = TFile::Open(out_file_name.c_str(), "recreate");
 
-	rundata = new TClonesArray("TH1F", maxNWF);
-	rundata->BypassStreamer(kFALSE);
-	TClonesArray &testrundata = *rundata;
+	// invert channels
+	auto polarity_map = PolarityMap(change_polarity, change_sign_from_to_ch_num);
 
+	// create list of binary files in folder
 	stringstream inFileList;
 	inFileList << Helpers::ListFiles(path.c_str(), ".bin");
 	if (debug) cout << inFileList.str() << endl;
 
 	string fileName;
 	int file_counter = 0, wfcounter = 0;
+	string data_settings("=== DATA STRUCTURE INFO  === REDUCED DATA TYPE: YES === WITHOUT WAVEFORM: NO  === TDC-LIKE FILES: NO === COMPACT BINARY DATA: YES === DATA_IN_FILE_TYPE: 1 ===");
 
 	while (inFileList >> fileName) {
 		// read only fraction/batch of the .bin files for testing or to reduce memory usage
@@ -58,9 +62,9 @@ void ReadSampic::ReadFile(string path, bool change_polarity, int change_sign_fro
 		string line;
 		int header_line = 0;
 		float sampling_frequency = 0;
-		float ADC_factor = 10; // conversion to mV
-		string data_settings("=== DATA STRUCTURE INFO  === REDUCED DATA TYPE: YES === WITHOUT WAVEFORM: NO  === TDC-LIKE FILES: NO === COMPACT BINARY DATA: YES === DATA_IN_FILE_TYPE: 1 ===");
-		int has_measurement = 1; // true: contains absolute time, baseline, amplitude
+		const float ADC_factor = 0.1; 			// conversion to mV
+		int has_measurement = 1; 				// true: contains absolute time, baseline, amplitude
+		unordered_set<int> active_channels_set; // store channels in data
 		while (header_line < 7) {
 			getline(input_file, line);
 			if (debug) cout << line.c_str() << endl;
@@ -90,11 +94,12 @@ void ReadSampic::ReadFile(string path, bool change_polarity, int change_sign_fro
 			header_line++;
 		}
 
-
+		vector<short> waveform;
+		vector<float> waveform_f;
+		int previous_binNumber = -1;
 		HitStructInfoForWaveformAndMeasurements_t hitData;
 		HitStructInfoForWaveformOnly_t hitDataNoMeas;
 		HitInfoReduced currentHitInfo;
-		float WFlength = 64;
 		while (has_measurement ? 
 				input_file.read((char *)(&hitData), sizeof(hitData)) : 
 				input_file.read((char *)(&hitDataNoMeas), sizeof(hitDataNoMeas))) {
@@ -130,36 +135,33 @@ void ReadSampic::ReadFile(string path, bool change_polarity, int change_sign_fro
 			}
 
 			if (wfcounter == 0 && file_counter == 0) { // init
-				WFlength = 1e3 * static_cast<float>(binNumber) / sampling_frequency;
 				amplValuessum.resize(nChannelsWC, vector<float>(binNumber, 0.));
 			}
 			
-			int channel = currentHitInfo.Channel;
-			if (!Helpers::Contains(active_channels, channel)) {
-			    active_channels.push_back(channel);
+			if (active_channels_set.insert(currentHitInfo.Channel).second) { // check if channel is new
+			    active_channels.push_back(currentHitInfo.Channel);
 			}
 
-			vector<short> waveform(binNumber, 0);
-			size_t size_of_waveform = static_cast<size_t>(binNumber) * sizeof(short);
-			input_file.read((char *)waveform.data(), size_of_waveform);
+			if (binNumber != previous_binNumber) {
+    			waveform.resize(binNumber);
+    			waveform_f.resize(binNumber);
+    			previous_binNumber = binNumber;
+			}
 			
-			TString name(Form("ch%02d_%05d", channel, currentHitInfo.HitNumber));
-			TString title(Form("ch%d, waveform %d;t [ns];U [mV]", channel, currentHitInfo.HitNumber));
-			auto hwf = (TH1F*)testrundata.ConstructedAt(wfcounter);
-			hwf->SetName(name.Data());
-			hwf->SetTitle(title.Data());
-			// hwf->SetBins(binNumber, hitData.FirstSampleTimeStamp, hitData.FirstSampleTimeStamp + WFlength); //clashes with GetPeakIntegral()
-			hwf->SetBins(binNumber, 0, WFlength);
-			float polarity = PolarityCheck(change_polarity, currentHitInfo.Channel, change_sign_from_to_ch_num);
+			size_t waveform_bytes = static_cast<size_t>(binNumber) * sizeof(short);
+			input_file.read((char *)waveform.data(), waveform_bytes);
+			
+			float factor = ADC_factor;
+			if (polarity_map[currentHitInfo.Channel]) factor = -factor;
 
 			for (int i = 0; i < binNumber; i++) {
-				float val = static_cast<float>(waveform[i]) / ADC_factor * polarity;
-				hwf->SetBinContent(i + 1, val);
-				amplValuessum[channel][i] += val;
+				waveform_f[i] = static_cast<float>(waveform[i]) * factor;
+				amplValuessum[currentHitInfo.Channel][i] += waveform_f[i];
 			}
+			rundata.push_back(waveform_f);
 			
-			currentHitInfo.Max = hwf->GetMaximum();
-			currentHitInfo.Min = hwf->GetMinimum();
+			currentHitInfo.Max = *max_element(waveform_f.begin(), waveform_f.end());
+			currentHitInfo.Min = *min_element(waveform_f.begin(), waveform_f.end());
 			hitInfo.push_back(currentHitInfo);
 
 			wfcounter++;
@@ -186,9 +188,12 @@ void ReadSampic::ReadFile(string path, bool change_polarity, int change_sign_fro
 /// @param ymax scale of y axis
 void ReadSampic::PlotWF(int wfNumber, float ymin, float ymax) {
 	gStyle->SetOptStat(0);
+	int channel = hitInfo[wfNumber].Channel;
 	TString name(Form("waveform_%05d", wfNumber));
+	TString title(Form("wf%d, ch%d;t [ns];U [mV]", wfNumber, channel));
 	auto intwinc = new TCanvas(name.Data(), name.Data(), 600, 400);
-	auto his = (TH1F*)(rundata->At(wfNumber))->Clone();
+	auto his = new TH1F(name.Data(), title.Data(), binNumber, 0, IndexToTime(binNumber - 1));
+	for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, rundata[wfNumber][i - 1]);
 	his->Draw("HIST");
 	his->SetStats(0);
 	his->GetYaxis()->SetRange(ymin, ymax);
@@ -299,8 +304,8 @@ void ReadSampic::EventBuilder(double coincidence_time_window, vector<float> thre
 					if (shift_relative) { // BROKEN
 						int shift_bins = static_cast<int>(floor(event_time_stamps[event_counter] - hitInfo[kk].FirstSampleTimeStamp) / static_cast<double>(SP));
 						cout << event_time_stamps[event_counter] - hitInfo[kk].FirstSampleTimeStamp << " shift: " << shift_bins << endl;
-						auto his = (TH1F*)rundata->At(kk);
-						Helpers::ShiftTH1(his, shift_bins);
+						// auto his = (TH1F*)rundata->At(kk);
+						// Helpers::ShiftTH1(his, shift_bins);
 					}
 					hitInfo[kk].EventNumber = event_counter;
 					hitInfo[kk].IsEvent = true;
@@ -349,10 +354,14 @@ TH1F* ReadSampic::Getwf(int channelnr, int eventnr, int color) {
 	}
 
 	if (wfindex != -1) {
-		TH1F* his;
-		his = (TH1F*)rundata->At(wfindex);
+		int channel = hitInfo[wfindex].Channel;
+		int event_nr = hitInfo[wfindex].EventNumber;
+		TString name(Form("ch%02d_%05d", channel, event_nr));
+		TString title(Form("ch%d, event %d;t [ns];U [mV]", channel, event_nr));
+		auto his = new TH1F(name.Data(), title.Data(), binNumber, 0, IndexToTime(binNumber - 1));
 		his->SetLineColor(color);
 		his->SetMarkerColor(color);
+		for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, rundata[wfindex][i]);
 		return his;
 	}
 	else {
@@ -397,7 +406,7 @@ int ReadSampic::GetCurrentEvent(int waveform_index) {
 /// @param event_index Index of the event
 /// @param channel_index Index of the channel
 bool ReadSampic::SkipEvent(int event_index, int channel_index) {
-	if (static_cast<int>(skip_event.size()) <= event_index) { // wrong input
+	if (event_index >= static_cast<int>(skip_event.size()) || event_index < 0) { // wrong input
 		return true;
 	}
 	else if (channel_index == -1) { // default just like parent class ReadRun
