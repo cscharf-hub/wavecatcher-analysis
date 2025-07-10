@@ -1575,7 +1575,7 @@ array<int, 3> ReadRun::GetIntWindow(const vector<float>& waveform, float windowl
 
 		float t_max = IndexToTime(foundindices[0]) + SP * 0.5; // time at center of maximum bin
 		foundindices[1] = TimeToIndex(t_max - windowlow);
-		foundindices[2] = TimeToIndex(t_max - windowhi);
+		foundindices[2] = TimeToIndex(t_max + windowhi);
 	}
 	return foundindices;
 }
