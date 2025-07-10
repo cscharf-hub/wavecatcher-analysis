@@ -1559,7 +1559,7 @@ array<int, 3> ReadRun::GetIntWindow(const vector<float>& waveform, float windowl
 
 	if (start < 0 || end < 0) {							// fixed integration window relative to maximum of sum spectrum for each channel
 		foundindices[1] = maxSumBin[channel] - TimeToIndex(windowlow);
-		foundindices[2] = maxSumBin[channel] - TimeToIndex(windowhi);
+		foundindices[2] = maxSumBin[channel] + TimeToIndex(windowhi);
 	}
 	else if (windowlow == start && windowhi == end) {	// fixed integration window for all channels
 		foundindices[1] = TimeToIndex(windowlow);
@@ -1595,7 +1595,7 @@ array<int, 3> ReadRun::GetIntWindow(const vector<float>& waveform, int windowlow
 
 	if (start < 0 || end < 0) {							// fixed integration window relative to maximum of sum spectrum for each channel
 		foundindices[1] = maxSumBin[channel] - windowlow;
-		foundindices[2] = maxSumBin[channel] - windowhi;
+		foundindices[2] = maxSumBin[channel] + windowhi;
 	}
 	else if (windowlow == start && windowhi == end) {	// fixed integration window for all channels
 		foundindices[1] = windowlow;
