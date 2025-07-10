@@ -135,7 +135,7 @@ public:
 	void PlotChannelAverages(bool = false);
 
 	TH2F* WFHeatmapChannel(int, float = -20, float = 200, int = 880);
-	void PlotWFHeatmaps(float = -20, float = 200, int = 880, string = "", float = 0, EColorPalette = kGistEarth);
+	void PlotWFHeatmaps(float = -20, float = 200, int = 880, string = "", float = 0, EColorPalette = kRainBow);
 	
 	// baseline correction (shifts all waveforms individually in y)
 	void CorrectBaseline(float, float = -999);

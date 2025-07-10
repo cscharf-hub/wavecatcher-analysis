@@ -468,12 +468,22 @@ TH2F* ReadRun::WFHeatmapChannel(int channel_index, float ymin, float ymax, int n
 	h2->GetYaxis()->SetTitle("I [arb.]");
 	h2->GetZaxis()->SetTitle("entries");
 
-	for (int j = 0; j < nevents; j++) {
-		if (!SkipEvent(j, channel_index)) {
-			auto his = Getwf(channel_index, j);
-			for (int i = 0; i < binNumber; i++) h2->Fill(his->GetBinCenter(i), his->GetBinContent(i));
+	auto xv = getx<float>();
+	#pragma omp parallel
+	{
+		auto h2_tmp = new TH2F("", "", binNumber, 0, SP * static_cast<float>(binNumber), n_bins_y, ymin, ymax);
+		#pragma omp for
+		for (int j = 0; j < nevents; j++) {
+			if (!SkipEvent(j, channel_index)) {
+				int wf_index = GetWaveformIndex(j, channel_index);
+				for (int i = 0; i < binNumber; i++) h2_tmp->Fill(xv[i], rundata[wf_index][i]);
+			}
 		}
+		#pragma omp critical
+		h2->Add(h2_tmp);
+		delete h2_tmp;
 	}
+	delete[] xv;
 	return h2;
 }
 
@@ -1892,6 +1902,7 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 				h1->Fill((integral_value - pedestal) / gain); 
 			}
 		}
+		#pragma omp critical
 		h1->Add(h1_tmp);
 		delete h1_tmp;
 	}
