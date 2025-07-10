@@ -318,7 +318,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 ReadRun::~ReadRun() {
 	//plot_active_channels.clear();
 	if (root_out->IsOpen()) root_out->Close();
-	cout << "\ndeleting nothing currently..." << endl;
+	cout << "\nAnalysis completed." << endl;
 }
 
 /// @brief Plot sums of all raw waveforms for each channel
@@ -855,7 +855,7 @@ void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int
 /// @param smooth_method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
 /// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, double sigma, int max_bin_for_baseline, int start_at, int smooth_method) {
-	cout << "Notification: This is a deprecated version of CorrectBaselineMinSlopeRMS. "
+	cout << "WARNING: This is a deprecated version of CorrectBaselineMinSlopeRMS. "
 		<< "It will be removed in future releases. Parameter bool smooth=" << smooth << " will be ignored." << endl;
 	vector<float> window;
 	window.push_back(IndexToTime(nIntegrationWindow));
@@ -865,6 +865,18 @@ void ReadRun::CorrectBaselineMinSlopeRMS(int nIntegrationWindow, bool smooth, do
 }
 /// @example read_exampledata.cc
 /// @example read_exampledata.py
+
+/// @brief Wrapper for backwards compatibility
+/// @param window 
+/// @param sigma 
+/// @param smooth_method 
+/// @param increment Parameter has been removed
+void ReadRun::CorrectBaselineMinSlopeRMS(vector<float> window, double sigma, int smooth_method, int increment) {
+	(void)increment;
+	cout << "WARNING: This is a deprecated version of CorrectBaselineMinSlopeRMS. "
+		<< "It will be removed in future releases. Parameter increment=" << increment << " will be ignored." << endl;
+	CorrectBaselineMinSlopeRMS(window, sigma, smooth_method);
+}
 
 /// @brief Baseline correction using minimum sum (\f$\propto\f$ mean) in range for correction 
 /// 
@@ -983,7 +995,7 @@ void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_
 /// @param smooth_method 0: Use running average (box kernel smoothing). Simple, very fast. \n 
 /// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_bin_for_baseline, int start_at, int smooth_method) {
-	cout << "Notification: This is a deprecated version of CorrectBaselineMin. It will be removed in future releases." << endl;
+	cout << "WARNING: This is a deprecated version of CorrectBaselineMin. It will be removed in future releases." << endl;
 	vector<float> window;
 	window.push_back(IndexToTime(nIntegrationWindow));
 	window.push_back(IndexToTime(start_at));
@@ -991,6 +1003,17 @@ void ReadRun::CorrectBaselineMin(int nIntegrationWindow, double sigma, int max_b
 	CorrectBaselineMin(window, sigma, smooth_method);
 }
 /// @example timing_example.cc
+
+/// @brief Wrapper for backwards compatibility
+/// @param window 
+/// @param sigma 
+/// @param smooth_method 
+/// @param increment Parameter has been removed
+void ReadRun::CorrectBaselineMin(vector<float> window, double sigma, int smooth_method, int increment) {
+	(void)increment;
+	cout << "WARNING: This is a deprecated version of CorrectBaselineMin. It will be removed in future releases." << endl;
+	CorrectBaselineMin(window, sigma, smooth_method);
+}
 
 /// @brief Waveform projections for one channel
 /// 

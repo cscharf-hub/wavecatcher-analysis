@@ -142,9 +142,11 @@ public:
 	void CorrectBaseline_function(vector<float>&, float, float, int);
 
 	void CorrectBaselineMinSlopeRMS(vector<float>, double = 0, int = 2);
+	void CorrectBaselineMinSlopeRMS(vector<float>, double, int, int);
 	void CorrectBaselineMinSlopeRMS(int = 100, bool = false, double = 0.5, int = 0, int = 0, int = 2);
 
 	void CorrectBaselineMin(vector<float>, double = 0, int = 2);
+	void CorrectBaselineMin(vector<float>, double, int, int);
 	void CorrectBaselineMin(int = 100, double = 0.5, int = 0, int = 0, int = 2);
 
 	// functions to check baseline correction results
