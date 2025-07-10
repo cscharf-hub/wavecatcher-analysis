@@ -336,12 +336,12 @@ ReadRun::~ReadRun() {
 /// 2: Use 3 sigma gaussian kernel smoothing. Preferred method, fast.
 void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double sigma, int smooth_method) {
 
-	double* xv = getx(shift);
+	double* xv = getx<double>(shift);
 	auto mgsums = new TMultiGraph();
 	mgsums->SetTitle("channel sums; t [ns]; amplitude [mV]");
 	if (normalize) mgsums->SetTitle("channel sums; t [ns]; amplitude [arb.]");
 
-	double max = 0., min = 0.;
+	double max_val = 0., min_val = 0.;
 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
@@ -354,11 +354,11 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 			delete[] yv;
 
 			double tmp_min = TMath::MinElement(gr->GetN(), gr->GetY());
-			if (tmp_min < min) min = tmp_min;
+			if (tmp_min < min_val) min_val = tmp_min;
 			double tmp_max = TMath::MaxElement(gr->GetN(), gr->GetY());
-			if (tmp_max > max) max = tmp_max;
+			if (tmp_max > max_val) max_val = tmp_max;
 			if (normalize) {
-				for (int j = 0; j < gr->GetN(); j++) gr->SetPointY(j, gr->GetPointY(j) / tmp_max);
+				for (int j = 0; j < gr->GetN(); j++) gr->SetPointY(j, gr->GetPointY(j) / max_val);
 			}
 
 			TString name(Form("channel_%02d", active_channels[i]));
@@ -375,7 +375,7 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 	auto sumc = new TCanvas("Sums", "", 600, 400);
 	mgsums->Draw("AL");
 	if (normalize) mgsums->GetYaxis()->SetRangeUser(-0.2, 1);
-	else mgsums->GetYaxis()->SetRangeUser(min, max);
+	else mgsums->GetYaxis()->SetRangeUser(min_val, max_val);
 	sumc->BuildLegend(0.85, 0.70, .99, .95);
 	root_out->WriteObject(mgsums, "channelsums");
 	root_out->WriteObject(sumc, "channelsums_c");
@@ -393,8 +393,7 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 /// 
 /// @param normalize If true will normalize the maximum to 1.
 void ReadRun::PlotChannelAverages(bool normalize) {
-	float* xv = new float[binNumber];
-	for (int i = 0; i < binNumber; i++) xv[i] = IndexToTime(i);
+	float* xv = getx<float>();
 	
 	auto mgav = new TMultiGraph();
 	mgav->SetTitle("channel averages; t [ns]; amplitude [mV]");
@@ -2302,7 +2301,7 @@ TGraph2D* ReadRun::MaxDist(int channel_index, float from, float to) {
 	TGraph2D* g3d = new TGraph2D((binNumber + 2) * nevents);
 	g3d->SetTitle("waveforms; t [ns]; max. amplitude [mv]; amplitude [mV]");
 	g3d->SetMarkerStyle(7);
-	double* xvals = getx();
+	double* xvals = getx<double>();
 
 	for (int j = 0; j < nevents; j++) {
 		if (!SkipEvent(j, channel_index)) {
@@ -2639,7 +2638,7 @@ TH1F* ReadRun::Getwf(int wfindex) {
 	int event_nr = GetCurrentEvent(wfindex);
 	TString name(Form("ch%02d_%05d", channel, event_nr));
 	TString title(Form("ch%d, event %d;t [ns];U [mV]", channel, event_nr));
-	auto his = new TH1F(name.Data(), title.Data(), binNumber, 0, IndexToTime(binNumber - 1));
+	auto his = new TH1F(name.Data(), title.Data(), binNumber, 0, static_cast<float>(binNumber) * SP);
 	for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, rundata[wfindex][i - 1]);
 	return his;
 }
@@ -2652,23 +2651,28 @@ TH1F* ReadRun::Getwf(int wfindex) {
 TH1F* ReadRun::Getwf(int channelnr, int eventnr, int color) {
 	TString name(Form("ch%02d_%05d", channelnr, eventnr));
 	TString title(Form("ch%d, event %d;t [ns];U [mV]", channelnr, eventnr));
-	auto his = new TH1F(name.Data(), title.Data(), binNumber, 0, IndexToTime(binNumber - 1));
+	auto his = new TH1F(name.Data(), title.Data(), binNumber, 0, static_cast<float>(binNumber) * SP);
 	for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, rundata[eventnr * nchannels + channelnr][i - 1]);
 	his->SetLineColor(color);
 	his->SetMarkerColor(color);
 	return his;
 }
 
-/// @brief Get array of x axis (time) for standard wavecatcher settings
+/// @brief Get array of x axis (time of the bin centers) for standard wavecatcher settings 
+/// @tparam T double or float
 /// @param shift Offset
 /// @return Time array
-double* ReadRun::getx(double shift) {
-	double* xvals = new double[binNumber];
-	for (int i = 0; i < binNumber; i++) {
-		xvals[i] = static_cast<double>(SP) * static_cast<double>(i) + shift;
-	}
-	return xvals;
+template<typename T>
+T* ReadRun::getx(double shift) {
+    T* xvals = new T[binNumber];
+    for (int i = 0; i < binNumber; ++i) {
+        xvals[i] = static_cast<T>(SP) * (static_cast<T>(i) + 0.5) + shift;
+    }
+    return xvals;
 }
+template double* ReadRun::getx<double>(double);
+template float* ReadRun::getx<float>(double);
+
 
 /// @brief Get array of y values for a certain waveform
 /// @param waveform_index Waveform index
@@ -2815,7 +2819,7 @@ int ReadRun::TimeToIndex(float time) {
    	return CheckBoundsX(static_cast<int>(round(time / SP)));
 }
 
-/// @brief Convert the bin number of the waveform to the time
+/// @brief Convert the bin number of the waveform to the **time of the left bin edge**
 /// @param bin_index Bin number
 /// @return Time in ns between [0, binNumber) * SP
 float ReadRun::IndexToTime(int bin_index) {

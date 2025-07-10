@@ -201,7 +201,8 @@ public:
 	// helper functions
 	TH1F* Getwf(int);							// waveform number
 	virtual TH1F* Getwf(int, int, int = 1);		// channel, eventnr, color
-	double* getx(double = 0.);					// x values
+	template<typename T>
+	T* getx(double shift = 0.);					// x values
 	double* gety(int);							// y values for waveform index
 	double* gety(int, int);						// y values for waveform(channel, event)
 

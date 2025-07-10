@@ -358,15 +358,15 @@ TH1F* ReadSampic::Getwf(int channelnr, int eventnr, int color) {
 		int event_nr = hitInfo[wfindex].EventNumber;
 		TString name(Form("ch%02d_%05d", channel, event_nr));
 		TString title(Form("ch%d, event %d;t [ns];U [mV]", channel, event_nr));
-		auto his = new TH1F(name.Data(), title.Data(), binNumber, 0, IndexToTime(binNumber - 1));
+		auto his = new TH1F(name.Data(), title.Data(), binNumber, 0, SP * static_cast<float>(binNumber));
 		his->SetLineColor(color);
 		his->SetMarkerColor(color);
-		for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, rundata[wfindex][i]);
+		for (int i = 1; i <= binNumber; i++) his->SetBinContent(i, rundata[wfindex][i - 1]);
 		return his;
 	}
 	else {
 		// return zeroes if there is no waveform
-		static TH1F defaultHis("default", "NO DATA; t [ns]; U [mV]", binNumber, 0, SP * binNumber);
+		static TH1F defaultHis("default", "NO DATA; t [ns]; U [mV]", binNumber, 0, SP * static_cast<float>(binNumber));
     	return &defaultHis;
 	}
 }
