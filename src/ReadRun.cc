@@ -296,11 +296,11 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 	// integration window relative to the max of the sum spectrum (not working for DC measurement)
 	for (int ch = 0; ch < nChannelsWC; ch++) {
 		if (Helpers::Contains(active_channels, ch)) {
-			float max = 0.;
+			float max_val = -9.e99;
 			int i_max = 0;
 			for (int i = 0; i < binNumber; i++) {
-				if (amplValuessum[ch][i] > max) {
-					max = amplValuessum[ch][i];
+				if (amplValuessum[ch][i] > max_val) {
+					max_val = amplValuessum[ch][i];
 					i_max = i;
 				}
 			}
@@ -504,37 +504,50 @@ TH2F* ReadRun::WFHeatmapChannel(int channel_index, float ymin, float ymax, int n
 /// @param palette Root color palette (see https://root.cern.ch/doc/master/classTColor.html).
 void ReadRun::PlotWFHeatmaps(float ymin, float ymax, int n_bins_y, string z_opt, float z_max, EColorPalette palette) {
 
-	gStyle->SetOptStat(0);
-	string name("waveforms_heatmap_" + to_string(PlotWFHeatmaps_cnt++));
-	auto wfhm_c = new TCanvas(name.c_str(), name.c_str(), 600, 400);
-	Helpers::SplitCanvas(wfhm_c, active_channels, plot_active_channels);
+    gStyle->SetOptStat(0);
+    string name("waveforms_heatmap_" + to_string(PlotWFHeatmaps_cnt++));
+    auto wfhm_c = new TCanvas(name.c_str(), name.c_str(), 600, 400);
+    Helpers::SplitCanvas(wfhm_c, active_channels, plot_active_channels);
 
-	int current_canvas = 0;
-	for (int i = 0; i < nchannels; i++) {
-		if (PlotChannel(i)) {
-			wfhm_c->cd(++current_canvas);
-			// formatting
-			gPad->SetTopMargin(.1);
-			gPad->SetBottomMargin(.1);
-			gPad->SetLeftMargin(.15);
-			gPad->SetRightMargin(.15);
-			gStyle->SetPalette(palette);
+    // create histograms in parallel
+	map<int, shared_future<TH2F*>> h2_future;
+    for (int i = 0; i < nchannels; ++i) {
+        if (PlotChannel(i)) {
+            h2_future[i] = async(launch::async, [this, i, ymin, ymax, n_bins_y]() {
+                return WFHeatmapChannel(i, ymin, ymax, n_bins_y);
+            });
+        }
+    }
 
-			auto h2 = WFHeatmapChannel(i, ymin, ymax, n_bins_y);
-			h2->SetContour(99);
-			h2->SetStats(0);
-			if (z_opt == "COLZ0") h2->Draw("COLZ0");
-			else h2->Draw("CONT4Z");
-			if (z_opt == "log") {
-				gPad->SetLogz();
-				if (z_max > 1) h2->GetZaxis()->SetRangeUser(1, z_max);
-			}
-			else if (z_max > 0) h2->GetZaxis()->SetRangeUser(0, z_max);
-		}
-	}
-	wfhm_c->Update();
+	// plot histograms
+    int current_canvas = 0;
+    for (int i = 0; i < nchannels; ++i) {
+        if (PlotChannel(i)) {
+            wfhm_c->cd(++current_canvas);
 
-	root_out->WriteObject(wfhm_c, name.c_str());
+            gPad->SetTopMargin(.1);
+            gPad->SetBottomMargin(.1);
+            gPad->SetLeftMargin(.15);
+            gPad->SetRightMargin(.15);
+            gStyle->SetPalette(palette);
+
+            auto h2 = h2_future[i].get();
+
+            h2->SetContour(99);
+            h2->SetStats(0);
+            if (z_opt == "COLZ0") h2->Draw("COLZ0");
+            else h2->Draw("CONT4Z");
+
+            if (z_opt == "log") {
+                gPad->SetLogz();
+                if (z_max > 1) h2->GetZaxis()->SetRangeUser(1, z_max);
+            }
+            else if (z_max > 0) h2->GetZaxis()->SetRangeUser(0, z_max);
+        }
+    }
+
+    wfhm_c->Update();
+    root_out->WriteObject(wfhm_c, name.c_str());
 }
 /// @example read_exampledata.cc
 
@@ -1187,26 +1200,24 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 	printf("%.2f between %.2f ns and %.2f ns (%d waveforms):\n", cf_r, start_at_t, end_at_t, nwf);
 
 	timing_results.resize(nwf, vector<float>(8));
+
+	double* xvals = new double[n_range]; // x values for spline interpolation
+	for (int k = 0; k < n_range; k++) xvals[k] = static_cast<double>(k) + .5;
 	
 	#pragma omp parallel for
 	for (int j = 0; j < nwf; j++) {
 		double* yvals = Helpers::gety(rundata[j], start_at, end_at); // get range where to search for CFD for timing
+		
+		// smoothing to suppress noise, will also change timing so use with care!
+		if (sigma > 0.) Filters::SmoothArray(yvals, n_range, sigma, smooth_method);
 
-		if (sigma > 0.) Filters::SmoothArray(yvals, n_range, sigma, smooth_method); // smoothing to suppress noise, will also change timing so use with care!
+		double* max_ptr = max_element(yvals, yvals + n_range);
+		float max_val = *max_ptr;
+		int n_max = static_cast<int>(max_ptr - yvals);
 
-		float max = 0.;
-		int n_max = 0;
+		float cf = (cf_r <= 1) ? cf_r * max_val : cf_r;
+
 		int i = 0;
-		for (i = 0; i < n_range; i++) {
-			if (yvals[i] > max) {
-				max = yvals[i];
-				n_max = i;
-			}
-		}
-
-		float cf = cf_r;
-		if (cf_r > 0 && cf_r <= 1) cf *= max;
-
 		if (!find_CF_from_start) {
 			i = n_max;
 			while (i > 0 && yvals[i] > cf) i--;
@@ -1233,12 +1244,8 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 				double x_low = interpol_bin - .5;
 				double x_high = interpol_bin + .5;
 
-				double* xvals = new double[n_range];
-				for (int k = 0; k < n_range; k++) xvals[k] = static_cast<double>(k) + .5;
-
 				TSpline5* wfspl = 0;
 				wfspl = new TSpline5("wf_spline", xvals, yvals, n_range, "b1e1b2e2", 0., 0., 0., 0.);
-				delete[] xvals;
 
 				// using bisection method: halving search window until cf is less than epsilon bins from spline value
 				while (x_high - x_low > epsilon) {
@@ -1255,7 +1262,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 		}
 		timing_results[j][0] = interpol_bin;											// the bin we looked for
 		timing_results[j][1] = (interpol_bin + static_cast<float>(start_at)) * SP;		// cfd-time we looked for
-		timing_results[j][2] = max;														// maximum value
+		timing_results[j][2] = max_val;													// maximum value
 		timing_results[j][3] = n_max;													// bin of maximum
 		timing_results[j][4] = cf;														// constant fraction
 		timing_results[j][5] = IndexToTime(start_at);									// starting time
@@ -1263,6 +1270,7 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 		timing_results[j][7] = static_cast<float>(lin_interpol_res.second);				// flag will be 1 if linear interpolation worked
 		delete[] yvals;
 	}
+	delete[] xvals;
 }
 /// @example timing_example.cc
 
@@ -1512,12 +1520,12 @@ array<int, 3> ReadRun::GetIntWindow(TH1F* his, float windowlow, float windowhi, 
 			cout << "\nError: Start=" << istart << " or end=" << iend << " of GetIntWindow() out of range. Fix integration window." << endl;
 		}
 
-		float max = -9.e99;
-		float val = 0;
+		float max_val = -9.e99;
+		float curr_val = 0;
 		for (int i = istart; i < iend; i++) {
-			val = his->GetBinContent(i);
-			if (val > max) {
-				max = val;
+			curr_val = his->GetBinContent(i);
+			if (curr_val > max_val) {
+				max_val = curr_val;
 				foundindices[0] = i;
 			}
 		}
@@ -1962,14 +1970,23 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 	float default_rangeend = 30000;
 	if (default_rangestart > rangestart) default_rangestart = rangestart;
 	if (default_rangeend < rangeend) default_rangeend = rangeend;
-
 	int default_nbins = static_cast<int>((default_rangeend - default_rangestart) * nbins / (rangeend - rangestart));
+
+	// create histograms in parallel
+	map<int, shared_future<TH1F*>> h1_future;
+    for (int i = 0; i < nchannels; ++i) {
+        if (PlotChannel(i)) {
+            h1_future[i] = async(launch::async, [this, i, windowlow, windowhi, start, end, default_rangestart, default_rangeend, default_nbins]() {
+                return ChargeSpectrum(i, windowlow, windowhi, start, end, default_rangestart, default_rangeend, default_nbins);
+            });
+        }
+    }
+
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
 			chargec->cd(++current_canvas);
-			if (use_log_y) gPad->SetLogy();
 
-			auto his = ChargeSpectrum(i, windowlow, windowhi, start, end, default_rangestart, default_rangeend, default_nbins);
+			auto his = h1_future[i].get();
 			his->GetYaxis()->SetTitle("#Entries");
 			if (windowlow + windowhi > 0.) his->GetXaxis()->SetTitle("Integral in mV#timesns");
 			else his->GetXaxis()->SetTitle("Amplitude in mV");
@@ -2167,6 +2184,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 			TString name(Form("ChargeSpectrum channel_%02d_%d", active_channels[i], PrintChargeSpectrum_cnt));
 			root_out->WriteObject(his, name.Data());
 			his->Draw();
+			if (use_log_y) gPad->SetLogy();
 		}
 	}
 
@@ -2302,7 +2320,7 @@ void ReadRun::PrintTimeDist(float from, float to, float rangestart, float rangee
 /// @brief Finds maximum amplitude for a given channel in time window ["from", "to"] and creates 3d map of waveforms ordered by maxima on z axis.
 ///
 /// Use PrintMaxDist() to plot all channels. \n
-/// Use only for small datasets (<100k waveforms) as it will contain all individual points of all waveforms.
+/// Use only for small datasets (<10k waveforms) as it will contain all individual points of all waveforms.
 ///
 /// @return TGraph2D of all histograms ordered by maximum amplitude
 TGraph2D* ReadRun::MaxDist(int channel_index, float from, float to) {
@@ -2316,17 +2334,17 @@ TGraph2D* ReadRun::MaxDist(int channel_index, float from, float to) {
 
 	for (int j = 0; j < nevents; j++) {
 		if (!SkipEvent(j, channel_index)) {
-			auto his = (TH1F*)(Getwf(GetWaveformIndex(j, channel_index)));
+			int wf_index = GetWaveformIndex(j, channel_index);
 
-			int bin_from = his->GetXaxis()->FindBin(from) - 1;
-			int bin_to = his->GetXaxis()->FindBin(to);
-			double max_val = his->GetBinContent(bin_from);
-			for (int i = bin_from + 1; i < bin_to; ++i) {
-				double val = his->GetBinContent(i);
+			int bin_from = TimeToIndex(from);
+			int bin_to = TimeToIndex(to);
+			double max_val = rundata[wf_index][bin_from];
+			for (int i = bin_from; i <= bin_to; ++i) {
+				double val = rundata[wf_index][i];
 				if (val > max_val) max_val = val;
 			}
 			
-			for (int i = 0; i < binNumber; i++) g3d->SetPoint(j * binNumber + i, xvals[i], max_val, his->GetBinContent(i+1));
+			for (int i = 0; i < binNumber; i++) g3d->SetPoint(j * binNumber + i, xvals[i], max_val, rundata[wf_index][i]);
 		}
 	}
 	delete[] xvals;
