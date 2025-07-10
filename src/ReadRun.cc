@@ -1569,15 +1569,12 @@ array<int, 3> ReadRun::GetIntWindow(const vector<float>& waveform, float windowl
 		int iend = TimeToIndex(end);
 		foundindices[0] = istart;
 
-		if (istart < 1 || iend > binNumber) {
-			cout << "\nError: Start=" << istart << " or end=" << iend << " of GetIntWindow() out of range. Fix integration window." << endl;
-		}
-
 		auto max_it = max_element(waveform.begin() + istart, waveform.begin() + iend);
 		foundindices[0] = static_cast<int>(distance(waveform.begin(), max_it));
 
-		foundindices[1] = foundindices[0] - TimeToIndex(windowlow);
-		foundindices[2] = foundindices[0] + TimeToIndex(windowhi);
+		float t_max = IndexToTime(foundindices[0]) + SP * 0.5; // time of maximum at bin center
+		foundindices[1] = TimeToIndex(t_max - windowlow);
+		foundindices[2] = TimeToIndex(t_max + windowhi);
 	}
 	return foundindices;
 }
@@ -1604,19 +1601,15 @@ array<int, 3> ReadRun::GetIntWindow(const vector<float>& waveform, int windowlow
 		foundindices[2] = windowlow;
 	}
 	else {												// fixed integration window relative to maximum of each individual waveform
-		int istart = start;
-		int iend = end;
+		int istart = CheckBoundsX(start);
+		int iend = CheckBoundsX(end);
 		foundindices[0] = istart;
-
-		if (istart < 1 || iend > binNumber) {
-			cout << "\nError: Start=" << istart << " or end=" << iend << " of GetIntWindow() out of range. Fix integration window." << endl;
-		}
 
 		auto max_it = max_element(waveform.begin() + istart, waveform.begin() + iend);
 		foundindices[0] = static_cast<int>(distance(waveform.begin(), max_it));
 
-		foundindices[1] = foundindices[0] - windowlow;
-		foundindices[2] = foundindices[0] + windowhi;
+		foundindices[1] = CheckBoundsX(foundindices[0] - windowlow);
+		foundindices[2] = CheckBoundsX(foundindices[0] + windowhi);
 	}
 	return foundindices;
 }
@@ -2225,8 +2218,8 @@ void ReadRun::PrintDCR(float windowlow, float windowhi, float rangestart, float 
 /// See PrintTimeDist() for parameters.
 /// 
 TH1F* ReadRun::TimeDist(int channel_index, float from, float to, float rangestart, float rangeend, int nbins, int which, float cf_r) {
-	int from_n = CheckBoundsX(TimeToIndex(from));
-	int to_n = CheckBoundsX(TimeToIndex(to));
+	int from_n = TimeToIndex(from);
+	int to_n = TimeToIndex(to);
 
 	TString name(Form("timedist_ch%02d", active_channels[channel_index]));
 	auto h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
