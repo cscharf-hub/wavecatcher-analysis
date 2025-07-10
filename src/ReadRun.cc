@@ -186,6 +186,7 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 		float sampling_period = atof(header_line.substr(sp_first, sp_last - sp_first).data());
 		if (debug_header) printf("sampling period  = %f ps\n", sampling_period);
 		SP = sampling_period * 1e-3;
+		SP_inv = 1/SP;
 
 		// compatibility with older WC software versions
 		if (v_major ==2 && v_minor == 9 && v_patch <= 13) {
@@ -1572,9 +1573,9 @@ array<int, 3> ReadRun::GetIntWindow(const vector<float>& waveform, float windowl
 		auto max_it = max_element(waveform.begin() + istart, waveform.begin() + iend);
 		foundindices[0] = static_cast<int>(distance(waveform.begin(), max_it));
 
-		float t_max = IndexToTime(foundindices[0]) + SP * 0.5; // time of maximum at bin center
+		float t_max = IndexToTime(foundindices[0]) + SP * 0.5; // time at center of maximum bin
 		foundindices[1] = TimeToIndex(t_max - windowlow);
-		foundindices[2] = TimeToIndex(t_max + windowhi);
+		foundindices[2] = TimeToIndex(t_max - windowhi);
 	}
 	return foundindices;
 }
@@ -2378,7 +2379,7 @@ void ReadRun::PrintMaxDist(float from, float to) {
 /// @return Timing histogram for one channel
 TH1F* ReadRun::His_GetTimingCFD(int channel_index, float rangestart, float rangeend, int nbins) {
 
-	if (nbins == -999) nbins = static_cast<int>((rangeend - rangestart) / SP);
+	if (nbins == -999) nbins = static_cast<int>((rangeend - rangestart) * SP_inv);
 
 	TString name(Form("GetTimingCFD_ch%02d", active_channels[channel_index]));
 	auto his = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
@@ -2453,7 +2454,7 @@ void ReadRun::Print_GetTimingCFD(float rangestart, float rangeend, int do_fit, i
 /// @return Histogram with event-wise timing differences between two channel ranges
 TH1F* ReadRun::His_GetTimingCFD_diff(vector<int> channels1, vector<int> channels2, float rangestart, float rangeend, int nbins) {
 
-	if (nbins == -999) nbins = static_cast<int>((rangeend - rangestart) / SP);
+	if (nbins == -999) nbins = static_cast<int>((rangeend - rangestart) * SP_inv);
 
 	stringstream name;
 	name << "GetTimingCFD_diff <";
@@ -2838,7 +2839,7 @@ int ReadRun::CheckBoundsX(int index) {
 /// @param time Time in ns
 /// @return Bin number between [0, binNumber) corresponding to the time
 int ReadRun::TimeToIndex(float time) {
-   	return CheckBoundsX(static_cast<int>(round(time / SP)));
+   	return CheckBoundsX(static_cast<int>(time * SP_inv));
 }
 
 /// @brief Convert the bin number of the waveform to the **time of the left bin edge**

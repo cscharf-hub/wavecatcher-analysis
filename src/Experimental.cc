@@ -14,6 +14,7 @@
 void Experimental::RebinAll(int ngroup, float sigma_noise, unsigned long seed) {
 
 	SP *= static_cast<float>(ngroup);
+	SP_inv = 1. / SP;
 	binNumber /= ngroup;
 	float norm = 1. / static_cast<float>(ngroup);
 	cout	<< "\nRebinning the data to a new sampling rate of " << 1. / SP 

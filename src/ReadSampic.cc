@@ -65,6 +65,7 @@ void ReadSampic::ReadFile(string path, bool change_polarity, int change_sign_fro
 		const float ADC_factor = 0.1; 			// conversion to mV
 		int has_measurement = 1; 				// true: contains absolute time, baseline, amplitude
 		unordered_set<int> active_channels_set; // store channels in data
+		SP = 0.;
 		while (header_line < 7) {
 			getline(input_file, line);
 			if (debug) cout << line.c_str() << endl;
@@ -88,10 +89,14 @@ void ReadSampic::ReadFile(string path, bool change_polarity, int change_sign_fro
 					string freq_str = line.substr(pos + 19, pos2);
 					sampling_frequency = stof(freq_str);
 					SP = 1000/sampling_frequency;
+					SP_inv = 1. / SP;
 					if (file_counter == 0) cout << "Sampling frequency: " << sampling_frequency << " MS/s" << endl;
 				}
 			}
 			header_line++;
+		}
+		if (SP == 0.) {
+    		throw runtime_error("ERROR: File header could not be read.");
 		}
 
 		vector<short> waveform;

@@ -284,6 +284,8 @@ public:
 
 	/// @brief Sampling: ns per bin of data, sampling rate 3.2 GS/s -> 0.3125 ns
 	float SP = .3125;
+	/// @brief 1/SP
+	float SP_inv = 1 / .3125;
 	/// @brief DAQ conversion factor for wavecatcher output to mV
 	/// 
 	/// From https://owncloud.lal.in2p3.fr/public.php?service=files&t=56e4a2c53a991cb08f73d03f1ce58ba2 
