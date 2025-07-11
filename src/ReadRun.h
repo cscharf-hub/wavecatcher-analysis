@@ -49,6 +49,13 @@
 #include <stdlib.h>
 #include <sstream>
 #include <stdexcept>
+//multithreading (avoids finding omp.h manually)
+#ifndef OMP_FUNC
+extern "C" {
+    int omp_get_max_threads();
+    int omp_get_thread_num();
+}
+#endif
 
 #include "utils/FitFunctions.h"
 #include "utils/Helpers.h"

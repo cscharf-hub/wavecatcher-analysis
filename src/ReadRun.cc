@@ -470,20 +470,35 @@ TH2F* ReadRun::WFHeatmapChannel(int channel_index, float ymin, float ymax, int n
 	h2->GetZaxis()->SetTitle("entries");
 
 	auto xv = getx<float>();
+	// create temporary histo per thread
+	int n_threads = omp_get_max_threads();
+	vector<TH2F*> h2_thread(n_threads);
+	for (int t = 0; t < n_threads; ++t) {
+		h2_thread[t] = new TH2F("", "", binNumber, 0, SP * static_cast<float>(binNumber), n_bins_y, ymin, ymax);
+	}
+
 	#pragma omp parallel
 	{
-		auto h2_tmp = new TH2F("", "", binNumber, 0, SP * static_cast<float>(binNumber), n_bins_y, ymin, ymax);
+		int t_id = omp_get_thread_num();
+		TH2F* hlocal = h2_thread[t_id];
+
 		#pragma omp for
-		for (int j = 0; j < nevents; j++) {
+		for (int j = 0; j < nevents; ++j) {
 			if (!SkipEvent(j, channel_index)) {
 				int wf_index = GetWaveformIndex(j, channel_index);
-				for (int i = 0; i < binNumber; i++) h2_tmp->Fill(xv[i], rundata[wf_index][i]);
+				for (int i = 0; i < binNumber; ++i) {
+					hlocal->Fill(xv[i], rundata[wf_index][i]);
+				}
 			}
 		}
-		#pragma omp critical
-		h2->Add(h2_tmp);
-		delete h2_tmp;
 	}
+
+	//merge
+	for (int t = 0; t < n_threads; ++t) {
+		h2->Add(h2_thread[t]);
+		delete h2_thread[t];
+	}
+
 	delete[] xv;
 	return h2;
 }
@@ -1883,7 +1898,6 @@ void ReadRun::ChargeCorrelation(float windowlow, float windowhi, float start, fl
 /// 
 /// @return Histogram for one channel.
 TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi, float start, float end, float rangestart, float rangeend, int nbins) {
-
 	TString name(Form("channel__%02d", active_channels[channel_index]));
 	auto h1 = new TH1F(name.Data(), name.Data(), nbins, rangestart, rangeend);
 
@@ -1894,20 +1908,30 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 		if (PrintChargeSpectrum_cal[channel_index][1] != 1) pedestal = PrintChargeSpectrum_cal[channel_index][1];
 	}
 
+	// create temporary histo per thread
+	vector<TH1F*> h1_thread;
+    int n_threads = omp_get_max_threads();
+    h1_thread.resize(n_threads);
+    for (int t = 0; t < n_threads; ++t) h1_thread[t] = new TH1F("", "", nbins, rangestart, rangeend);
+
 	#pragma omp parallel
-	{
-		auto h1_tmp = new TH1F("", "", nbins, rangestart, rangeend);
-		#pragma omp for
-		for (int j = 0; j < nevents; j++) {
-			if (!SkipEvent(j, channel_index)) {
-				float integral_value = GetPeakIntegral(rundata[GetWaveformIndex(j, channel_index)], windowlow, windowhi, start, end, channel_index);
-				h1->Fill((integral_value - pedestal) / gain); 
-			}
-		}
-		#pragma omp critical
-		h1->Add(h1_tmp);
-		delete h1_tmp;
-	}
+    {
+        int t_id = omp_get_thread_num();
+        TH1F* hlocal = h1_thread[t_id];
+
+        #pragma omp for
+        for (int j = 0; j < nevents; ++j) {
+            if (!SkipEvent(j, channel_index)) {
+                float integral_value = GetPeakIntegral(rundata[GetWaveformIndex(j, channel_index)], windowlow, windowhi, start, end, channel_index);
+                hlocal->Fill((integral_value - pedestal) / gain);
+            }
+        }
+    }
+	// merge
+    for (auto htmp : h1_thread) {
+        h1->Add(htmp);
+        delete htmp;
+    }
 	return h1;
 }
 
@@ -1968,7 +1992,7 @@ void ReadRun::PrintChargeSpectrum(float windowlow, float windowhi, float start, 
 
 	// create histograms in parallel
 	map<int, shared_future<TH1F*>> h1_future;
-    for (int i = 0; i < nchannels; ++i) {
+	for (int i = 0; i < nchannels; ++i) {
         if (PlotChannel(i)) {
             h1_future[i] = async(launch::async, [this, i, windowlow, windowhi, start, end, default_rangestart, default_rangeend, default_nbins]() {
                 return ChargeSpectrum(i, windowlow, windowhi, start, end, default_rangestart, default_rangeend, default_nbins);
