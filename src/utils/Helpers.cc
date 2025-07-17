@@ -26,14 +26,16 @@ string Helpers::ListFiles(const char* dirname, const char* ext) {
 /// @param index Current loop index
 /// @param length Length of loop
 void Helpers::PrintProgressBar(int index, int length) {
-	if ((index + 1) % (length / 10) == 0) {
-		float progress = 10 * (index + 1) / length;
-		cout << "\r[" << string(progress * 5, '#')
-			<< std::string(50 - progress * 5, ' ')
-			<< "] " << int(progress * 10) << "%";
-		cout.flush();
-		if (index + 1 == length) cout << endl << endl;
-	}
+	static int lastProgress = -1;
+    int progress = (10 * (index + 1)) / length;
+    if (progress != lastProgress) {
+        lastProgress = progress;
+        cout << "\r[" << string(progress * 5, '#')
+             << string(50 - progress * 5, ' ')
+             << "] " << progress * 10 << "%";
+        cout.flush();
+    }
+    if (index + 1 == length) cout << endl << endl;
 }
 
 /// @brief Translate a random number into a useful root color https://root.cern.ch/doc/master/classTColor.html
@@ -88,26 +90,37 @@ void Helpers::SetRangeCanvas(TCanvas*& c, double x_range_min, double x_range_max
 	c->Update();
 }
 
+
+/// @brief Check if user input exists in data and remove channels that are not there
+/// @param user_channels User input
+/// @param active_channels From data
+void Helpers::filterChannelUserInput(vector<int>& user_channels, const vector<int> active_channels) {
+    vector<int> rmv;
+    
+    for (int channel : user_channels) {
+        if (!Helpers::Contains(active_channels, channel)) {
+            cout << "\n ------------ WARNING ------------\n" 
+			<< "YOUR SELECTED CHANNEL " << channel << " DOES NOT EXIST IN DATA" << endl;
+            rmv.push_back(channel);
+        }
+    }
+
+    for (int channel : rmv) {
+        auto it = find(user_channels.begin(), user_channels.end(), channel);
+        if (it != user_channels.end()) {
+            user_channels.erase(it);
+        }
+    }
+}
+
+
 /// @brief Helper to split canvas according to the number of channels to be plotted
 /// @param c Canvas to be split
 /// @param active_channels All channels available in the data
 /// @param plot_active_channels The channels from the data that should be plotted
 void Helpers::SplitCanvas(TCanvas*& c, vector<int> active_channels, vector<int> plot_active_channels) {
 	// cross check if user input exists in data
-	vector<int> rmv;
-	for (int i = 0; i < static_cast<int>(plot_active_channels.size()); i++) {
-		if (find(active_channels.begin(), active_channels.end(), plot_active_channels[i]) == active_channels.end()) {
-			cout << "\n\n\n ------------ WARNING ------------\n";
-			cout << "YOUR SELECTED CHANNEL " << plot_active_channels[i] << " DOES NOT EXIST IN DATA\n";
-			cout << "PLEASE CHANGE plot_active_channels\n\n\n";
-			rmv.push_back(plot_active_channels[i]);
-		}
-	}
-
-	for (int i = 0; i < static_cast<int>(rmv.size()); i++) {
-		auto it = find(plot_active_channels.begin(), plot_active_channels.end(), rmv[i]);
-		if (it != plot_active_channels.end()) plot_active_channels.erase(it);
-	}
+	filterChannelUserInput(plot_active_channels, active_channels);
 
 	if (plot_active_channels.empty()) {
 		c->Divide(TMath::Min(static_cast<double>(active_channels.size()), 4.), TMath::Max(TMath::Ceil(static_cast<double>(active_channels.size()) / 4.), 1.), 0, 0);
@@ -118,25 +131,35 @@ void Helpers::SplitCanvas(TCanvas*& c, vector<int> active_channels, vector<int> 
 }
 
 /// @brief Get array of y values for a histogram
-/// @param his TH1F histogram
-/// @return Y values of waveform
-double* Helpers::gety(TH1F* his) {
-	double* yvals = new double[his->GetNbinsX()];
-	for (int i = 0; i < his->GetNbinsX(); i++) {
-		yvals[i] = his->GetBinContent(i + 1);
-	}
-	return yvals;
+/// @tparam HistType Histogram derived from ROOT TH1
+/// @param his Pointer to histogram
+/// @return Array of Y values
+template <typename HistType>
+double* Helpers::gety(HistType* his) {
+    static_assert(is_base_of<TH1, HistType>::value, "ERROR in Helpers::gety():\n Argument must be ROOT TH1 histogram.");
+    double* yvals = new double[his->GetNbinsX()];
+    for (int i = 0; i < his->GetNbinsX(); ++i) {
+        yvals[i] = static_cast<double>(his->GetBinContent(i + 1));
+    }
+    return yvals;
 }
+template double* Helpers::gety<TH1F>(TH1F*);
+template double* Helpers::gety<TH1D>(TH1D*);
+template double* Helpers::gety<TH1I>(TH1I*);
 
 /// @brief Get truncated array of y values for a certain waveform
+/// @tparam HistType Histogram derived from ROOT TH1
 /// @param his Waveform histogram
 /// @param start_at Truncate from index
 /// @param end_at Truncate to index
 /// @return Truncated Y values of waveform
-double* Helpers::gety(TH1F* his, int start_at, int end_at) {
-	if (start_at < 0 || start_at >= his->GetNbinsX() || end_at >= his->GetNbinsX() || end_at - start_at < 1) {
+template <typename HistType>
+double* Helpers::gety(HistType* his, int start_at, int end_at) {
+	static_assert(is_base_of<TH1, HistType>::value, "ERROR in Helpers::gety():\n Argument must be ROOT TH1 histogram.");
+	
+	if (start_at < 0 || end_at > his->GetNbinsX() || end_at <= start_at) {
 		cout << "\nError: Helpers::gety out of range" << endl;
-		return 0;
+		return nullptr;
 	}
 	const int n_bins_new = end_at - start_at;
 	double* yvals = new double[n_bins_new];
@@ -145,14 +168,36 @@ double* Helpers::gety(TH1F* his, int start_at, int end_at) {
 	}
 	return yvals;
 }
+template double* Helpers::gety<TH1F>(TH1F*, int, int);
+template double* Helpers::gety<TH1D>(TH1D*, int, int);
+template double* Helpers::gety<TH1I>(TH1I*, int, int);
 
-/// @brief Shift a histogram in x
-/// 
+/// @brief Get truncated array of y values for a certain waveform
+/// @param waveform Waveform 
+/// @param start_at Truncate from index
+/// @param end_at Truncate to index
+/// @return Truncated Y values of waveform
+double* Helpers::gety(const vector<float>& waveform, int start_at, int end_at) {
+	if (start_at < 0 || end_at > static_cast<int>(waveform.size()) || end_at <= start_at) {
+		cout << "\nError: Helpers::gety out of range" << endl;
+		return nullptr;
+	}
+	const int n_bins_new = end_at - start_at;
+	double* yvals = new double[n_bins_new];
+	for (int i = start_at; i < end_at; i++) {
+		yvals[i - start_at] = static_cast<double>(waveform[i]);
+	}
+	return yvals;
+}
+
+/// @brief Shift a histogram in x \n
 /// The histogram will be cycled, so bins at the end will be attached at the front and vice versa
-/// 
+/// @tparam HistType Histogram derived from ROOT TH1
 /// @param his Histogram to be shifted
 /// @param shift_bins Number of bins in x to shift by
-void Helpers::ShiftTH1F(TH1F*& his, int shift_bins) {
+template <typename HistType>
+void Helpers::ShiftTH1(HistType*& his, int shift_bins) {
+	static_assert(is_base_of<TH1, HistType>::value, "ERROR in Helpers::gety():\n Argument must be ROOT TH1 histogram.");
 	int nbins = his->GetNbinsX();
 	shift_bins = shift_bins % nbins;
 	double* yvals = Helpers::gety(his);
@@ -164,3 +209,6 @@ void Helpers::ShiftTH1F(TH1F*& his, int shift_bins) {
 	}
 	delete[] yvals;
 }
+template void Helpers::ShiftTH1<TH1F>(TH1F*&, int);
+template void Helpers::ShiftTH1<TH1D>(TH1D*&, int);
+template void Helpers::ShiftTH1<TH1I>(TH1I*&, int);

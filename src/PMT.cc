@@ -20,8 +20,7 @@ void PMT::PrintChargeSpectrumPMT(float windowlow, float windowhi, float start, f
 		if (PlotChannel(i)) {
 			current_canvas++;
 
-			TH1F* his;
-			his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins);
+			auto his = ChargeSpectrum(i, windowlow, windowhi, start, end, rangestart, rangeend, nbins);
 			if (windowlow + windowhi > 0.) his->GetXaxis()->SetTitle("integral in mV#timesns");
 			else his->GetXaxis()->SetTitle("amplitude in mV");
 			chargec->cd(current_canvas);
@@ -119,8 +118,7 @@ void PMT::PrintChargeSpectrumPMTthreshold(float windowlow, float windowhi, float
 
 			chargec->cd(++current_canvas);
 
-			TH1F* his;
-			his = ChargeSpectrum(i, windowlow, windowhi, rangestart, rangeend, rangestart, rangeend, nbins);
+			auto his = ChargeSpectrum(i, windowlow, windowhi, rangestart, rangeend, rangestart, rangeend, nbins);
 			his->GetXaxis()->SetTitle(title.c_str());
 			his->GetYaxis()->SetTitle("#Entries");
 			his->Draw();

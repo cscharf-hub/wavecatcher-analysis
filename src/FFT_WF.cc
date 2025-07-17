@@ -27,15 +27,12 @@ void FFT_WF::PrintFFTWF(int eventnr, float xmin, float xmax, int multiplier) {
 	double* refft = new double[size];
 	double* imfft = new double[size];
 
-	double* yvals = new double[size];
+	double* yvals = new double[size]{};
 
 	for (int i = 0; i < nchannels; i++) {
-		TH1F* his = Getwf(i, GetEventIndex(eventnr));
+		int wf_index = GetWaveformIndex(eventnr, i);
 
-		for (int j = 0; j < size; j++) {
-			if (j < binNumber) yvals[j] = his->GetBinContent(j + 1);
-			else yvals[j] = 0.;
-		}
+		for (int j = 0; j < binNumber; j++) yvals[j] = static_cast<double>(rundata[wf_index][j]);
 
 		TVirtualFFT* ffthis = TVirtualFFT::FFT(1, &size, "R2C ES");
 		ffthis->SetPoints(yvals);
