@@ -4,7 +4,7 @@ LD              =g++
 INCROOT         =$(shell root-config --incdir)
 
 CPPFLAGS        =-I $(INCROOT)/ -I $(INCDIR)/
-CXXFLAGS        =-fPssh-keygen -t ed25519 -C "your.email@example.com"IC -g -O2 -Wall -Wextra -Wshadow -pedantic -Xpreprocessor -fopenmp
+CXXFLAGS 		=-fPIC -g -O2 -Wall -Wextra -Wshadow -pedantic -Xpreprocessor -fopenmp
 LDFLAGS         =-lomp
 
 # Get the C++ version of ROOT
