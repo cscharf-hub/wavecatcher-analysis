@@ -13,17 +13,23 @@ This is the main analysis framework used by the experimental elementary (EE) par
 - [Additional remarks](#Additional-remarks)
 
 # Requirements
-We recommend using CERN ROOT Release 6.24/02 or later[^1].
+CERN ROOT Release 6.24/02 or later[^1].
+
+**Before compiling, install required packages:**
+```
+sudo apt update && sudo apt upgrade
+sudo apt install build-essential libomp-dev make
+```
 
 It is strongly recommended to install [ROOT](https://root.cern/install/#conda) with [conda](https://docs.conda.io/en/latest/miniconda.html), as this will automatically install all dependencies and set the correct paths.
 You can do so by simply executing the included scripts as explained under [Getting started](#Getting-started).
 
-The compilation needs ```make```, which can be installed with ```sudo apt install make```. On ARM there can be the error ``` fatal error: 'assert.h' file not found```, which can be fixed by running ```sudo apt install libc6-dev-arm64-cross```.
+On ARM there can be the error ```fatal error: 'assert.h' file not found```, which can be fixed by running ```sudo apt install libc6-dev-arm64-cross```.
 
 If you use Windows, you should first install WSL and then Ubuntu from the Microsoft Store[^2]. 
 Once installed, open Ubuntu and install ROOT using conda as described below. 
 
-It should also work on Mac if ROOT was installed using conda, but it is not tested.
+For macOS instructions see README_MAC.md.
 
 # Getting started
 
