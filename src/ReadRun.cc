@@ -11,12 +11,15 @@
 /// Development and maintenance: \n
 /// Christian Scharf \n 
 /// Contributors: \n 
-/// Doramas Jimeno Sanchez \n
 /// Alessia Brignoli \n
-/// Ben Skodda \n 
-/// Christophe Mullesch \n
+/// Hannes Braune \n
 /// Constantin Eckardt \n
+/// Doramas Jimeno Sanchez \n
+/// Andres Krolla \n
+/// Christophe Mullesch \n
+/// Ben Skodda \n 
 /// Alexander Vagts \n
+/// Ida Wöstheinrich \n
 
 #include "ReadRun.h"
 
@@ -317,7 +320,8 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 
 /// @brief Destructor
 ReadRun::~ReadRun() {
-	//plot_active_channels.clear();
+	// plot_active_channels.clear();
+	rundata.clear();
 	if (root_out->IsOpen()) root_out->Close();
 	cout << "\nAnalysis completed." << endl;
 }
@@ -359,7 +363,8 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 			double tmp_max = TMath::MaxElement(gr->GetN(), gr->GetY());
 			if (tmp_max > max_val) max_val = tmp_max;
 			if (normalize) {
-				for (int j = 0; j < gr->GetN(); j++) gr->SetPointY(j, gr->GetPointY(j) / max_val);
+				double i_tmp_max = (tmp_max != 0) ? 1. / tmp_max : 1.;
+				for (int j = 0; j < gr->GetN(); j++) gr->SetPointY(j, gr->GetPointY(j) * i_tmp_max);
 			}
 
 			TString name(Form("channel_%02d", active_channels[i]));
@@ -424,7 +429,8 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 			double tmp_max = TMath::MaxElement(gr->GetN(), gr->GetY());
 			if (tmp_max > max_val) max_val = tmp_max;
 			if (normalize) {
-				for (int j = 0; j < gr->GetN(); j++) gr->SetPointY(j, gr->GetPointY(j) / tmp_max);
+				double i_tmp_max = (tmp_max != 0) ? 1. / tmp_max : 1.;
+				for (int j = 0; j < gr->GetN(); j++) gr->SetPointY(j, gr->GetPointY(j) * i_tmp_max);
 			}
 
 			TString name(Form("channel_%02d", active_channels[i]));
@@ -653,8 +659,8 @@ void ReadRun::ShiftAllToAverageCF() {
 
 	int* timing_mean_n = new int[nchannels];
 	for (int i = 0; i < nchannels; i++) {
-		double norm = max(1., static_cast<double>(Nevents_good(i)));
-		timing_mean_n[i] = static_cast<int>(round(timing_mean[i] / norm));
+		double i_norm = 1. / max(1., static_cast<double>(Nevents_good(i)));
+		timing_mean_n[i] = static_cast<int>(round(timing_mean[i] * i_norm));
 	}
 	delete[] timing_mean;
 
@@ -1111,7 +1117,7 @@ void ReadRun::PrintWFProjection(float from, float to, float rangestart, float ra
 			his->GetXaxis()->SetTitle("amplitude in mV");
 			TString name(Form("WFProjection channel_%02d_%d", active_channels[i], PrintWFProjection_cnt));
 			his->Draw();
-			his->Fit("gaus", "WWM", "same");
+			his->Fit("gaus", "M", "same");
 			root_out->WriteObject(his, name.Data());
 		}
 	}
@@ -1265,14 +1271,14 @@ void ReadRun::GetTimingCFD(float cf_r, float start_at_t, float end_at_t, double 
 
 				// using bisection method: halving search window until cf is less than epsilon bins from spline value
 				while (x_high - x_low > epsilon) {
-					double x_mid = (x_low + x_high) / 2;
+					double x_mid = (x_low + x_high) * 0.5;
 					double f_mid = wfspl->Eval(x_mid);
 					if (f_mid == cf) break;
 
 					if (f_mid > cf) x_high = x_mid;
 					else x_low = x_mid;
 				}
-				interpol_bin = (x_low + x_high) / 2;
+				interpol_bin = (x_low + x_high) * 0.5;
 				delete wfspl;
 			}
 		}
@@ -1907,6 +1913,7 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
 		if (PrintChargeSpectrum_cal[channel_index][0] != 0) gain = PrintChargeSpectrum_cal[channel_index][0];
 		if (PrintChargeSpectrum_cal[channel_index][1] != 1) pedestal = PrintChargeSpectrum_cal[channel_index][1];
 	}
+	float i_gain = 1. / gain;
 
 	// create temporary histo per thread
 	vector<TH1F*> h1_thread;
@@ -1923,7 +1930,7 @@ TH1F* ReadRun::ChargeSpectrum(int channel_index, float windowlow, float windowhi
         for (int j = 0; j < nevents; ++j) {
             if (!SkipEvent(j, channel_index)) {
                 float integral_value = GetPeakIntegral(rundata[GetWaveformIndex(j, channel_index)], windowlow, windowhi, start, end, channel_index);
-                hlocal->Fill((integral_value - pedestal) / gain);
+                hlocal->Fill((integral_value - pedestal) * i_gain);
             }
         }
     }
@@ -2638,8 +2645,8 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 		cout << "Maximum of the fit is at t=" << t_of_maximum << " ns and the ";
 
 		double max_val = expgconv->GetMaximum();
-		double fwhm_x1 = expgconv->GetX(max_val / 2, fitrangestart, fitrangeend);
-		double fwhm_x2 = expgconv->GetX(max_val / 2, fwhm_x1 + 1e-3, fitrangeend);
+		double fwhm_x1 = expgconv->GetX(max_val * 0.5, fitrangestart, fitrangeend);
+		double fwhm_x2 = expgconv->GetX(max_val * 0.5, fwhm_x1 + 1e-3, fitrangeend);
 		double fwhm = fwhm_x2 - fwhm_x1;
 		auto fwhm_line = new TLine(fwhm_x1, max_val/2, fwhm_x2, max_val/2);
 		fwhm_line->SetLineColor(2); fwhm_line->SetLineWidth(2);
@@ -2659,7 +2666,7 @@ void ReadRun::Print_GetTimingCFD_diff(vector<int> channels1, vector<int> channel
 		auto two_gauss = new TF1("two gaussians", "gaus(0)+gaus(3)", rangestart, rangeend);
 		two_gauss->SetTitle("Sum of two gauss");
 		float posmax = his->GetXaxis()->GetBinCenter(his->GetMaximumBin());
-		two_gauss->SetParameters(his->Integral("width"), posmax, 0.35, his->Integral("width") / 30, posmax, 2);
+		two_gauss->SetParameters(his->Integral("width"), posmax, 0.35, his->Integral("width") * 0.03, posmax, 2);
 		two_gauss->SetParName(0, "norm_{peak}");		two_gauss->SetParName(1, "#mu_{peak}");			two_gauss->SetParName(2, "#sigma_{peak}");			two_gauss->SetParLimits(2, 1e-9, 1e2);
 		two_gauss->SetParName(3, "norm_{background}");	two_gauss->SetParName(4, "#mu_{background}");	two_gauss->SetParName(5, "#sigma_{background}");	two_gauss->SetParLimits(5, 1e-9, 1e2);
 		TFitResultPtr fresults = his->Fit(two_gauss, fitoption.c_str(), "same", fitrangestart, fitrangeend);
@@ -2815,7 +2822,7 @@ bool ReadRun::PlotChannel(int i) {
 /// @param verbose Set true for printing errors
 /// @return x value at "ym"
 pair<float, bool> ReadRun::LinearInterpolation(float ym, float x1, float x2, float y1, float y2, bool verbose) {
-	if (y1 == y2) return {(x1 + x2) / 2., false};
+	if (y1 == y2) return {(x1 + x2) * 0.5, false};
 	else if ((y1 > ym && y2 > ym) || (y1 < ym && y2 < ym)) {
 		if (verbose){
 			cout << "\nError in LinearInterpolation: Value ym=" << ym << " out of range (" << y1 << "|" << y2 << ")." << endl;

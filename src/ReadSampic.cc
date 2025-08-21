@@ -286,8 +286,8 @@ void ReadSampic::EventBuilder(double coincidence_time_window, vector<float> thre
 	for (int i=0; i<nwf; i++) {
 		if (hitInfo[i].IsEventCandidate) {
 			unsigned int coincidence_counter = 1;
-			double coincidence_window_lo = hitInfo[i].FirstSampleTimeStamp - coincidence_time_window / 2.;
-			double coincidence_window_hi = hitInfo[i].FirstSampleTimeStamp + coincidence_time_window / 2.;
+			double coincidence_window_lo = hitInfo[i].FirstSampleTimeStamp - coincidence_time_window * .5;
+			double coincidence_window_hi = hitInfo[i].FirstSampleTimeStamp + coincidence_time_window * .5;
 
 			int k_lo = i;
 			while (--k_lo >= 0 && hitInfo[k_lo].FirstSampleTimeStamp > coincidence_window_lo) {
@@ -307,7 +307,7 @@ void ReadSampic::EventBuilder(double coincidence_time_window, vector<float> thre
 
 				for (int kk = k_lo; kk <= k_hi; kk++) {
 					if (shift_relative) { // BROKEN
-						int shift_bins = static_cast<int>(floor(event_time_stamps[event_counter] - hitInfo[kk].FirstSampleTimeStamp) / static_cast<double>(SP));
+						int shift_bins = static_cast<int>(floor(event_time_stamps[event_counter] - hitInfo[kk].FirstSampleTimeStamp) * static_cast<double>(SP_inv));
 						cout << event_time_stamps[event_counter] - hitInfo[kk].FirstSampleTimeStamp << " shift: " << shift_bins << endl;
 						// auto his = (TH1F*)rundata->At(kk);
 						// Helpers::ShiftTH1(his, shift_bins);

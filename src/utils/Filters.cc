@@ -33,12 +33,13 @@ void Filters::Convolute(double*& result, double* first, double* second, int size
 	TComplex cofirst;
 	TComplex cosecond;
 	TComplex cores;
+	double i_size = 1. / static_cast<double>(max(1, size));
 
 	for (int i = 0; i < size; i++) {
 		cofirst(refirst[i], imfirst[i]);
 		cosecond(resecond[i], imsecond[i]);
 
-		cores = cofirst * cosecond / static_cast<double>(size);
+		cores = cofirst * cosecond * i_size;
 
 		reres[i] = cores.Re();
 		imres[i] = cores.Im();
@@ -111,6 +112,7 @@ void Filters::Deconvolute(double*& result, double* first, double* second, int si
 	TComplex cosecond;
 	TComplex cogauss;
 	TComplex cores;
+	double i_size = 1. / static_cast<double>(max(1, size));
 
 	for (int i = 0; i < size; i++) {
 		cofirst(refirst[i], imfirst[i]);
@@ -118,7 +120,7 @@ void Filters::Deconvolute(double*& result, double* first, double* second, int si
 		if (sigma > 0.) cogauss(regauss[i], imgauss[i]);
 		else cogauss(1., 0.);
 
-		cores = cofirst * cogauss / cosecond / static_cast<double>(size);
+		cores = cofirst * cogauss / cosecond * i_size;
 
 		reres[i] = cores.Re();
 		imres[i] = cores.Im();
@@ -207,50 +209,67 @@ void Filters::SmoothArray(double*& ar, int nbins, double sigma, int method, doub
 /// @param sigma Number of bins before and after central bin.
 void Filters::BoxFilter(double*& ar, int nbins, int sigma) {
 	// calculate running average from -sigma until +sigma (sigma = number of bins)
-	for (int i = 0; i < nbins; i++) {
-		double mean = 0.;
-		int nmean = 0;
-		int start = max(0, i - sigma);
-		int end = min(i + sigma, nbins - 1);
+	if (sigma == 0) sigma = 1.;
 
-		for (int k = start; k <= end; k++) {
-			mean += ar[k];
-			nmean++;
-		}
-		if (nmean != 0) {
-			ar[i] = mean / static_cast<double>(nmean);
-		}
+	double* result = new double[nbins];
+	double w_sum = .0;
+	int w_nbins = 2 * sigma + 1;
+
+	// init
+	for (int i = 0; i <= min(nbins - 1, sigma); i++) w_sum += ar[i];
+	// start
+	for (int i = 0; i < sigma && i < nbins; i++) {
+		result[i] = w_sum / static_cast<double>(i + sigma + 1);
+		if (i + sigma + 1 < nbins) w_sum += ar[i + sigma + 1];
 	}
+	// center (full window)
+	for (int i = sigma; i < nbins - sigma; i++) {
+		if (i - sigma - 1 >= 0) w_sum -= ar[i - sigma - 1];
+		if (i + sigma < nbins) w_sum += ar[i + sigma];
+		result[i] = w_sum / static_cast<double>(w_nbins);
+	}
+	// end
+	for (int i = max(nbins - sigma, 0); i < nbins; i++) {
+		int nmean = nbins - (i - sigma);
+		result[i] = w_sum / static_cast<double>(nmean);
+		if (i - sigma >= 0) w_sum -= ar[i - sigma];
+	}
+	for (int i = 0; i < nbins; i++) ar[i] = result[i];
+	delete[] result;
 }
 
-/// @brief Gaussian smoothing with simple 3 sigma kernel
+/// @brief Gaussian smoothing with simple $\pm 3 \sigma$ kernel
 /// @param ar Array to be smoothed.
 /// @param nbins Number of bins of input.
 /// @param sigma Gauss sigma in ns.
 /// @param bin_size Bin size in ns.
 void Filters::GausFilter(double*& ar, int nbins, double sigma, double bin_size) {
-	// gauss kernel 3*sigma
+	// gauss kernel +/-3*sigma
+	if (sigma <= 0 || bin_size <= 0) return;
+	
 	double* artmp = new double[nbins];
 	for (int i = 0; i < nbins; i++) artmp[i] = ar[i];
 
 	// calculate running average from -sigma until +sigma (sigma = number of bins)
 	int nbins_6sigma = static_cast<int>(ceil(6. * sigma / bin_size));
 	if (nbins_6sigma % 2 == 0) nbins_6sigma++;
+	
 	if (nbins_6sigma > 1) {
-		double gauss_offset = floor(static_cast<double>(nbins_6sigma) / 2.) * bin_size;
+		int half_window = nbins_6sigma * 0.5;
+		double gauss_offset = static_cast<double>(half_window) * bin_size;
 		double* gauss = new double[nbins_6sigma];
 		for (int i = 0; i < nbins_6sigma; i++) {
-			gauss[i] = TMath::Gaus(static_cast<double>(i) * bin_size, gauss_offset, sigma);
+			gauss[i] = TMath::Gaus(static_cast<double>(i) * bin_size, gauss_offset, sigma, true);
 		}
 
 		double res = 0, norm = 0;
 		for (int i = 0; i < nbins; i++) {
 			res = 0., norm = 0.;
-			int start = max(0, nbins_6sigma / 2 - i);
-			int end = min(nbins - i + nbins_6sigma / 2, nbins_6sigma);
+			int start = max(0, half_window - i);
+			int end = min(nbins - i + half_window, nbins_6sigma);
 
 			for (int j = start; j < end; j++) {
-				res += gauss[j] * artmp[i + j - nbins_6sigma / 2];
+				res += gauss[j] * artmp[i + j - half_window];
 				norm += gauss[j];
 			}
 			if (norm != 0.) ar[i] = res / norm;
@@ -271,18 +290,19 @@ void Filters::GausFFTFilter(double*& ar, int nbins, double sigma, double bin_siz
 
 	double sum = 0.;
 	double five_sigma = 5 * sigma;
-	double denom1 = -2. * sigma * sigma;
-	double denom2 = sigma * 2.506628;
+	double i_denom1 = -1. / (2. * sigma * sigma);
+	double i_denom2 = 1. / sigma * 2.506628;
 
 	for (int i = 0; i < nbins; i++) {
 		double position = static_cast<double>(i) * bin_size;
-		if (position < five_sigma) gauss[i] = exp(pow((position - five_sigma), 2) / denom1) / denom2;
+		if (position < five_sigma) gauss[i] = exp(pow((position - five_sigma), 2) * i_denom1) * i_denom2;
 		else gauss[i] = 0.;
 		sum += gauss[i];
 	}
 
+	double i_sum = (sum == 0.) ? 1. : 1. / sum;
 	for (int i = 0; i < nbins; i++) {
-		gauss[i] /= sum;
+		gauss[i] *= i_sum;
 	}
 
 	Convolute(ar, gauss, nbins);
@@ -342,7 +362,7 @@ void Filters::Bilateral2Filter(double*& ar, int nbins, int sigma_x, double sigma
 	double* artmp = new double[nbins]; 
 	for (int i = 0; i < nbins; i++) artmp[i] = ar[i];
 
-	double denom = -2. * sigma_y * sigma_y;
+	double i_denom = -1. / (2. * sigma_y * sigma_y);
 	int x_shift = static_cast<int>(sigma_x / bin_size);
 
 	double weightedSum = 0.;
@@ -363,7 +383,7 @@ void Filters::Bilateral2Filter(double*& ar, int nbins, int sigma_x, double sigma
 
 		for (int j = start; j <= end; j++) {
 			double diff = artmp[i] - artmp[j];
-			double weight = exp(pow(diff, 2) / denom);
+			double weight = exp(pow(diff, 2) * i_denom);
 			if (j < nbins - 1) weight *= slope_weight[j];
 			weightedSum += weight * artmp[j];
 			sumOfWeights += weight;
@@ -383,7 +403,7 @@ void Filters::MedianFilter(double*& ar, int nbins, int window_size) {
 	double* artmp = new double[nbins];
 	for (int i = 0; i < nbins; i++) artmp[i] = ar[i];
 
-	int half_window = window_size / 2;
+	int half_window = window_size * 0.5;
 
 	for (int i = 0; i < nbins; i++) {
 		double* window = new double[window_size];
@@ -399,8 +419,8 @@ void Filters::MedianFilter(double*& ar, int nbins, int window_size) {
 		// calculate the median
 		sort(window, window + window_index);
 		double median = (window_index % 2 == 0) ? 
-			(window[window_index / 2 - 1] + window[window_index / 2]) / 2. :
-			window[window_index / 2];
+			(window[window_index * 0.5 - 1] + window[window_index * 0.5]) * 0.5 :
+			window[window_index * 0.5];
 
 		ar[i] = median;
 
@@ -432,15 +452,16 @@ void Filters::ResponseFilter(double*& ar, int nbins, double sigma1, double sigma
 	int nbins_3sigma = static_cast<int>(ceil(3. * sigma2 / bin_size));
 	double* sdog = new double[nbins_23sigma];
 
-	double denom1 = 2. * sigma1 * sigma1;
-	double denom2 = 2. * sigma2 * sigma2;
+	double i_denom1 = 1. / (2. * sigma1 * sigma1);
+	double i_denom2 = 1. / (2. * sigma2 * sigma2);
 	double norm = 0.;
 	for (int i = 0; i < nbins_23sigma; i++) {
-		sdog[i] = exp(-1. * pow(static_cast<double>(i) * bin_size - 3. * sigma2, 2.) / denom1) -
-			factor * exp(-1. * pow(static_cast<double>(i) * bin_size - 2. * sigma2, 2.) / denom2);
+		sdog[i] = exp(-1. * pow(static_cast<double>(i) * bin_size - 3. * sigma2, 2.) * i_denom1) -
+			factor * exp(-1. * pow(static_cast<double>(i) * bin_size - 2. * sigma2, 2.) * i_denom2);
 		if (sdog[i] > 0.) norm += sdog[i];
 	}
 	if (norm == 0.) norm = 1.;
+	double i_norm = 1. / norm;
 
 	for (int i = 0; i < nbins; i++) {
 		double res = 0.;
@@ -449,7 +470,7 @@ void Filters::ResponseFilter(double*& ar, int nbins, double sigma1, double sigma
 			else if (i + j < 0) res += sdog[j + nbins_3sigma] * artmp[0];
 			else res += sdog[j + nbins_3sigma] * artmp[nbins - 1];
 		}
-		ar[i] = res / norm;
+		ar[i] = res * i_norm;
 	}
 	delete[] artmp;
 	delete[] sdog;
@@ -501,13 +522,14 @@ void Filters::SecondOrderUnderdampedFilter(double*& ar, int nbins, double period
 		}
 	}
 	if (sum_norm == 0.) sum_norm = 1.;
+	double i_sum_norm = 1. / sum_norm;
 
 	for (int i = 0; i < nbins; i++) {
 		double res = 0.;
-		for (int j = max(0, nbins_response / 2 - i); j < min(nbins_response, nbins + nbins_response / 2 - i); j++) {
-			res += souf[nbins_response - j - 1] * artmp[i + j - nbins_response / 2];
+		for (int j = max(0, nbins_response * 0.5 - i); j < min(nbins_response, nbins + nbins_response * 0.5 - i); j++) {
+			res += souf[nbins_response - j - 1] * artmp[i + j - nbins_response * 0.5];
 		}
-		ar[i] = res / sum_norm;
+		ar[i] = res * i_sum_norm;
 	}
 
 	// plot the results
