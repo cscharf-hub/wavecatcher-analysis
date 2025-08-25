@@ -11,6 +11,7 @@
 /// Development and maintenance: \n
 /// Christian Scharf \n 
 /// Contributors: \n 
+/// Felix Bayer \n
 /// Alessia Brignoli \n
 /// Hannes Braune \n
 /// Constantin Eckardt \n
@@ -347,9 +348,11 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 	if (normalize) mgsums->SetTitle("channel sums; t [ns]; amplitude [arb.]");
 
 	double max_val = 0., min_val = 0.;
+	int color = 0;
 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
+			color++;
 			double* yv = new double[binNumber];
 			for (int k = 0; k < binNumber; k++) yv[k] = static_cast<double>(amplValuessum[active_channels[i]][k]);
 
@@ -371,8 +374,8 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 			TString title(Form("Channel %d", active_channels[i]));
 			gr->SetName(name.Data());
 			gr->SetTitle(title.Data());
-			gr->SetLineColor(Helpers::rcolor(i));
-			gr->SetMarkerColor(Helpers::rcolor(i));
+			gr->SetLineColor(Helpers::rcolor(color));
+			gr->SetMarkerColor(Helpers::rcolor(color));
 			mgsums->Add(gr);
 		}
 	}
@@ -383,6 +386,7 @@ void ReadRun::PlotChannelSums(bool smooth, bool normalize, double shift, double 
 	if (normalize) mgsums->GetYaxis()->SetRangeUser(-0.2, 1);
 	else mgsums->GetYaxis()->SetRangeUser(min_val, max_val);
 	sumc->BuildLegend(0.85, 0.70, .99, .95);
+	sumc->SetGrid();
 	root_out->WriteObject(mgsums, "channelsums");
 	root_out->WriteObject(sumc, "channelsums_c");
 }
@@ -406,10 +410,11 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 	if (normalize) mgav->SetTitle("channel averages; t[ns]; amplitude[arb.]");
 
 	float max_val = 0., min_val = 0.;
+	int color = 0;
 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
-
+			color++;
 			float* yv = new float[binNumber]();
 
 			for (int j = 0; j < nevents; j++) {
@@ -437,8 +442,8 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 			TString title(Form("Channel %d", active_channels[i]));
 			gr->SetName(name.Data());
 			gr->SetTitle(title.Data());
-			gr->SetLineColor(Helpers::rcolor(i));
-			gr->SetMarkerColor(Helpers::rcolor(i));
+			gr->SetLineColor(Helpers::rcolor(color));
+			gr->SetMarkerColor(Helpers::rcolor(color));
 			mgav->Add(gr);
 		}
 	}
@@ -450,6 +455,7 @@ void ReadRun::PlotChannelAverages(bool normalize) {
 	if (normalize) mgav->GetYaxis()->SetRangeUser(-0.2, 1);
 	else mgav->GetYaxis()->SetRangeUser(min_val, max_val);
 	avc->BuildLegend(0.85, 0.70, .99, .95);
+	avc->SetGrid();
 	root_out->WriteObject(mgav, ("channelaverages" + to_string(PlotChannelAverages_cnt)).c_str());
 	root_out->WriteObject(avc, ("channelaverages_c" + to_string(PlotChannelAverages_cnt)).c_str());
 }
@@ -1818,15 +1824,17 @@ void ReadRun::SaveChargeLists(float windowlow, float windowhi, float start, floa
 	auto charge_list_mg = new TMultiGraph();
 	if (windowlow + windowhi > 0.) charge_list_mg->SetTitle("event-wise integrals; Event number; integral [mV#timesns]");
 	else charge_list_mg->SetTitle("event-wise amplitudes; Event number; amplitude [mV]");
+	int color = 0;
 
 	for (int i = 0; i < nchannels; i++) {
 		if (PlotChannel(i)) {
+			color++;
 			TString name(Form("charge_list_ch_%02d", active_channels[i]));
 			float* charge_list = ChargeList(i, windowlow, windowhi, start, end, negative_vals);
 			TGraph* charge_list_graph = new TGraph(nevents, event_list, charge_list);
 			charge_list_graph->SetLineWidth(0);
 			charge_list_graph->SetMarkerStyle(2);
-			charge_list_graph->SetMarkerColor(Helpers::rcolor(i));
+			charge_list_graph->SetMarkerColor(Helpers::rcolor(color));
 			charge_list_graph->SetTitle(name.Data());
 
 			//remove skipped events
