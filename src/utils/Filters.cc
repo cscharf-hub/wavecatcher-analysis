@@ -419,8 +419,8 @@ void Filters::MedianFilter(double*& ar, int nbins, int window_size) {
 		// calculate the median
 		sort(window, window + window_index);
 		double median = (window_index % 2 == 0) ? 
-			(window[window_index * 0.5 - 1] + window[window_index * 0.5]) * 0.5 :
-			window[window_index * 0.5];
+			(window[window_index / 2 - 1] + window[window_index / 2]) * 0.5 :
+			window[window_index / 2];
 
 		ar[i] = median;
 
@@ -526,8 +526,8 @@ void Filters::SecondOrderUnderdampedFilter(double*& ar, int nbins, double period
 
 	for (int i = 0; i < nbins; i++) {
 		double res = 0.;
-		for (int j = max(0, nbins_response * 0.5 - i); j < min(nbins_response, nbins + nbins_response * 0.5 - i); j++) {
-			res += souf[nbins_response - j - 1] * artmp[i + j - nbins_response * 0.5];
+		for (int j = max(0, nbins_response / 2 - i); j < min(nbins_response, nbins + nbins_response / 2 - i); j++) {
+			res += souf[nbins_response - j - 1] * artmp[i + j - nbins_response / 2];
 		}
 		ar[i] = res * i_sum_norm;
 	}
