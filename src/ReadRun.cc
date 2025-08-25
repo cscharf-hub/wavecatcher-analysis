@@ -1501,7 +1501,7 @@ bool ReadRun::SkipEvent(int event_index, int channel_index) {
 }
 
 /// @brief Number of good events that are not skipped
-/// @param channel Not used here, used in class ReadSampic::ReadSampic
+/// @param channel_index Not used here, used in class ReadSampic::ReadSampic
 int ReadRun::Nevents_good(int channel_index) {
 	int nevents_good = 0;
 	for (int i = 0; i < nevents; i++) if (!SkipEvent(i, channel_index)) nevents_good++;

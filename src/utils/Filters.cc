@@ -238,7 +238,7 @@ void Filters::BoxFilter(double*& ar, int nbins, int sigma) {
 	delete[] result;
 }
 
-/// @brief Gaussian smoothing with simple $\pm 3 \sigma$ kernel
+/// @brief Gaussian smoothing with simple \f$\pm 3 \sigma\f$ kernel
 /// @param ar Array to be smoothed.
 /// @param nbins Number of bins of input.
 /// @param sigma Gauss sigma in ns.
