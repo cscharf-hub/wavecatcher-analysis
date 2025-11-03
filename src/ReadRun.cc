@@ -171,6 +171,10 @@ void ReadRun::ReadFile(string path, bool change_polarity, int change_sign_from_t
 		if (file_counter == 0 && binNumber != 1024) {
 			cout << "\nWARNING: Measurement has " << binNumber << " samples, which is non-standard. Please report any bugs!" << endl;
 			cout << "If this was not intentional check the WaveCatcher settings!" << endl;
+			if (binNumber <= 0) {
+				cout << "Aborting execution." << endl;
+				exit(1);
+			}
 		}
 		size_t waveform_bytes = static_cast<size_t>(binNumber) * sizeof(short);
 		vector<short> waveform(binNumber);
@@ -2886,4 +2890,5 @@ int ReadRun::TimeToIndex(float time) {
 /// @return Time in ns between [0, binNumber) * SP
 float ReadRun::IndexToTime(int bin_index) {
 	return static_cast<float>(CheckBoundsX(bin_index)) * SP;
+
 }
