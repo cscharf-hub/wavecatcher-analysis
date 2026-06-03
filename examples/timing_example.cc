@@ -70,14 +70,10 @@ void timing_example()
 	double ymin = -10;
 	double ymax = 120;
 	int how_many = 50; // Needs to be < mymeas.nevents
-	// activate batch mode: only write plots to root file, do not display plots immediately (would be a lot of plots)
-	gROOT->SetBatch(kTRUE); 
 	for (int i = 1; i < mymeas.nevents; i += static_cast<unsigned int>(mymeas.nevents / how_many)) {
 		// plot only events that are not skipped
 		if (!mymeas.skip_event[i - 1]) {
 			mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, i, ymin, ymax);
 		}
 	}
-	// deactivate batch mode
-	gROOT->SetBatch(kFALSE);
 }

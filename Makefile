@@ -1,5 +1,8 @@
-CXX             =g++
+CXX             =ccache g++
 LD              =g++
+
+NUM_PROCS       := $(shell nproc)
+MAKEFLAGS       += -j$(NUM_PROCS)
 
 INCROOT         =$(shell root-config --incdir)
 
@@ -35,13 +38,15 @@ SLL             =ReadRunLib.sl
 
 .PHONY: docs upload clean-docs all clean-intermediate clean test_rr
 
-all:		${OBJS} ${DICTO}
+all:	${OBJS}
 		${LD} -shared ${CXXFLAGS} -o ${SLL} ${OBJS} ${LIBSLIN}	
-		$(MAKE) clean-intermediate
+#		$(MAKE) clean-intermediate
 		@echo "Success!"
 
-${DICT}:    ${HDRS}
+${DICT}: ${HDRS}
 		rootcint -rml=ReadRun -f ${DICT} -c ${HDRS} -I. misc/LinkDef.h
+
+$(DICTO): $(DICT)
 
 test_rr:
 		root examples/read_exampledata.cc -b -q > tst_read_exampledata.txt 
@@ -65,8 +70,8 @@ clean-intermediate:
 		@rm ${OBJS} ${DICTB}.cc
 
 clean:
-		@echo "Cleaning up files: ${SLL}"
-		@rm ${SLL}
+		@echo "Cleaning up files: ${SLL} ${OBJS} ${DICTB}"
+		@rm ${SLL} ${OBJS} ${DICTB}.cc
 
 %.o:        %.cc
-		${LD} ${CPPFLAGS} ${CXXFLAGS} -c $< -o $@          
+		${CXX} ${CPPFLAGS} ${CXXFLAGS} -c $< -o $@

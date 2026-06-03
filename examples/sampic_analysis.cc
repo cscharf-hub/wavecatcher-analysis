@@ -40,8 +40,6 @@ void sampic_analysis() {
 	// cut out event with too low peak integral values
 	// mymeas.IntegralFilter({ 250 }, { false }, intwindowminus, intwindowplus, findmaxfrom, findmaxto, false, false);
 	
-	// plot more stuff in batch mode to root file
-	gROOT->SetBatch(kTRUE);
 	for (int i = 1; i < mymeas.nevents; i += static_cast<int>(mymeas.nevents / 50)) {
 		mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, i, -10, 150);
 	}
@@ -67,5 +65,4 @@ void sampic_analysis() {
 	mymeas.PrintChargeSpectrum(intwindowminus, intwindowplus, findmaxfrom, findmaxto, -100, 25000, 200, 0, 0, 99, 0, false);
 	mymeas.PrintChargeSpectrum(intwindowminus, intwindowplus, findmaxfrom, findmaxto, -100, 25000, 200, 0, 0, 99, 0, true);
 	mymeas.PlotWFHeatmaps(-10, 400, 200, "log", 0, kRainBow);
-	gROOT->SetBatch(kFALSE);
 }
