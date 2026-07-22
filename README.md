@@ -18,7 +18,7 @@ CERN ROOT Release 6.24/02 or later[^1].
 **Before compiling, install required packages:**
 ```
 sudo apt update && sudo apt upgrade
-sudo apt install build-essential libomp-dev make
+sudo apt install build-essential libomp-dev make ccache
 ```
 
 It is strongly recommended to install [ROOT](https://root.cern/install/#conda) with [conda](https://docs.conda.io/en/latest/miniconda.html), as this will automatically install all dependencies and set the correct paths.
@@ -166,6 +166,8 @@ gSystem->Load("ReadRunLib.sl");
 to your macros or to rootlogon.C (the rootlogon.C file needs to be in the directory from where you start root).
 
 Note that you can add ```-b``` for batch mode or ```-q``` to quit root after running your macro.
+
+Due to updated memory management from ROOT 6.40, ```gROOT->SetBatch()``` does no longer work inside macros!!!
 
 The results of the analysis are stored in ```.root``` files. To see the content of the ```.root``` files, start a ```TBrowser```.
 You can do so by typing ```rootbrowse```.[^5] Alternatively, you can double-click on the file if you have root installed locally. 

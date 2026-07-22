@@ -69,11 +69,9 @@ void read_exampledata(int which = 0)
 	mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, example_event, ymin, ymax);
 
 	// save more events to root file
-	gROOT->SetBatch(kTRUE);
 	for (int i = 1; i < mymeas.nevents; i += static_cast<int>(mymeas.nevents / 10)) {
 		mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, i, ymin, ymax);
 	}
-	gROOT->SetBatch(kFALSE);
 
 	// now select only the signal channel 9
 	mymeas.plot_active_channels = { 9 };

@@ -72,10 +72,8 @@ def read_exampledata(which, autoclose):
     mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, example_event, ymin, ymax)
 
     # Save more events to root file
-    ROOT.gROOT.SetBatch(True)
     for i in range(1, mymeas.nevents, int(mymeas.nevents / 10)):
            mymeas.PrintChargeSpectrumWF(intwindowminus, intwindowplus, findmaxfrom, findmaxto, i, ymin, ymax)
-    ROOT.gROOT.SetBatch(False)
 
     # Now select only the signal channel 9
     # The only safe way to write to existing c++ vectors seems to be vector::push_back()
