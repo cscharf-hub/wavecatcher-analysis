@@ -1,0 +1,10 @@
+* linguist-vendored
+*.py linguist-language=Python
+*.cc linguist-language=C++
+*.cpp linguist-language=C++
+*.c linguist-language=C
+*.h linguist-language=C
+*.hpp linguist-language=C++
+*.C linguist-language=C++
+*.sh linguist-language=Shell
+*.md linguist-language=Markdown
